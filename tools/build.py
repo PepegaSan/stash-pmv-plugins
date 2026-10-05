@@ -26,7 +26,9 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.path.join(ROOT, "plugins")
 UI = os.path.join(PLUGINS, "pepega-stashui")
+UI_ORIG = os.path.join(PLUGINS, "stashui")
 GEN = os.path.join(PLUGINS, "pepega-pmvGenerator")
+GEN_ORIG = os.path.join(PLUGINS, "pmvGenerator")
 STORM = os.path.join(PLUGINS, "mediaStorm")
 
 SHARED = [
@@ -62,12 +64,20 @@ def write(p, s):
 
 
 def sync():
+    """Shared UI files: Pepega test UI is the source; originals stay in sync without fork-only files."""
     for rel in SHARED:
-        write(os.path.join(GEN, rel), read(os.path.join(UI, rel)))
+        blob = read(os.path.join(UI, rel))
+        write(os.path.join(GEN, rel), blob)
+        if os.path.isfile(os.path.join(UI_ORIG, rel)):
+            write(os.path.join(UI_ORIG, rel), blob)
+        if os.path.isfile(os.path.join(GEN_ORIG, rel)):
+            write(os.path.join(GEN_ORIG, rel), blob)
     write(os.path.join(STORM, "web", "beats.js"), read(os.path.join(GEN, "app", "js", "beats.js")))
     # RedGifs backend: Media Storm's is the source, the PMV Generator uses the same one
     rg = read(os.path.join(STORM, "rgbackend.py")).replace('"""Media Storm – backend for RedGifs', '"""RedGifs backend (copied from Media Storm by tools/build.py)', 1)
     write(os.path.join(GEN, "rgbackend.py"), rg)
+    if os.path.isfile(os.path.join(GEN_ORIG, "rgbackend.py")):
+        write(os.path.join(GEN_ORIG, "rgbackend.py"), rg)
 
 
 def version_of(plugin_dir):
@@ -186,6 +196,10 @@ def main():
     sync()
     stamp(os.path.join(UI, "app"), version_of(UI))
     stamp(os.path.join(GEN, "app"), version_of(GEN))
+    if os.path.isfile(os.path.join(UI_ORIG, "stashui.yml")):
+        stamp(os.path.join(UI_ORIG, "app"), version_of(UI_ORIG))
+    if os.path.isfile(os.path.join(GEN_ORIG, "pmvGenerator.yml")):
+        stamp(os.path.join(GEN_ORIG, "app"), version_of(GEN_ORIG))
     if a.sync_only:
         print("synced and stamped")
         return

@@ -1,0 +1,5 @@
+/* PMV Generator as a standalone page: a slim bar instead of the Stash UI navigation */
+.kb-solo .kb-main { max-width: 1500px; margin: 0 auto; }
+.kb-solo-bar { display: flex; align-items: center; gap: 12px; padding: 14px var(--pad) 0; }
+.kb-solo-back { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border: 1px solid var(--bg-3); border-radius: 6px; color: var(--text-2); font: 500 14px/1 var(--f-label); }
+.kb-solo-back:hover { color: var(--ink); border-color: var(--pink); background: var(--pink); }
