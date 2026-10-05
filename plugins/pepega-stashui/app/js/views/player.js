@@ -18,7 +18,7 @@ import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
 import { videoGlow } from "../theme.js";
 import { BINS, watchRecorder, watchBins, motionBins, combine, peaks } from "../heat.js";
-import { mountScenePage } from "../plugin-host.js";
+import { mountScenePage, bootPluginHost, isScenePluginEnabled } from "../plugin-host.js";
 
 // Read Stash's sprite VTT: time ranges → region in the sprite image
 async function loadSprites(vttUrl, spriteUrl) {
@@ -835,6 +835,19 @@ export async function render(host, params, query = {}) {
   }
   // the best moments arrive a moment later (standings from Stash) – then the marks again
   if ((x.scene_markers || []).length && !bestMarkersNow()) bestMarkers().then(() => host.isConnected && paintMarkers()).catch(() => {});
+  let quickMarkersActive = false;
+  bootPluginHost()
+    .then(() => {
+      quickMarkersActive = isScenePluginEnabled("quickMarkers");
+      if (host.isConnected) paintMarkers();
+    })
+    .catch(() => {});
+  function markerAddFooter() {
+    if (quickMarkersActive) {
+      return `<p class="kb-hint kb-mkqm">${t("Quick Markers is on — Shift+I/O for range, Shift+M instant. Key B is disabled here.")}</p>`;
+    }
+    return `<button type="button" class="kb-btn is-ghost kb-mkadd" data-mkadd>${icon("plus")}${t("Add a marker here (B)")}</button>`;
+  }
   function paintMarkers() {
     const box = $("[data-markers]");
     if (!box) return;
@@ -846,11 +859,15 @@ export async function render(host, params, query = {}) {
         .map(
           (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${fmtDuration(m.seconds)}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Rename")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
         )
-        .join("") + `<button type="button" class="kb-btn is-ghost kb-mkadd" data-mkadd>${icon("plus")}${t("Add a marker here (B)")}</button>`
+        .join("") + markerAddFooter()
     );
     paintMarks();
   }
   async function addMarker() {
+    if (quickMarkersActive) {
+      toast(t("Use Quick Markers: Shift+M instant, Shift+I then Shift+O for a range."), "info");
+      return;
+    }
     const at = Math.round(v.currentTime * 10) / 10;
     try {
       const tag = await markerTag();
@@ -897,6 +914,16 @@ export async function render(host, params, query = {}) {
     }
   });
 
+  function onMarkerCreated(ev) {
+    const d = ev.detail || {};
+    if (d.sceneId != null && String(d.sceneId) !== String(x.id)) return;
+    const m = d.marker;
+    if (!m || !m.id) return;
+    if ((x.scene_markers || []).some((q) => q.id === m.id)) return;
+    x.scene_markers = [...(x.scene_markers || []), m];
+    paintMarkers();
+  }
+  window.addEventListener("kb:scene-marker-created", onMarkerCreated);
   paintMarkers();
   v.addEventListener("loadedmetadata", paintMarks);
   $("[data-mks]").addEventListener("click", (e) => {
@@ -1501,7 +1528,10 @@ export async function render(host, params, query = {}) {
     else if (k === "m") (v.muted = !v.muted), syncVol();
     else if (k === "f") fullscreen();
     else if (k === "x") toMini();
-    else if (k === "b") addMarker();
+    else if (k === "b") {
+      if (!quickMarkersActive) addMarker();
+      else handled = false;
+    }
     else if (k === "e") host.querySelector("[data-edit]") && host.querySelector("[data-edit]").click(); // edit
     else if (k === "r") host.querySelector("[data-advrate]") && host.querySelector("[data-advrate]").click(); // the detailed rating
     else if (k === "n") next(1);
@@ -1538,6 +1568,7 @@ export async function render(host, params, query = {}) {
       saveCover(x.id);
     }
     document.removeEventListener("keydown", onKey);
+    window.removeEventListener("kb:scene-marker-created", onMarkerCreated);
     unmountScenePlugins();
     scenePluginsGone = true;
     sceneHost.remove();

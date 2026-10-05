@@ -11,6 +11,7 @@ const SKIP_IDS = new Set(["pepega-stashui"]);
 let booted = null;
 let reactReady = null;
 const reactRoots = new WeakMap();
+const enabledScenePluginIds = new Set();
 let configsLoaded = false;
 let pluginConfigs = {};
 const configListeners = new Set();
@@ -174,7 +175,11 @@ function useSceneMarkerCreateMutation() {
   const React = window.React;
   const createMarker = React.useCallback(async ({ variables } = {}) => {
     const data = await gql(
-      `mutation($input: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $input) { id } }`,
+      `mutation($input: SceneMarkerCreateInput!) {
+        sceneMarkerCreate(input: $input) {
+          id title seconds end_seconds primary_tag { id name }
+        }
+      }`,
       variables || {}
     );
     return { data };
@@ -431,6 +436,8 @@ async function loadPluginScripts() {
     return;
   }
   const enabled = sortPlugins(plugins.filter((p) => p.enabled && !SKIP_IDS.has(p.id)));
+  enabledScenePluginIds.clear();
+  enabled.forEach((p) => enabledScenePluginIds.add(p.id));
   for (const plugin of enabled) {
     const scripts = [];
     for (const src of (plugin.paths && plugin.paths.javascript) || []) {
@@ -482,6 +489,11 @@ export function bootPluginHost() {
     });
   }
   return booted;
+}
+
+/** Enabled third-party plugins that load through the PluginApi host (excludes pepega-stashui). */
+export function isScenePluginEnabled(pluginId) {
+  return enabledScenePluginIds.has(pluginId);
 }
 
 export function unmountPluginHost(el) {
