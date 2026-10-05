@@ -208,8 +208,8 @@ select.form-control option, .custom-select option { background: var(--st-ink-2);
 
 /* Checkboxes and switches: active = blush hatching */
 .custom-control-label::before {
-  background-color: var(--st-ink-2) !important;
-  border: 1px solid var(--st-ink-3) !important;
+  background-color: #3a2034 !important;
+  border: 1px solid #f4d5e4 !important;
   box-shadow: none !important;
 }
 .custom-checkbox .custom-control-label::before { border-radius: 3px; }
@@ -599,10 +599,34 @@ html.kb-classic .kb-back-dot { width: 14px; height: 9px; background: var(--st-ha
   max-height: none !important;
   overflow: visible !important;
 }
-.package-manager .form-check-input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
+.package-manager .form-check-input,
+input.form-check-input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+  border: 1.5px solid #f4d5e4 !important;
+  border-radius: 3px !important;
+  background: #2a1224 !important;
+  display: inline-grid !important;
+  place-content: center !important;
+  cursor: pointer;
+  vertical-align: middle;
   accent-color: var(--st-flush);
   color-scheme: dark;
+}
+input.form-check-input[type="checkbox"]:checked,
+.package-manager .form-check-input:checked {
+  background: var(--st-flush) !important;
+  border-color: var(--st-flush) !important;
+}
+input.form-check-input[type="checkbox"]:checked::after,
+.package-manager .form-check-input:checked::after {
+  content: "";
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid #1a0a17;
+  border-bottom: 2px solid #1a0a17;
+  transform: rotate(-45deg) translateY(-1px);
 }

@@ -301,8 +301,8 @@ select.kb-field option { background: var(--base); }
 .kb-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--pink); }
 
 /* Switch: on = hatching on deep pink, as in Media Storm */
-.kb-switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
-.kb-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.kb-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.kb-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
 .kb-switch i {
   position: relative;
   flex: none;
@@ -1617,7 +1617,12 @@ html.kb-glass .kb-sfnote { border: 1px solid var(--glass-edge); border-left: 3px
 .kb-set-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* PluginApi host: settings forms and the scene overlay (Quick Markers and other PluginSettings / ScenePage patches) */
-.kb-plugin-settings { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
+.kb-plugin-set { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line); }
+.kb-plugin-set > summary { cursor: pointer; color: var(--text); font: 700 15px/1.2 var(--f-label); list-style: none; }
+.kb-plugin-set > summary::-webkit-details-marker { display: none; }
+.kb-plugin-set > summary::before { content: "▸ "; color: var(--pink); }
+.kb-plugin-set[open] > summary::before { content: "▾ "; }
+.kb-plugin-settings { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; min-height: 28px; color: var(--text); }
 .kb-plugin-settings .form-group,
 .kb-plugin-settings .mb-2 { margin: 0 0 8px; }
 .kb-plugin-settings .text-muted,
@@ -1652,6 +1657,6 @@ html.kb-glass .kb-sfnote { border: 1px solid var(--glass-edge); border-left: 3px
 }
 .kb-plugin-settings .btn-primary,
 .kb-plugin-scene-host .btn-primary { background: var(--pink); border-color: var(--pink); color: var(--ink); }
-.kb-plugin-scene-host { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+.kb-plugin-scene-host { position: absolute; inset: 0; z-index: 80; overflow: visible; pointer-events: none; }
 .kb-plugin-scene-host * { pointer-events: auto; }
 

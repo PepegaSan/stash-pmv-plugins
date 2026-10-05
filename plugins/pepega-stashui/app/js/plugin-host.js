@@ -10,6 +10,7 @@ const SKIP_IDS = new Set(["pepega-stashui"]);
 
 let booted = null;
 let reactReady = null;
+const reactRoots = new WeakMap();
 let configsLoaded = false;
 let pluginConfigs = {};
 const configListeners = new Set();
@@ -296,7 +297,8 @@ function DefaultPluginSettings({ pluginID, settings }) {
         );
       }
       const text = values[s.name] == null ? "" : String(values[s.name]);
-      const long = s.type !== "NUMBER" && (text.length > 80 || /json/i.test(s.name));
+      const blob = `${s.name || ""} ${s.display_name || ""} ${s.description || ""}`;
+      const long = s.type !== "NUMBER" && (text.length > 80 || /json/i.test(blob) || text.indexOf("\n") >= 0);
       return React.createElement(
         "label",
         { className: "kb-set", key: s.name },
@@ -332,7 +334,11 @@ function makeBoundary(React, fallback) {
     console.error("[Stash UI] plugin UI failed", err);
   };
   Boundary.prototype.render = function () {
-    if (this.state.error) return fallback ? fallback(this.props) : null;
+    if (this.state.error) {
+      if (fallback) return fallback(this.props);
+      const React = window.React;
+      return React.createElement("p", { className: "kb-hint" }, "Plugin UI failed to load.");
+    }
     return this.props.children;
   };
   return Boundary;
@@ -357,6 +363,7 @@ function installApi(React) {
       Bootstrap: { Button, Nav: { Link: NavLink } },
       ReactRouterDOM: { Link, useLocation, useHistory() { return { push(url) { window.location.assign(url); } }; }, useNavigate() { return (url) => window.location.assign(url); } },
       Mousetrap,
+      FontAwesomeSolid: {},
     },
     hooks,
     utils: {
@@ -364,6 +371,14 @@ function installApi(React) {
       StashService: {},
     },
     register: { route() {}, component() {} },
+    components: {
+      Icon() {
+        return null;
+      },
+      LoadingIndicator() {
+        return null;
+      },
+    },
     patch: {
       before(name, fn) {
         (beforeFns[name] || (beforeFns[name] = [])).push(fn);
@@ -473,17 +488,28 @@ export function unmountPluginHost(el) {
   if (el && typeof el._kbUnmount === "function") el._kbUnmount();
 }
 
+function mountRoot(el, ReactDOM) {
+  let root = reactRoots.get(el);
+  if (!root) {
+    root = ReactDOM.createRoot(el);
+    reactRoots.set(el, root);
+  }
+  return root;
+}
+
 export async function renderPluginSettings(el, props) {
   await bootPluginHost();
   unmountPluginHost(el);
+  el.textContent = "";
   const { React, ReactDOM } = await ensureReact();
-  const Boundary = makeBoundary(React, () => React.createElement(DefaultPluginSettings, props));
-  const root = ReactDOM.createRoot(el);
+  const Boundary = makeBoundary(React, (p) => React.createElement(DefaultPluginSettings, p));
+  const root = mountRoot(el, ReactDOM);
   const Comp = patchedComponent("PluginSettings", DefaultPluginSettings);
-  const tree = React.createElement(Boundary, null, React.createElement(Comp, props));
+  const tree = React.createElement(Boundary, props, React.createElement(Comp, props));
   ReactDOM.flushSync(() => root.render(tree));
   const unmount = () => {
     root.unmount();
+    reactRoots.delete(el);
     if (el._kbUnmount === unmount) el._kbUnmount = null;
   };
   el._kbUnmount = unmount;
@@ -492,10 +518,18 @@ export async function renderPluginSettings(el, props) {
 
 export async function mountScenePage(el, scene) {
   await bootPluginHost();
+  unmountPluginHost(el);
+  el.textContent = "";
   const { React, ReactDOM } = await ensureReact();
   const Boundary = makeBoundary(React, null);
-  const root = ReactDOM.createRoot(el);
+  const root = mountRoot(el, ReactDOM);
   const Comp = patchedComponent("ScenePage", function ScenePage() { return null; });
-  root.render(React.createElement(Boundary, null, React.createElement(Comp, { scene })));
-  return () => root.unmount();
+  const tree = React.createElement(Boundary, null, React.createElement(Comp, { scene }));
+  ReactDOM.flushSync(() => root.render(tree));
+  const unmount = () => {
+    root.unmount();
+    reactRoots.delete(el);
+  };
+  el._kbUnmount = unmount;
+  return unmount;
 }

@@ -9,7 +9,7 @@ import { LATEST } from "./changelog.js";
 import { visibleRail } from "./railcfg.js";
 import { bootPluginHost } from "./plugin-host.js";
 
-bootPluginHost();
+const pluginHostReady = bootPluginHost();
 
 applyTheme(); // chosen colors before anything is drawn
 initAmbient();
@@ -146,6 +146,11 @@ const hashNow = () => (location.hash && location.hash !== "#" ? location.hash : 
 
 let routeSeq = 0;
 async function route() {
+  try {
+    await pluginHostReady;
+  } catch (err) {
+    console.error("[Stash UI] plugin host failed", err);
+  }
   const r = parseHash();
   const seq = ++routeSeq;
   const main = document.getElementById("main");

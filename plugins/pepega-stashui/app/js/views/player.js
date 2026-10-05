@@ -187,7 +187,8 @@ export async function render(host, params, query = {}) {
   const $ = (s) => host.querySelector(s);
   const sceneHost = document.createElement("div");
   sceneHost.className = "kb-plugin-scene-host";
-  document.body.appendChild(sceneHost);
+  // Inside the stage so the overlay stays visible in fullscreen and above the video.
+  stage.appendChild(sceneHost);
   let scenePluginsGone = false;
   let unmountScenePlugins = () => {
     scenePluginsGone = true;

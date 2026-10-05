@@ -9,7 +9,7 @@ import { t } from "../i18n.js";
 import { gql, setPluginConfig } from "../api.js";
 import { pokeJobs, onJobs } from "../jobs.js";
 import { setQuery } from "../main.js";
-import { renderPluginSettings, unmountPluginHost } from "../plugin-host.js";
+import { bootPluginHost, renderPluginSettings, unmountPluginHost } from "../plugin-host.js";
 
 const TABS = ["installed", "browse", "sources"];
 const PKG = "package_id name version date sourceURL metadata requires { package_id name }";
@@ -115,6 +115,38 @@ export async function render(main, params, query) {
       bar +
       `<div class="kb-plugins" data-list>${cards}${loose.map(looseCard).join("")}</div>` +
       (!state.plugins.length && !loose.length ? `<div class="kb-empty"><b>${t("No plugins yet")}</b><p>${t("Find some under “Browse”.")}</p></div>` : "");
+    mountAllSettings();
+  }
+
+  async function mountAllSettings() {
+    try {
+      await bootPluginHost();
+    } catch (err) {
+      console.error("[Stash UI] plugin host", err);
+      pane.querySelectorAll("[data-ps-mount]").forEach((mount) => {
+        mount.textContent = err.message || String(err);
+      });
+      return;
+    }
+    const mounts = [...pane.querySelectorAll("[data-ps-mount]")];
+    await Promise.all(
+      mounts.map(async (mount) => {
+        if (mount.dataset.psLoading === "1" && mount._kbUnmount) return;
+        mount.dataset.psLoading = "1";
+        const card = mount.closest("[data-id]");
+        if (!card) return;
+        const id = card.dataset.id;
+        const plugin = state.plugins.find((p) => p.id === id);
+        try {
+          await renderPluginSettings(mount, { pluginID: id, settings: (plugin && plugin.settings) || [] });
+        } catch (err) {
+          console.error("[Stash UI] plugin settings", err);
+          mount.textContent = err.message || String(err);
+        } finally {
+          delete mount.dataset.psLoading;
+        }
+      })
+    );
   }
 
   function pluginCard(p) {
@@ -128,7 +160,7 @@ export async function render(main, params, query) {
       </header>
       ${up ? `<div class="kb-pupdate">${icon("download")}<span>${t("Update available: {v}", { v: up.source_package.version })}</span><button class="kb-btn is-primary" data-update="${esc(pk.package_id)}"${busy ? " disabled" : ""}>${t("Update")}</button></div>` : ""}
       ${p.description ? `<p>${esc(p.description)}</p>` : ""}
-      ${p.settings && p.settings.length ? `<details data-ps-details><summary>${t("Settings")}</summary><div class="kb-plugin-settings" data-ps-mount></div></details>` : ""}
+      ${p.settings && p.settings.length ? `<details class="kb-plugin-set" data-ps-details open><summary>${t("Settings")}</summary><div class="kb-plugin-settings" data-ps-mount>${t("Loading …")}</div></details>` : ""}
       ${p.tasks && p.tasks.length && p.enabled ? `<details><summary>${t("Tasks")}</summary><div class="kb-ptasks">${p.tasks
         .map((x) => `<div class="kb-ptask"><div><b>${esc(x.name)}</b>${x.description ? `<small>${esc(x.description)}</small>` : ""}</div><button class="kb-btn" data-run="${esc(x.name)}">${icon("play")}${t("Run")}</button></div>`)
         .join("")}</div></details>` : ""}
@@ -431,14 +463,8 @@ export async function render(main, params, query) {
     const details = e.target.closest && e.target.closest("[data-ps-details]");
     if (!details || !details.open) return;
     const mount = details.querySelector("[data-ps-mount]");
-    if (!mount || mount._kbUnmount || mount.dataset.psLoading) return;
-    mount.dataset.psLoading = "1";
-    const id = details.closest("[data-id]").dataset.id;
-    const plugin = state.plugins.find((p) => p.id === id);
-    renderPluginSettings(mount, { pluginID: id, settings: (plugin && plugin.settings) || [] }).catch((err) => {
-      console.error("[Stash UI] plugin settings", err);
-      mount.textContent = err.message || String(err);
-    });
+    if (!mount || mount._kbUnmount || mount.childElementCount > 0) return;
+    mountAllSettings();
   });
 
   main.addEventListener("submit", async (e) => {
