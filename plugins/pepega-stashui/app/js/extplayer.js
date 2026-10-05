@@ -57,7 +57,7 @@ let cfg = null; // { enabled: [ids] | null (= the first two of this system) }
 export async function loadExtPlayers(force) {
   if (cfg && !force) return cfg;
   try {
-    cfg = JSON.parse((await pluginConfig("stashui")).extPlayers || "{}") || {};
+    cfg = JSON.parse((await pluginConfig("pepega-stashui")).extPlayers || "{}") || {};
   } catch (e) {
     cfg = {};
   }
@@ -65,7 +65,7 @@ export async function loadExtPlayers(force) {
 }
 export const saveExtPlayers = async (patch) => {
   cfg = Object.assign(await loadExtPlayers(), patch);
-  await setPluginConfig("stashui", { extPlayers: JSON.stringify(cfg) });
+  await setPluginConfig("pepega-stashui", { extPlayers: JSON.stringify(cfg) });
 };
 // The ones shown: the chosen, else the first two this system has (e.g. mpv and VLC)
 export async function offeredPlayers() {

@@ -10,7 +10,7 @@ export async function loadStandings(force) {
   if (!force && cache && Date.now() - cache.at < 60000) return cache.data;
   let data = {};
   try {
-    data = JSON.parse((await pluginConfig("stashui")).versus || "{}") || {};
+    data = JSON.parse((await pluginConfig("pepega-stashui")).versus || "{}") || {};
   } catch (e) {
     data = cache ? cache.data : {};
   }

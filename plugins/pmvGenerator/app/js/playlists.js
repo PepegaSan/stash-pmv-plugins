@@ -75,7 +75,7 @@ export function findOf(pl, extra) {
 }
 
 export async function loadPlaylists() {
-  const cfg = await pluginConfig("stashui");
+  const cfg = await pluginConfig("pepega-stashui");
   try {
     const list = JSON.parse(cfg.playlists || "[]");
     return Array.isArray(list) ? list.filter((p) => p && p.id && p.query) : [];
@@ -84,7 +84,7 @@ export async function loadPlaylists() {
   }
 }
 export async function savePlaylists(list) {
-  await setPluginConfig("stashui", { playlists: JSON.stringify(list) });
+  await setPluginConfig("pepega-stashui", { playlists: JSON.stringify(list) });
 }
 
 // Names of the tags and performers in a filter (kept with the playlist, for its description)

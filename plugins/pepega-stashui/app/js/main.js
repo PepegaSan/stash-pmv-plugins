@@ -317,7 +317,7 @@ function bindRail(rail) {
 // name (e.g. "MediaStorm", "media-storm") is still found
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const applyPluginLinks = () => document.querySelectorAll("#rail [data-plugin]").forEach((b) => (b.hidden = !pluginsOn.has(norm(b.dataset.plugin))));
-export const PMV_PAGE = "/plugin/pmvGenerator/assets/index.html?from=stashui"; // so its links lead back here
+export const PMV_PAGE = "/plugin/pmvGenerator/assets/index.html?from=pepega-stashui"; // so its links lead back here
 async function refreshPluginLinks() {
   let on;
   let plugins;
@@ -343,7 +343,7 @@ async function refreshPluginLinks() {
 // 3. only tasks/settings – its card on the Plugins page, unfolded
 // 4. only additions to classic Stash with a menu button there (e.g. an overlay) – classic Stash, where it runs
 // What was found is kept per plugin version.
-const OWN = new Set(["stashui", "mediastorm", "pmvgenerator"]);
+const OWN = new Set(["pepega-stashui", "mediastorm", "pmvgenerator"]);
 const EXT_KEY = "extPlugins6"; // v4: every plugin, routes also via variables; v6: plugin icon
 
 // A real page – not a folder listing: Stash's file server answers ".../index.html" of a folder without

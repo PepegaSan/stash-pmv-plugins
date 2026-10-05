@@ -13,7 +13,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-JS = os.path.join(ROOT, "plugins", "stashui", "app", "js")
+JS = os.path.join(ROOT, "plugins", "pepega-stashui", "app", "js")
 
 STR = r'"((?:[^"\\]|\\.)*)"'
 PATTERNS = [

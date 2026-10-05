@@ -8,7 +8,7 @@ A complete new interface for [Stash](https://github.com/stashapp/stash), built f
 - **Heart** = favorite.
 - Font: Bahnschrift (included with Windows; other systems fall back to a similar sans-serif).
 
-Open it: just open Stash (e.g. `http://localhost:9999`) – the home page redirects to Stash UI. Directly: `/plugin/stashui/assets/index.html`.
+Open it: just open Stash (e.g. `http://localhost:9999`) – the home page redirects to Stash UI. Directly: `/plugin/pepega-stashui/assets/index.html`.
 
 ![Home](../../docs/screenshots/stashui-home.png)
 

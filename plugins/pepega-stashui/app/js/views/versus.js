@@ -127,8 +127,8 @@ export function render(main, params = {}) {
     clearTimeout(pushTimer);
     pushTimer = 0;
     try {
-      const merged = mergeVs(data, parseVs((await pluginConfig("stashui")).versus));
-      await setPluginConfig("stashui", { versus: JSON.stringify(merged) });
+      const merged = mergeVs(data, parseVs((await pluginConfig("pepega-stashui")).versus));
+      await setPluginConfig("pepega-stashui", { versus: JSON.stringify(merged) });
       adopt(merged);
       loadStandings(true).then(() => ensureTiers(true)).catch(() => {}); // the player and the PMV Generator see the new best moments; the tier badges follow
     } catch (e) {
@@ -141,7 +141,7 @@ export function render(main, params = {}) {
     pushTimer = setTimeout(pushData, 3000);
   };
   // What Stash has (played in another browser?) → merged in
-  const pulled = pluginConfig("stashui")
+  const pulled = pluginConfig("pepega-stashui")
     .then((cfg) => {
       const remote = parseVs(cfg.versus);
       const merged = mergeVs(data, remote);

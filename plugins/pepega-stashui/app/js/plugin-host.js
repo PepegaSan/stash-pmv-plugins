@@ -6,7 +6,7 @@
 import { gql, setPluginConfig } from "./api.js";
 import { toast } from "./ui.js";
 
-const SKIP_IDS = new Set(["stashui"]);
+const SKIP_IDS = new Set(["pepega-stashui"]);
 
 let booted = null;
 let reactReady = null;

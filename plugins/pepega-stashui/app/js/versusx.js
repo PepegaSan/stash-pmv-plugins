@@ -127,12 +127,12 @@ const MAX_SNAPS = 5;
 const LABEL = { scene: "Scenes", image: "Images", performer: "Performers", marker: "Moments" };
 async function loadSnaps() {
   try {
-    return JSON.parse((await pluginConfig("stashui")).versusSnaps || "[]") || [];
+    return JSON.parse((await pluginConfig("pepega-stashui")).versusSnaps || "[]") || [];
   } catch (e) {
     return [];
   }
 }
-const saveSnaps = (l) => setPluginConfig("stashui", { versusSnaps: JSON.stringify(l.slice(-MAX_SNAPS)) });
+const saveSnaps = (l) => setPluginConfig("pepega-stashui", { versusSnaps: JSON.stringify(l.slice(-MAX_SNAPS)) });
 const snapOf = (data, name) => ({
   id: Math.random().toString(36).slice(2, 10),
   name,

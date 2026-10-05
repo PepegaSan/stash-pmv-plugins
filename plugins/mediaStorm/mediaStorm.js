@@ -358,8 +358,8 @@
   let msFavId;
   async function loadMsPlaylists() {
     try {
-      const d = await gql(`query { configuration { plugins(include: ["stashui"]) } }`);
-      const cfg = (d.configuration.plugins || {}).stashui || {};
+      const d = await gql(`query { configuration { plugins(include: ["pepega-stashui"]) } }`);
+      const cfg = (d.configuration.plugins || {})["pepega-stashui"] || {};
       const list = JSON.parse(cfg.playlists || "[]");
       msPlaylists = Array.isArray(list) ? list.filter((p) => p && p.id && p.query) : [];
     } catch (e) {

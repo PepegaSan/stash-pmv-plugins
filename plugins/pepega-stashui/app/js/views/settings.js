@@ -428,8 +428,8 @@ function renderPlayerUi(body) {
 }
 
 async function renderApp(body) {
-  const d = await gql(`query { configuration { plugins(include: ["stashui"]) } }`);
-  const cfg = (d.configuration.plugins && d.configuration.plugins.stashui) || {};
+  const d = await gql(`query { configuration { plugins(include: ["pepega-stashui"]) } }`);
+  const cfg = (d.configuration.plugins && d.configuration.plugins["pepega-stashui"]) || {};
   body.innerHTML = `
     <form class="kb-set-form" data-form>
       <label class="kb-set"><span class="kb-set-label"><b>${t("Language")}</b><small>${t("“Automatic” follows the language set in Stash (classic Stash → Settings → Interface).")}</small></span>
@@ -562,7 +562,7 @@ async function renderApp(body) {
   };
   body.querySelector("[data-home]").onchange = async (e) => {
     try {
-      await setPluginConfig("stashui", { keepClassicHome: !e.target.checked });
+      await setPluginConfig("pepega-stashui", { keepClassicHome: !e.target.checked });
       localStorage.setItem("stashui.keepClassicHome", String(!e.target.checked));
       toast(t("Saved"), "ok");
     } catch (err) {

@@ -300,7 +300,7 @@ export async function render(main, params, query) {
       await loadInstalled(!!state.updates);
       window.dispatchEvent(new Event("stash:plugins-changed")); // menu entries (Media Storm, PMV Generator)
       // The job list already says "Done" – only Stash UI itself needs a hint
-      if (kind !== "uninstall" && specs.some((s) => s.id === "stashui")) toast(t("Stash UI was updated – reload the page to use the new version."), "ok");
+      if (kind !== "uninstall" && specs.some((s) => s.id === "pepega-stashui")) toast(t("Stash UI was updated – reload the page to use the new version."), "ok");
     } catch (e) {
       errorToast(e, "Plugin");
     } finally {

@@ -32,7 +32,7 @@ export async function saveInteractiveConfig(patch) {
 
 // ---------- Funscripts and scenes (Stash UI's backend) ----------
 export async function runBackend(args) {
-  const d = await gql(`mutation($a: Map) { runPluginOperation(plugin_id: "stashui", args: $a) }`, { a: args });
+  const d = await gql(`mutation($a: Map) { runPluginOperation(plugin_id: "pepega-stashui", args: $a) }`, { a: args });
   const out = d.runPluginOperation || {};
   if (out.error) throw new Error(out.error);
   return out;
@@ -52,7 +52,7 @@ export const forgetBackendCache = () => listCache.clear();
 // Which file a scene's funscript came from: { sceneId: { name, path } } – kept in Stash UI's plugin settings
 export async function fsSources() {
   try {
-    return JSON.parse((await pluginConfig("stashui")).funscripts || "{}") || {};
+    return JSON.parse((await pluginConfig("pepega-stashui")).funscripts || "{}") || {};
   } catch (e) {
     return {};
   }
@@ -62,13 +62,13 @@ export async function rememberFs(sceneId, name, path) {
   const all = await fsSources();
   if (name) all[sceneId] = { name, path };
   else delete all[sceneId];
-  await setPluginConfig("stashui", { funscripts: JSON.stringify(all) }).catch(() => {});
+  await setPluginConfig("pepega-stashui", { funscripts: JSON.stringify(all) }).catch(() => {});
 }
 // Which variant (funscript file) a scene plays: { sceneId: path } – kept in Stash UI's plugin settings.
 // No entry: the script with the video's name (what Stash itself plays).
 export async function variantChoices() {
   try {
-    return JSON.parse((await pluginConfig("stashui")).fsVariants || "{}") || {};
+    return JSON.parse((await pluginConfig("pepega-stashui")).fsVariants || "{}") || {};
   } catch (e) {
     return {};
   }
@@ -77,7 +77,7 @@ export async function rememberVariant(sceneId, path) {
   const all = await variantChoices();
   if (path) all[sceneId] = path;
   else delete all[sceneId];
-  await setPluginConfig("stashui", { fsVariants: JSON.stringify(all) }).catch(() => {});
+  await setPluginConfig("pepega-stashui", { fsVariants: JSON.stringify(all) }).catch(() => {});
 }
 // The variant's funscript (parsed) – read by the backend, the browser can't open library paths
 export async function readVariant(path) {
@@ -86,13 +86,13 @@ export async function readVariant(path) {
 // Own presets of the script editor: { name: { lo, hi, maxSpeed, smooth, invert, offset } }
 export async function editorPresets() {
   try {
-    return JSON.parse((await pluginConfig("stashui")).fsPresets || "{}") || {};
+    return JSON.parse((await pluginConfig("pepega-stashui")).fsPresets || "{}") || {};
   } catch (e) {
     return {};
   }
 }
 export async function saveEditorPresets(all) {
-  await setPluginConfig("stashui", { fsPresets: JSON.stringify(all) });
+  await setPluginConfig("pepega-stashui", { fsPresets: JSON.stringify(all) });
 }
 export const samePath = (a, b) => !!a && !!b && a.replace(/\\/g, "/").toLowerCase() === b.replace(/\\/g, "/").toLowerCase();
 // "Some Clip (hard) v2.funscript" → ["some", "clip", "hard", "v2"]

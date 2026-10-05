@@ -25,7 +25,7 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.path.join(ROOT, "plugins")
-UI = os.path.join(PLUGINS, "stashui")
+UI = os.path.join(PLUGINS, "pepega-stashui")
 GEN = os.path.join(PLUGINS, "pmvGenerator")
 STORM = os.path.join(PLUGINS, "mediaStorm")
 
