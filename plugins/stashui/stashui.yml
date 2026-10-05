@@ -1,6 +1,6 @@
 name: Pepega test version
 description: Test build of Stash UI. A complete new interface for Stash – browsing with filters, player (highlights, mini player, cast, VR), image viewer, folders, tags, performers, statistics, duplicates, queue, tasks, plugins and all settings, with color themes and liquid glass. Opens instead of the Stash home page; classic Stash stays available in the same look. Links to Media Storm and the PMV Generator when they're installed.
-version: 3.62.2
+version: 3.62.3
 url: https://github.com/PepegaSan/stash-pmv-plugins
 settings:
   keepClassicHome:

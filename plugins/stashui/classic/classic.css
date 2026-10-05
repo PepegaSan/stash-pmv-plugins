@@ -592,3 +592,17 @@ html.kb-classic .kb-back-btn {
 }
 html.kb-classic .kb-back-btn:hover { color: var(--st-flush) !important; }
 html.kb-classic .kb-back-dot { width: 14px; height: 9px; background: var(--st-hatch); }
+
+/* Available plugins: Stash clips this list at 300px, so opening a source at the
+   bottom hides every package under the "add source" button. Let the list grow. */
+.package-manager .package-manager-table-container {
+  max-height: none !important;
+  overflow: visible !important;
+}
+.package-manager .form-check-input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--st-flush);
+  color-scheme: dark;
+}
