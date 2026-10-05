@@ -1615,3 +1615,43 @@ html.kb-glass .kb-mk-art { border: 1px solid var(--glass-edge); border-radius: 1
 html.kb-glass .kb-sfnote { border: 1px solid var(--glass-edge); border-left: 3px solid var(--pink); border-radius: 14px; background: var(--glass-shine), var(--glass); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
 
 .kb-set-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* PluginApi host: settings forms and the scene overlay (Quick Markers and other PluginSettings / ScenePage patches) */
+.kb-plugin-settings { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
+.kb-plugin-settings .form-group,
+.kb-plugin-settings .mb-2 { margin: 0 0 8px; }
+.kb-plugin-settings .text-muted,
+.kb-plugin-settings .small { color: var(--faint); font-size: 12px; }
+.kb-plugin-settings .form-control,
+.kb-plugin-scene-host .form-control {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--base);
+  color: var(--text);
+  font: 500 14px/1.4 var(--f-label);
+}
+.kb-plugin-settings .btn,
+.kb-plugin-scene-host .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  margin: 0 6px 6px 0;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: 600 13px/1.2 var(--f-label);
+  cursor: pointer;
+}
+.kb-plugin-settings .btn-primary,
+.kb-plugin-scene-host .btn-primary { background: var(--pink); border-color: var(--pink); color: var(--ink); }
+.kb-plugin-scene-host { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+.kb-plugin-scene-host * { pointer-events: auto; }
+

@@ -18,6 +18,7 @@ import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
 import { videoGlow } from "../theme.js";
 import { BINS, watchRecorder, watchBins, motionBins, combine, peaks } from "../heat.js";
+import { mountScenePage } from "../plugin-host.js";
 
 // Read Stash's sprite VTT: time ranges → region in the sprite image
 async function loadSprites(vttUrl, spriteUrl) {
@@ -184,6 +185,19 @@ export async function render(host, params, query = {}) {
 
   const stage = host.querySelector(".kb-stage");
   const $ = (s) => host.querySelector(s);
+  const sceneHost = document.createElement("div");
+  sceneHost.className = "kb-plugin-scene-host";
+  document.body.appendChild(sceneHost);
+  let scenePluginsGone = false;
+  let unmountScenePlugins = () => {
+    scenePluginsGone = true;
+  };
+  mountScenePage(sceneHost, x)
+    .then((unmount) => {
+      if (scenePluginsGone) unmount();
+      else unmountScenePlugins = unmount;
+    })
+    .catch((err) => console.error("[Stash UI] scene plugins", err));
   const v = $("video");
   setShape(f.width, f.height);
   v.addEventListener("loadedmetadata", () => setShape(v.videoWidth, v.videoHeight));
@@ -1473,6 +1487,7 @@ export async function render(host, params, query = {}) {
     if (e.target.closest && e.target.closest("input, textarea, select, .kb-drawer, .kb-dialog")) return;
     if (document.querySelector("#overlay-root .kb-drawer, #overlay-root .kb-dialog")) return;
     const k = e.key.toLowerCase();
+    if (e.shiftKey && k !== "arrowright" && k !== "arrowleft") return;
     let handled = true;
     if (k === "escape") document.fullscreenElement ? document.exitFullscreen() : closeOverlay();
     else if (k === " " || k === "k") toggle();
@@ -1522,6 +1537,9 @@ export async function render(host, params, query = {}) {
       saveCover(x.id);
     }
     document.removeEventListener("keydown", onKey);
+    unmountScenePlugins();
+    scenePluginsGone = true;
+    sceneHost.remove();
     window.removeEventListener("stash:queue-changed", onQueue);
     document.removeEventListener("fullscreenchange", onFsChange);
     document.removeEventListener("pointerdown", onDocDown, true);

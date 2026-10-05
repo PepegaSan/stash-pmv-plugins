@@ -9,13 +9,14 @@ import { t } from "../i18n.js";
 import { gql, setPluginConfig } from "../api.js";
 import { pokeJobs, onJobs } from "../jobs.js";
 import { setQuery } from "../main.js";
+import { renderPluginSettings, unmountPluginHost } from "../plugin-host.js";
 
 const TABS = ["installed", "browse", "sources"];
 const PKG = "package_id name version date sourceURL metadata requires { package_id name }";
 // Suggested sources: Stash's community plugins and the source these plugins come from
 const SUGGESTED = [
   { name: "Community (stashapp)", url: "https://stashapp.github.io/CommunityScripts/stable/index.yml" },
-  { name: "Stash UI, Media Storm, PMV Generator", url: "https://anonym88312.github.io/stash-pmv-plugins/index.yml" },
+  { name: "Pepega test version", url: "https://pepegasan.github.io/stash-pmv-plugins/index.yml" },
 ];
 
 // Resolves when the job has left Stash's job queue (done, failed or stopped)
@@ -101,6 +102,7 @@ export async function render(main, params, query) {
   }
 
   function paintInstalled() {
+    pane.querySelectorAll("[data-ps-mount]").forEach((el) => unmountPluginHost(el));
     const n = state.updates ? state.updates.length : 0;
     const bar = `<div class="kb-ptools">
         <button class="kb-btn" data-check${busy ? " disabled" : ""}>${icon("repeat")}${t("Check for updates")}</button>
@@ -116,7 +118,6 @@ export async function render(main, params, query) {
   }
 
   function pluginCard(p) {
-    const values = state.cfg[p.id] || {};
     const pk = pkgOf(p);
     const up = pk && state.updates && state.updates.find((u) => u.package_id === pk.package_id);
     const meta = [p.version ? t("Version {v}", { v: p.version }) : "", p.id, pk ? t("from {source}", { source: sourceName(pk.sourceURL) }) : t("installed manually")].filter(Boolean).join(t(", "));
@@ -127,15 +128,7 @@ export async function render(main, params, query) {
       </header>
       ${up ? `<div class="kb-pupdate">${icon("download")}<span>${t("Update available: {v}", { v: up.source_package.version })}</span><button class="kb-btn is-primary" data-update="${esc(pk.package_id)}"${busy ? " disabled" : ""}>${t("Update")}</button></div>` : ""}
       ${p.description ? `<p>${esc(p.description)}</p>` : ""}
-      ${p.settings && p.settings.length ? `<details><summary>${t("Settings")}</summary><form data-settings>${p.settings
-        .map((s) => {
-          const v = values[s.name];
-          const label = `<span class="kb-set-label"><b>${esc(s.display_name || s.name)}</b>${s.description ? `<small>${esc(s.description)}</small>` : ""}</span>`;
-          if (s.type === "BOOLEAN") return `<label class="kb-set kb-set-bool">${label}<span class="kb-switch"><input type="checkbox" data-ps="${esc(s.name)}" data-pt="b"${v ? " checked" : ""}><i></i></span></label>`;
-          if (s.type === "NUMBER") return `<label class="kb-set">${label}<input class="kb-field kb-num" type="number" data-ps="${esc(s.name)}" data-pt="n" value="${v == null ? "" : esc(v)}"></label>`;
-          return `<label class="kb-set">${label}<input class="kb-field" data-ps="${esc(s.name)}" data-pt="s" value="${esc(v == null ? "" : v)}" spellcheck="false"></label>`;
-        })
-        .join("")}<button class="kb-btn is-primary" type="submit">${t("Save")}</button></form></details>` : ""}
+      ${p.settings && p.settings.length ? `<details data-ps-details><summary>${t("Settings")}</summary><div class="kb-plugin-settings" data-ps-mount></div></details>` : ""}
       ${p.tasks && p.tasks.length && p.enabled ? `<details><summary>${t("Tasks")}</summary><div class="kb-ptasks">${p.tasks
         .map((x) => `<div class="kb-ptask"><div><b>${esc(x.name)}</b>${x.description ? `<small>${esc(x.description)}</small>` : ""}</div><button class="kb-btn" data-run="${esc(x.name)}">${icon("play")}${t("Run")}</button></div>`)
         .join("")}</div></details>` : ""}
@@ -434,9 +427,23 @@ export async function render(main, params, query) {
     }
   });
 
+  main.addEventListener("toggle", (e) => {
+    const details = e.target.closest && e.target.closest("[data-ps-details]");
+    if (!details || !details.open) return;
+    const mount = details.querySelector("[data-ps-mount]");
+    if (!mount || mount._kbUnmount || mount.dataset.psLoading) return;
+    mount.dataset.psLoading = "1";
+    const id = details.closest("[data-id]").dataset.id;
+    const plugin = state.plugins.find((p) => p.id === id);
+    renderPluginSettings(mount, { pluginID: id, settings: (plugin && plugin.settings) || [] }).catch((err) => {
+      console.error("[Stash UI] plugin settings", err);
+      mount.textContent = err.message || String(err);
+    });
+  });
+
   main.addEventListener("submit", async (e) => {
     const f = e.target.closest("form");
-    if (!f) return;
+    if (!f || f.closest("[data-ps-mount]")) return;
     e.preventDefault();
     if (f.matches("[data-srcform]")) {
       const entry = { name: f.name.value.trim(), url: f.url.value.trim(), local_path: f.local_path.value.trim() };

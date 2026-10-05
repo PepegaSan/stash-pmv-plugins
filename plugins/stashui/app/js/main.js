@@ -7,6 +7,9 @@ import { isLarge } from "./scale.js";
 import { applyTheme, initAmbient } from "./theme.js";
 import { LATEST } from "./changelog.js";
 import { visibleRail } from "./railcfg.js";
+import { bootPluginHost } from "./plugin-host.js";
+
+bootPluginHost();
 
 applyTheme(); // chosen colors before anything is drawn
 initAmbient();
