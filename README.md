@@ -1,3 +1,7 @@
+TEST YAML URL from PepegaSan.
+https://pepegasan.github.io/stash-pmv-plugins/index.yml
+
+
 # Stash plugins: Stash UI, PMV Generator, Media Storm
 
 Three plugins for [Stash](https://github.com/stashapp/stash).
