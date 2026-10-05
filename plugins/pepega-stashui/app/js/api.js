@@ -24,7 +24,16 @@ export async function gql(query, variables, opts) {
   if (!res.ok) throw new Error(t("Stash answers with {status}", { status: res.status }));
   const json = await res.json();
   if (json.errors && json.errors.length) throw new Error(json.errors.map((e) => e.message).join("; "));
-  return json.data;
+  const data = json.data;
+  if (data && /sceneMarkerCreate\s*\(/i.test(query) && data.sceneMarkerCreate) {
+    const input = (variables && (variables.input || variables.i)) || {};
+    window.dispatchEvent(
+      new CustomEvent("kb:scene-marker-created", {
+        detail: { marker: data.sceneMarkerCreate, sceneId: input.scene_id },
+      })
+    );
+  }
+  return data;
 }
 
 // ---------- Fragments ----------
