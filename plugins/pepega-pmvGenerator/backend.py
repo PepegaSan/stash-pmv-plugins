@@ -248,7 +248,7 @@ APP_NAME = re.compile(r"^[A-Za-z0-9 ._-]{1,40}$")
 
 
 def live_dir():
-    d = os.path.join(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(), "pmvGenerator")
+    d = os.path.join(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(), "pepega-pmvGenerator")
     os.makedirs(d, exist_ok=True)
     return d
 

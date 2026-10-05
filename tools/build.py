@@ -3,10 +3,10 @@
     python tools/build.py [--out dist] [--repo owner/name] [--sync-only]
 
 1. Sync: the PMV Generator plugin uses the basics of Stash UI (styles, GraphQL, helpers,
-   tag picker, image analysis) – they're copied from plugins/stashui into plugins/pmvGenerator
-   (edit them in stashui, then run this script). The generator itself (pmvgen.js, beats.js, …)
-   lives only in plugins/pmvGenerator; its beats.js is also copied to plugins/mediaStorm/web.
-   Media Storm's rgbackend.py (RedGifs) is copied to plugins/pmvGenerator.
+   tag picker, image analysis) – they're copied from plugins/pepega-stashui into plugins/pepega-pmvGenerator
+   (edit them in pepega-stashui, then run this script). The generator itself (pmvgen.js, beats.js, …)
+   lives only in plugins/pepega-pmvGenerator; its beats.js is also copied to plugins/mediaStorm/web.
+   Media Storm's rgbackend.py (RedGifs) is copied to plugins/pepega-pmvGenerator.
 2. Stamp: every app page gets an import map with version stamps, so browsers never mix
    cached old modules with new ones.
 3. Package: every plugin folder is zipped and listed in <out>/index.yml – the file Stash reads
@@ -26,7 +26,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.path.join(ROOT, "plugins")
 UI = os.path.join(PLUGINS, "pepega-stashui")
-GEN = os.path.join(PLUGINS, "pmvGenerator")
+GEN = os.path.join(PLUGINS, "pepega-pmvGenerator")
 STORM = os.path.join(PLUGINS, "mediaStorm")
 
 SHARED = [

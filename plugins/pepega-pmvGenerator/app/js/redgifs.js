@@ -14,7 +14,7 @@ const API = "https://api.redgifs.com/v2";
 const LS_TOKEN = "pmvgen.redgifs.token";
 const PAGE = 80;
 const MAX_PAGES = 50;
-const PLUGIN = "pmvGenerator";
+const PLUGIN = "pepega-pmvGenerator";
 
 let direct = true; // false once the browser was blocked → backend detour
 let tokenPromise = null;

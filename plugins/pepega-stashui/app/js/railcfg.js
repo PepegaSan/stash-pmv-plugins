@@ -26,7 +26,7 @@ export const NAV = [
     { href: "history", label: "History", icon: "history", match: /^history/ },
     { href: "versus", label: "Versus", icon: "trophy", match: /^versus/ },
     { action: "storm", label: "Media Storm", icon: "bolt", plugin: "mediaStorm" },
-    { action: "pmv", label: "PMV Generator", icon: "music", plugin: "pmvGenerator" },
+    { action: "pmv", label: "PMV Generator Pepega", icon: "music", plugin: "pepega-pmvGenerator" },
   ] },
   { group: "Manage", items: [
     { href: "tasks", label: "Tasks", icon: "tasks", match: /^tasks/, count: "jobs" },

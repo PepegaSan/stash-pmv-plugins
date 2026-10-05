@@ -29,7 +29,7 @@ async function run(plugin, args) {
 }
 
 // → { blob, name, saved }. start/end in seconds (end 0 = to the end), save = keep a copy in "PMV Generator/Songs"
-export async function extractAudio({ sceneId, start = 0, end = 0, save = false, plugin = "pmvGenerator", onProgress = () => {}, signal }) {
+export async function extractAudio({ sceneId, start = 0, end = 0, save = false, plugin = "pepega-pmvGenerator", onProgress = () => {}, signal }) {
   onProgress(0, "extract");
   const r = await run(plugin, { mode: "extract_audio", scene_id: String(sceneId), start, end, save });
   const parts = [];

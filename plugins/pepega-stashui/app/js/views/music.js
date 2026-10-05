@@ -57,7 +57,7 @@ export function openMusic(x, video) {
         start: r.start,
         end: r.end,
         save,
-        plugin: app.pmvPlugin || "pmvGenerator",
+        plugin: app.pmvPlugin || "pepega-pmvGenerator",
         onProgress: (p, step) => ($("[data-bar]").style.width = `${Math.round((step === "extract" ? 0.05 : 0.05 + 0.95 * p) * 100)}%`),
       });
     } catch (e) {

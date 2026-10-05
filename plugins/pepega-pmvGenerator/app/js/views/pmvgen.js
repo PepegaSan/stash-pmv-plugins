@@ -22,7 +22,7 @@ import { bestMarkers, rankedScenes } from "../standings.js";
 import { plexState, plexForget, plexSignIn, plexServers, plexConnect, PlexClient, plexTracks, PlexFollow } from "../plex.js";
 
 // config.js can override these (e.g. open saved scenes in Stash UI when that's where you came from).
-const BACKEND = window.PMVGEN_PLUGIN || "pmvGenerator"; // plugin whose backend saves recordings
+const BACKEND = window.PMVGEN_PLUGIN || "pepega-pmvGenerator"; // plugin whose backend saves recordings
 const SCENE_LINK = window.PMVGEN_SCENE_LINK || ((id) => "/scenes/" + id);
 
 const DEFAULTS = {
@@ -1157,9 +1157,9 @@ export function render(main) {
   // they're also there in every browser. Stored as one JSON text so Stash leaves the names alone.
   let presetList = {};
   const presets = () => presetList;
-  const pluginCfg = () => pluginConfig("pmvGenerator");
+  const pluginCfg = () => pluginConfig("pepega-pmvGenerator");
   async function writePresets(all) {
-    await setPluginConfig("pmvGenerator", { presets: JSON.stringify(all) });
+    await setPluginConfig("pepega-pmvGenerator", { presets: JSON.stringify(all) });
     presetList = all;
   }
   async function loadPresets() {

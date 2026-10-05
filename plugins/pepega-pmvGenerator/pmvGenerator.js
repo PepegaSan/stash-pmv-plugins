@@ -1,20 +1,20 @@
 // PMV Generator: a "PMV" button in the Stash navbar that opens the generator page.
 (function () {
   "use strict";
-  var PAGE = "/plugin/pmvGenerator/assets/index.html";
+  var PAGE = "/plugin/pepega-pmvGenerator/assets/index.html";
   var ICON =
     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
 
   function inject() {
-    if (document.querySelector(".pmvg-nav-btn")) return;
+    if (document.querySelector(".pmvg-pepega-nav-btn")) return;
     var bar = document.querySelector(".navbar-buttons");
     if (!bar) return;
     var a = document.createElement("a");
-    a.className = "btn nav-link d-flex align-items-center pmvg-nav-btn";
+    a.className = "btn nav-link d-flex align-items-center pmvg-pepega-nav-btn";
     a.href = PAGE;
-    a.title = "PMV Generator";
-    a.innerHTML = ICON + '<span class="d-none d-md-inline">PMV</span>';
+    a.title = "PMV Generator Pepega";
+    a.innerHTML = ICON + '<span class="d-none d-md-inline">PMV Pepega</span>';
     bar.insertBefore(a, bar.firstChild);
   }
 

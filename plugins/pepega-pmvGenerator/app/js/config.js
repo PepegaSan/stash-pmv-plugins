@@ -8,7 +8,7 @@ try {
   fromUI = sessionStorage.getItem("pmvgen.fromUI") === "1";
 } catch (e) { /* storage blocked – classic Stash links */ }
 
-window.PMVGEN_PLUGIN = "pmvGenerator";
+window.PMVGEN_PLUGIN = "pepega-pmvGenerator";
 window.PMVGEN_SCENE_LINK = (id) => (fromUI ? UI + "#/scene/" + id : "/scenes/" + id);
 
 const back = document.querySelector(".kb-solo-back");

@@ -35,15 +35,31 @@ export function tagPicker(host, opts) {
   const emit = () => opts.onChange && opts.onChange([...inc], [...exc]);
 
   function showSugg() {
-    const q = input.value.trim().toLowerCase();
+    const raw = input.value.trim();
+    const q = raw.toLowerCase();
     if (!q && document.activeElement !== input) {
       sugg.hidden = true;
       return;
     }
+    // Exact name before alias, prefix, then substring. Alphabetical order used to
+    // put "Anal EX" ahead of "EX", and Enter always takes the first row.
+    const rank = (tg) => {
+      const name = tg.name.toLowerCase();
+      const aliases = (tg.aliases || []).map((a) => a.toLowerCase());
+      if (name === q) return 0;
+      if (aliases.some((a) => a === q)) return 1;
+      if (name.startsWith(q)) return 2;
+      if (aliases.some((a) => a.startsWith(q))) return 3;
+      if (name.includes(q)) return 4;
+      return 5;
+    };
     shown = tags
       .filter((tg) => !inc.includes(tg.id) && !exc.includes(tg.id))
-      .filter((tg) => !q || tg.name.toLowerCase().includes(q) || (tg.aliases || []).some((a) => a.toLowerCase().includes(q)))
-      .slice(0, 30);
+      .filter((tg) => !q || tg.name.toLowerCase().includes(q) || (tg.aliases || []).some((a) => a.toLowerCase().includes(q)));
+    if (q) {
+      shown.sort((a, b) => rank(a) - rank(b) || (a.name === raw ? 0 : 1) - (b.name === raw ? 0 : 1) || a.name.localeCompare(b.name));
+    }
+    shown = shown.slice(0, 30);
     const exact = tags.some((tg) => tg.name.toLowerCase() === q);
     const create = opts.allowCreate && q && !exact;
     sugg.innerHTML =
