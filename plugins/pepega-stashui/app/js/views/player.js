@@ -824,13 +824,34 @@ export async function render(host, params, query = {}) {
     const c = await gql(`mutation { tagCreate(input: { name: "Highlight" }) { id } }`);
     return (markTagId = c.tagCreate.id);
   }
+  function markerTimeLabel(m) {
+    const start = fmtDuration(m.seconds);
+    if (m.end_seconds != null && m.end_seconds > m.seconds + 0.05) {
+      return start + " – " + fmtDuration(m.end_seconds);
+    }
+    return start;
+  }
   function paintMarks() {
     const box = $("[data-mks]");
     if (!box) return;
     const total = v.duration || dur || 1;
     const best = bestMarkersNow() || new Map();
     box.innerHTML = (x.scene_markers || [])
-      .map((m) => `<button type="button" class="kb-tl-mk${best.has(m.id) ? " is-best" : ""}" data-mk="${m.seconds}" style="left:${(m.seconds / total) * 100}%" title="${esc((best.has(m.id) ? "★ " + t("Best moment") + " · " : "") + (m.title || (m.primary_tag || {}).name || t("Marker")) + " · " + fmtDuration(m.seconds))}"></button>`)
+      .map((m) => {
+        const left = (m.seconds / total) * 100;
+        const endPct =
+          m.end_seconds != null && m.end_seconds > m.seconds + 0.05
+            ? ((m.end_seconds - m.seconds) / total) * 100
+            : 0;
+        const range =
+          endPct > 0.3
+            ? `<span class="kb-tl-mk-range" style="left:${left}%;width:${endPct}%"></span>`
+            : "";
+        return (
+          range +
+          `<button type="button" class="kb-tl-mk${best.has(m.id) ? " is-best" : ""}" data-mk="${m.seconds}" style="left:${left}%" title="${esc((best.has(m.id) ? "★ " + t("Best moment") + " · " : "") + (m.title || (m.primary_tag || {}).name || t("Marker")) + " · " + markerTimeLabel(m))}"></button>`
+        );
+      })
       .join("");
   }
   // the best moments arrive a moment later (standings from Stash) – then the marks again
@@ -839,7 +860,10 @@ export async function render(host, params, query = {}) {
   bootPluginHost()
     .then(() => {
       quickMarkersActive = isScenePluginEnabled("quickMarkers");
-      if (host.isConnected) paintMarkers();
+      if (host.isConnected) {
+        paintMarkers();
+        if (quickMarkersActive) reloadSceneMarkers();
+      }
     })
     .catch(() => {});
   function markerAddFooter() {
@@ -857,7 +881,7 @@ export async function render(host, params, query = {}) {
       `${t("Markers")}<small class="kb-upsec-n">${list.length || ""}</small>`,
       list
         .map(
-          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${fmtDuration(m.seconds)}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Rename")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
+          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${markerTimeLabel(m)}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Rename")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
         )
         .join("") + markerAddFooter()
     );
@@ -914,16 +938,29 @@ export async function render(host, params, query = {}) {
     }
   });
 
-  function onMarkerCreated(ev) {
-    const d = ev.detail || {};
-    if (d.sceneId != null && String(d.sceneId) !== String(x.id)) return;
-    const m = d.marker;
-    if (!m || !m.id) return;
-    if ((x.scene_markers || []).some((q) => q.id === m.id)) return;
-    x.scene_markers = [...(x.scene_markers || []), m];
-    paintMarkers();
+  let reloadMarkersT = 0;
+  async function reloadSceneMarkers() {
+    try {
+      const d = await gql(
+        `query($id: ID!) { findScene(id: $id) { scene_markers { id title seconds end_seconds primary_tag { id name } } } }`,
+        { id: x.id }
+      );
+      x.scene_markers = (d.findScene && d.findScene.scene_markers) || [];
+      if (host.isConnected) paintMarkers();
+    } catch (err) {
+      console.warn("[Stash UI] marker reload", err);
+    }
   }
-  window.addEventListener("kb:scene-marker-created", onMarkerCreated);
+  function scheduleMarkerReload(ev) {
+    const sid = ev && ev.detail ? ev.detail.sceneId : null;
+    if (sid != null && String(sid) !== String(x.id)) return;
+    clearTimeout(reloadMarkersT);
+    reloadMarkersT = setTimeout(reloadSceneMarkers, 120);
+  }
+  function onMarkersChanged(ev) {
+    scheduleMarkerReload(ev);
+  }
+  window.addEventListener("kb:scene-markers-changed", onMarkersChanged);
   paintMarkers();
   v.addEventListener("loadedmetadata", paintMarks);
   $("[data-mks]").addEventListener("click", (e) => {
@@ -1568,7 +1605,8 @@ export async function render(host, params, query = {}) {
       saveCover(x.id);
     }
     document.removeEventListener("keydown", onKey);
-    window.removeEventListener("kb:scene-marker-created", onMarkerCreated);
+    clearTimeout(reloadMarkersT);
+    window.removeEventListener("kb:scene-markers-changed", onMarkersChanged);
     unmountScenePlugins();
     scenePluginsGone = true;
     sceneHost.remove();

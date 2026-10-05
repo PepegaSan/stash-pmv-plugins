@@ -174,14 +174,23 @@ function useFindTagsLazyQuery() {
 function useSceneMarkerCreateMutation() {
   const React = window.React;
   const createMarker = React.useCallback(async ({ variables } = {}) => {
+    const vars = variables || {};
     const data = await gql(
       `mutation($input: SceneMarkerCreateInput!) {
         sceneMarkerCreate(input: $input) {
           id title seconds end_seconds primary_tag { id name }
         }
       }`,
-      variables || {}
+      vars
     );
+    const input = vars.input || vars.i || vars;
+    if (data && data.sceneMarkerCreate) {
+      window.dispatchEvent(
+        new CustomEvent("kb:scene-markers-changed", {
+          detail: { sceneId: input.scene_id, marker: data.sceneMarkerCreate },
+        })
+      );
+    }
     return { data };
   }, []);
   return [createMarker];

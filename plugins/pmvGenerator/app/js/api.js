@@ -24,7 +24,19 @@ export async function gql(query, variables, opts) {
   if (!res.ok) throw new Error(t("Stash answers with {status}", { status: res.status }));
   const json = await res.json();
   if (json.errors && json.errors.length) throw new Error(json.errors.map((e) => e.message).join("; "));
-  return json.data;
+  const data = json.data;
+  if (data && /sceneMarker(Create|Update|Destroy)/i.test(query)) {
+    const input = (variables && (variables.input || variables.i)) || {};
+    window.dispatchEvent(
+      new CustomEvent("kb:scene-markers-changed", {
+        detail: {
+          sceneId: input.scene_id != null ? input.scene_id : null,
+          marker: data.sceneMarkerCreate || data.sceneMarkerUpdate || null,
+        },
+      })
+    );
+  }
+  return data;
 }
 
 // ---------- Fragments ----------
