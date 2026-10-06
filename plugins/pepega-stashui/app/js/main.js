@@ -9,7 +9,7 @@ import { LATEST } from "./changelog.js";
 import { visibleRail } from "./railcfg.js";
 import { bootPluginHost } from "./plugin-host.js";
 
-const pluginHostReady = bootPluginHost();
+let pluginHostReady = Promise.resolve();
 
 
 applyTheme(); // chosen colors before anything is drawn
@@ -151,13 +151,17 @@ const loaders = {
 const hashNow = () => (location.hash && location.hash !== "#" ? location.hash : "#/");
 
 let routeSeq = 0;
-async function route() {
+async function awaitPluginHostFor(view) {
+  if (view !== "player" && view !== "plugins") return;
   try {
     await pluginHostReady;
   } catch (err) {
     console.error("[Stash UI] plugin host failed", err);
   }
+}
+async function route() {
   const r = parseHash();
+  await awaitPluginHostFor(r.view);
   const seq = ++routeSeq;
   const main = document.getElementById("main");
   const overlayRoot = document.getElementById("overlay-root");
@@ -643,6 +647,7 @@ async function init() {
   appEl.querySelector("[data-rail-scrim]").addEventListener("click", () => setRail(false));
   document.addEventListener("keydown", (e) => e.key === "Escape" && appEl.classList.contains("is-rail-open") && setRail(false));
   renderRail();
+  pluginHostReady = bootPluginHost();
   try {
     app.favId = await favoriteTagId(false);
   } catch (e) { /* works without the favorite tag too */ }

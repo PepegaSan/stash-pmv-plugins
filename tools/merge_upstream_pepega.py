@@ -11,6 +11,7 @@ UPSTREAM = "upstream/main"
 
 PEPEGA_STASHUI_KEEP = [
     "pepega-stashui.yml",
+    "classic/classic.js",
     "app/js/plugin-host.js",
     "app/js/views/player.js",
     "app/js/views/plugins.js",
@@ -107,26 +108,56 @@ def patch_pepega_main(path):
         return
     with open(path, encoding="utf-8") as f:
         s = f.read()
-    if "bootPluginHost" in s and "pepega-pmvGenerator" in s:
+    if "awaitPluginHostFor" in s and "pepega-pmvGenerator" in s:
         return
-    if 'import { visibleRail } from "./railcfg.js";' in s and "bootPluginHost" not in s:
+    if 'import { bootPluginHost } from "./plugin-host.js";' not in s:
         s = s.replace(
             'import { visibleRail } from "./railcfg.js";\n',
             'import { visibleRail } from "./railcfg.js";\n'
             'import { bootPluginHost } from "./plugin-host.js";\n\n'
-            "const pluginHostReady = bootPluginHost();\n\n",
+            "let pluginHostReady = Promise.resolve();\n\n",
             1,
         )
-    if "await pluginHostReady" not in s:
+    else:
+        s = s.replace(
+            "const pluginHostReady = bootPluginHost();\n",
+            "let pluginHostReady = Promise.resolve();\n",
+            1,
+        )
+    old_route = (
+        "async function route() {\n"
+        "  try {\n"
+        "    await pluginHostReady;\n"
+        "  } catch (err) {\n"
+        '    console.error("[Stash UI] plugin host failed", err);\n'
+        "  }\n"
+        "  const r = parseHash();"
+    )
+    new_route = (
+        "async function awaitPluginHostFor(view) {\n"
+        '  if (view !== "player" && view !== "plugins") return;\n'
+        "  try {\n"
+        "    await pluginHostReady;\n"
+        "  } catch (err) {\n"
+        '    console.error("[Stash UI] plugin host failed", err);\n'
+        "  }\n"
+        "}\n"
+        "async function route() {\n"
+        "  const r = parseHash();\n"
+        "  await awaitPluginHostFor(r.view);"
+    )
+    if old_route in s:
+        s = s.replace(old_route, new_route, 1)
+    elif "await awaitPluginHostFor(r.view)" not in s:
         s = s.replace(
             "async function route() {\n  const r = parseHash();",
-            "async function route() {\n"
-            "  try {\n"
-            "    await pluginHostReady;\n"
-            "  } catch (err) {\n"
-            '    console.error("[Stash UI] plugin host failed", err);\n'
-            "  }\n"
-            "  const r = parseHash();",
+            new_route,
+            1,
+        )
+    if "pluginHostReady = bootPluginHost();" not in s:
+        s = s.replace(
+            "  renderRail();\n  try {\n    app.favId = await favoriteTagId(false);",
+            "  renderRail();\n  pluginHostReady = bootPluginHost();\n  try {\n    app.favId = await favoriteTagId(false);",
             1,
         )
     s = s.replace(
