@@ -6,23 +6,26 @@ import { t } from "../i18n.js";
 import { gql } from "../api.js";
 
 const PER = 48;
-const KINDS = [
+const ALL_KINDS = [
   { k: "scene", label: "Scenes", find: "findScenes", arg: "scene_filter", type: "SceneFilterType", list: "scenes", bulk: "bulkSceneUpdate", bulkType: "BulkSceneUpdateInput", fields: "id title files { basename } paths { screenshot }", thumb: (x) => x.paths.screenshot },
   { k: "image", label: "Images", find: "findImages", arg: "image_filter", type: "ImageFilterType", list: "images", bulk: "bulkImageUpdate", bulkType: "BulkImageUpdateInput", fields: "id title paths { thumbnail image }", thumb: (x) => x.paths.thumbnail || x.paths.image },
   { k: "gallery", label: "Galleries", find: "findGalleries", arg: "gallery_filter", type: "GalleryFilterType", list: "galleries", bulk: "bulkGalleryUpdate", bulkType: "BulkGalleryUpdateInput", fields: "id title folder { path } files { path } paths { cover }", thumb: (x) => x.paths.cover },
 ];
 const nameOf = (x) => x.title || (x.files && x.files[0] && (x.files[0].basename || x.files[0].path.split(/[\\/]/).pop())) || (x.folder && x.folder.path.split(/[\\/]/).pop()) || "#" + x.id;
 
-// perf: { id, name }; onDone() after something was linked
-export function openAddMedia(perf, onDone) {
+// perf: { id, name }; onDone() after something was linked.
+// opts (to use it for something else than a performer – e.g. a group): only: ["scene"] (kinds), title, hint (already translated),
+// filter(id): what is already linked (left out), link(id): the bulk-update fields that link it, done(n): the toast
+export function openAddMedia(perf, onDone, opts = {}) {
+  const KINDS = opts.only ? ALL_KINDS.filter((x) => opts.only.includes(x.k)) : ALL_KINDS;
   const wrap = document.createElement("div");
   wrap.innerHTML = `
     <div class="kb-scrim kb-dialog-scrim"></div>
-    <div class="kb-dialog kb-add" role="dialog" aria-modal="true" aria-label="${esc(t("Add scenes and images"))}">
-      <h2>${t("Add scenes and images")}</h2>
-      <p class="kb-hint">${t("Everything you tick is linked to {name}. Items already linked aren't shown.", { name: perf.name })}</p>
+    <div class="kb-dialog kb-add" role="dialog" aria-modal="true" aria-label="${esc(opts.title || t("Add scenes and images"))}">
+      <h2>${esc(opts.title || t("Add scenes and images"))}</h2>
+      <p class="kb-hint">${esc(opts.hint || t("Everything you tick is linked to {name}. Items already linked aren't shown.", { name: perf.name }))}</p>
       <div class="kb-cut-find">
-        <span class="kb-cut-kinds" data-kinds>${KINDS.map((x, i) => `<button type="button" class="kb-btn is-ghost${i ? "" : " is-sel"}" data-k="${x.k}">${t(x.label)}<em data-n="${x.k}"></em></button>`).join("")}</span>
+        <span class="kb-cut-kinds" data-kinds${KINDS.length < 2 ? " style=\"display:none\"" : ""}>${KINDS.map((x, i) => `<button type="button" class="kb-btn is-ghost${i ? "" : " is-sel"}" data-k="${x.k}">${t(x.label)}<em data-n="${x.k}"></em></button>`).join("")}</span>
         <input class="kb-field" data-q placeholder="${esc(t("Search by title, path or tag"))}">
       </div>
       <div class="kb-add-grid" data-grid></div>
@@ -81,7 +84,7 @@ export function openAddMedia(perf, onDone) {
     try {
       const d = await gql(`query AddMedia($f: FindFilterType, $s: ${kind.type}) { ${kind.find}(filter: $f, ${kind.arg}: $s) { count ${kind.list} { ${kind.fields} } } }`, {
         f: q ? { q, per_page: PER, page } : { per_page: PER, page, sort: "created_at", direction: "DESC" }, // (no sort when searching – Stash has no "relevance" sort key)
-        s: { performers: { value: [perf.id], modifier: "EXCLUDES" } },
+        s: opts.filter ? opts.filter(perf.id) : { performers: { value: [perf.id], modifier: "EXCLUDES" } },
       });
       if (my !== seq) return; // a newer search is on its way
       const r = d[kind.find];
@@ -132,10 +135,10 @@ export function openAddMedia(perf, onDone) {
       for (const x of KINDS) {
         const ids = [...picked[x.k]];
         if (!ids.length) continue;
-        await gql(`mutation($i: ${x.bulkType}!) { ${x.bulk}(input: $i) { id } }`, { i: { ids, performer_ids: { ids: [perf.id], mode: "ADD" } } });
+        await gql(`mutation($i: ${x.bulkType}!) { ${x.bulk}(input: $i) { id } }`, { i: Object.assign({ ids }, opts.link ? opts.link(perf.id) : { performer_ids: { ids: [perf.id], mode: "ADD" } }) });
         n += ids.length;
       }
-      toast(t("{n} items linked to {name}", { n, name: perf.name }), "ok");
+      toast(opts.done ? opts.done(n) : t("{n} items linked to {name}", { n, name: perf.name }), "ok");
       close();
       onDone && onDone();
     } catch (e) {

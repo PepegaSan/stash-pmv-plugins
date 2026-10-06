@@ -1,7 +1,7 @@
 // Small helpers for display, formatting, messages and dialogs.
 
 import { largeNow } from "./scale.js";
-import { t, locale } from "./i18n.js";
+import { t, locale, few } from "./i18n.js";
 
 export const esc = (s) =>
   String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -126,7 +126,11 @@ export function fmtAgo(iso) {
 }
 export const fmtNum = (n) => Number(n || 0).toLocaleString(locale());
 // The unit words are translated too: plural(3, "scene", "scenes") → "3 scenes" / "3 个场景"
-export const plural = (n, one, many) => `${fmtNum(n)} ${t(n === 1 ? one : many)}`;
+export const plural = (n, one, many) => {
+  let word = t(n === 1 ? one : many);
+  if (n !== 1 && few(n) && t(many + "#few") !== many + "#few") word = t(many + "#few");
+  return `${fmtNum(n)} ${word}`;
+};
 
 // Inventory number like in a museum: S-12 (scene), I-40 (image), G-3 (gallery)
 export const invNo = (kind, id) => `${{ scene: "S", image: "I", gallery: "G" }[kind]}-${id}`;
@@ -187,7 +191,15 @@ export function errorToast(e, what) {
 
 // ---------- Dialogs ----------
 
-const overlayRoot = () => document.getElementById("overlay-root");
+// in fullscreen only the fullscreen element (and its children) is visible, so dialogs and drawers go in there
+const overlayRoot = () => document.fullscreenElement || document.getElementById("overlay-root");
+// Puts a dialog / drawer in. In fullscreen it sits inside the player's own element – its clicks must not reach the
+// player (its [data-close] would close the whole player, a tap would pause it)
+function mountOverlay(wrap) {
+  const root = overlayRoot();
+  root.appendChild(wrap);
+  if (root.id !== "overlay-root") ["click", "dblclick", "pointerdown", "pointerup", "touchstart", "touchend"].forEach((ev) => wrap.addEventListener(ev, (e) => e.stopPropagation()));
+}
 
 // Confirmation with an optional checkbox. Returns { ok, checked }.
 export function confirmDialog({ title, text, ok = t("OK"), danger = false, checkbox }) {
@@ -204,7 +216,7 @@ export function confirmDialog({ title, text, ok = t("OK"), danger = false, check
           <button class="kb-btn ${danger ? "is-danger" : "is-primary"}" data-yes>${esc(ok)}</button>
         </div>
       </div>`;
-    overlayRoot().appendChild(wrap);
+    mountOverlay(wrap);
     const done = (okv) => {
       const c = wrap.querySelector("[data-c]");
       wrap.remove();
@@ -239,7 +251,7 @@ export function promptDialog({ title, label, value = "", ok = t("OK") }) {
           <button type="submit" class="kb-btn is-primary">${esc(ok)}</button>
         </div>
       </form>`;
-    overlayRoot().appendChild(wrap);
+    mountOverlay(wrap);
     const input = wrap.querySelector("input");
     const done = (v) => {
       wrap.remove();
@@ -274,7 +286,7 @@ export function openDrawer({ title, body, foot, onClose }) {
       <div class="kb-drawer-body">${body || ""}</div>
       ${foot ? `<div class="kb-drawer-foot">${foot}</div>` : ""}
     </aside>`;
-  overlayRoot().appendChild(wrap);
+  mountOverlay(wrap);
   const close = () => {
     wrap.remove();
     document.removeEventListener("keydown", onKey, true);

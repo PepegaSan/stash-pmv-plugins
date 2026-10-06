@@ -15,6 +15,7 @@ import { perfPicker, hasPerformers } from "./perfpicker.js";
 import { studioPicker, studiosCache } from "./studiopicker.js";
 import { openEditor } from "./edit.js";
 import { loadStashFilters, stashFilter } from "../stashfilters.js";
+import { openAdvFilter, parseAdv, advStr, advCount, andInto } from "../advfilter.js";
 
 export const KIND_NAME = { scene: ["Scene", "Scenes"], image: ["Image", "Images"], gallery: ["Gallery", "Galleries"] };
 // Unit words for counts ("12 scenes") – separate from the titles above, other languages need that
@@ -47,6 +48,7 @@ function readState(q, kind, defaults) {
     ia: q.ia || "",
     tier: (q.tier || "").split(",").filter(Boolean),
     crit: q.crit || "",
+    adv: q.adv || "",
     seed: q.seed || "",
   };
 }
@@ -65,10 +67,10 @@ export function mediaBrowser(host, opts) {
   // The Stash filter is an AND on top of the filters set here
   const bf = (k, s, b) => {
     const f = buildFilter(k, s, b);
-    if (sf && k === sf.kind && Object.keys(sf.filter).length) f.AND = f.AND ? { AND: [f.AND, sf.filter] } : sf.filter;
+    if (sf && k === sf.kind && Object.keys(sf.filter).length) andInto(f, sf.filter);
     return f;
   };
-  let filterOpen = !!(st.tags.length || st.xtags.length || st.perfs.length || st.studios.length || st.rating || st.fav || st.played || st.ori || st.res || st.len || st.ia || st.tier.length || st.crit);
+  let filterOpen = !!(st.tags.length || st.xtags.length || st.perfs.length || st.studios.length || st.rating || st.fav || st.played || st.ori || st.res || st.len || st.ia || st.tier.length || st.crit || st.adv);
   const rowH = () => store.get("rowHeight", 250);
 
   host.innerHTML = `
@@ -80,6 +82,7 @@ export function mediaBrowser(host, opts) {
         <button class="kb-btn is-icon" data-dir title="${t("Reverse direction")}" aria-label="${t("Reverse direction")}"></button>
         <button class="kb-btn" data-filter>${icon("filter")}<span>${t("Filter")}</span></button>
         <span class="kb-spacer"></span>
+        ${kinds.includes("scene") ? `<button type="button" class="kb-btn is-ghost" data-mute title="${t("Sound in hover previews")}"></button>` : ""}
         <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="130" max="480" step="10" data-rowh value="${rowH()}" aria-label="${t("Size")}"></label>
         ${opts.playlist ? `<select class="kb-field kb-plpick" data-plpick hidden title="${t("Your saved filters – the playlists made from this list")}" aria-label="${t("Saved filters")}"></select>` : ""}
         ${opts.playlist ? `<button class="kb-btn" data-plsave title="${t("Keep these filters as a playlist – it always shows what matches them now")}">${icon("queue")}<span>${opts.query.pl ? t("Save playlist") : t("Save as playlist")}</span></button>` : ""}
@@ -92,6 +95,16 @@ export function mediaBrowser(host, opts) {
       <div data-hang></div>
     </div>`;
   const $ = (s) => host.querySelector(s);
+
+  // Sound in the hover previews: the same switch as on the home page and in Settings → Player and previews
+  const paintMute = () => {
+    const b = $("[data-mute]");
+    if (!b) return;
+    const on = store.get("previewSound", true);
+    b.innerHTML = `${icon(on ? "volume" : "mute")}<span>${on ? t("Sound on") : t("Muted")}</span>`;
+    b.setAttribute("aria-pressed", !on);
+    b.hidden = kind !== "scene";
+  };
 
   function renderTools() {
     host.querySelectorAll("[data-kind]").forEach((b) => {
@@ -119,6 +132,7 @@ export function mediaBrowser(host, opts) {
     $("[data-dir]").hidden = st.sort === "random";
     $("[data-filter]").classList.toggle("is-on", filterOpen);
     $("[data-play]").hidden = kind === "gallery";
+    paintMute();
     if ($("[data-plsave]")) $("[data-plsave]").hidden = kind === "gallery";
     renderFilters();
   }
@@ -147,6 +161,7 @@ export function mediaBrowser(host, opts) {
       ${critKinds(kind) ? `<div class="kb-lab kb-critfilter" data-cf hidden><span>${t("Detailed")}</span><button type="button" class="kb-btn" data-critopen>${icon("sliders")}<span data-crittext>${st.crit ? esc(critText(parseCrit(st.crit))) : t("Criteria …")}</span></button></div>` : ""}
       ${kind !== "gallery" ? `<div class="kb-lab kb-tierfilter" data-tf hidden><span>${t("Tier")}</span><span class="kb-seg kb-tierchips">${TIERS.map((x) => `<button type="button" data-tier="${x.k}" class="${st.tier.includes(x.k) ? "is-on" : ""}" style="--tc:${x.color}">${x.k}</button>`).join("")}</span></div>` : ""}
       <label class="kb-check"><input type="checkbox" data-f="fav"${st.fav ? " checked" : ""}>${t("Favorites only")}</label>
+      <button type="button" class="kb-btn${st.adv ? " is-on" : ""}" data-advopen title="${t('Any field of Stash: title, path, dates, counts, codec …')}">${icon("sliders")}<span>${st.adv ? t("Advanced ({n})", { n: advCount(kind, st.adv) }) : t("Advanced …")}</span></button>
       <button class="kb-btn is-ghost" data-clear>${t("Reset")}</button>`;
     box.querySelectorAll("select[data-f]").forEach((s) => (s.value = st[s.dataset.f] || (s.dataset.f === "rating" ? "0" : "")));
     // the tier filter only shows when there are tiers (Versus has been played)
@@ -222,6 +237,7 @@ export function mediaBrowser(host, opts) {
     ia: st.ia,
     tier: st.tier.join(","),
     crit: st.crit,
+    adv: st.adv,
   });
   // Saved filters: the playlists of this kind and Stash's own saved filters – one click applies it here
   function paintSfNote() {
@@ -464,6 +480,10 @@ export function mediaBrowser(host, opts) {
       renderTools();
       return apply();
     }
+    if (e.target.closest("[data-mute]")) {
+      store.set("previewSound", !store.get("previewSound", true));
+      return paintMute();
+    }
     if (e.target.closest("[data-sfoff]")) {
       sf = null;
       paintSfNote();
@@ -479,11 +499,18 @@ export function mediaBrowser(host, opts) {
       return renderTools();
     }
     if (e.target.closest("[data-clear]") || e.target.closest("[data-clearall]")) {
-      Object.assign(st, { q: "", tags: [], xtags: [], perfs: [], pany: false, studios: [], rating: 0, fav: false, played: "", ori: "", res: "", len: "", ia: "", tier: [], crit: "" });
+      Object.assign(st, { q: "", tags: [], xtags: [], perfs: [], pany: false, studios: [], rating: 0, fav: false, played: "", ori: "", res: "", len: "", ia: "", tier: [], crit: "", adv: "" });
       const qi = $("[data-q]");
       if (qi) qi.value = "";
       renderTools();
       return apply();
+    }
+    if (e.target.closest("[data-advopen]")) {
+      return openAdvFilter(kind, st.adv, (rows) => {
+        st.adv = advStr(rows);
+        renderFilters();
+        apply();
+      });
     }
     if (e.target.closest("[data-critopen]")) {
       return openCritFilter(kind, parseCrit(st.crit), (list) => {

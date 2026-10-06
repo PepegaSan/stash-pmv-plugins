@@ -4,7 +4,7 @@
 // 3. "Stash UI" button in the navigation (back to Stash UI).
 (function () {
   "use strict";
-  var APP = "/plugin/pepega-stashui/assets/index.html";
+  var APP = "/plugin/stashui/assets/index.html";
   var html = document.documentElement;
   var embedded = false;
   try {
@@ -48,11 +48,11 @@
   fetch("/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: 'query { configuration { plugins(include: ["pepega-stashui"]) } }' }),
+    body: JSON.stringify({ query: 'query { configuration { plugins(include: ["stashui"]) } }' }),
   })
     .then(function (r) { return r.json(); })
     .then(function (j) {
-      var c = (j.data && j.data.configuration.plugins && j.data.configuration.plugins["pepega-stashui"]) || {};
+      var c = (j.data && j.data.configuration.plugins && j.data.configuration.plugins.stashui) || {};
       localStorage.setItem("stashui.keepClassicHome", String(!!c.keepClassicHome));
     })
     .catch(function () {});

@@ -1,10 +1,10 @@
 // PMV Generator page: which plugin backend saves recordings, and where "back" and saved
 // scenes lead – into Stash UI when you came from there, otherwise classic Stash.
-const UI = "/plugin/pepega-stashui/assets/index.html";
+const UI = "/plugin/stashui/assets/index.html";
 let fromUI = false;
 try {
-  // Stash UI opens this page with ?from=pepega-stashui (the pages send no referrer)
-  if (new URLSearchParams(location.search).get("from") === "pepega-stashui") sessionStorage.setItem("pmvgen.fromUI", "1");
+  // Stash UI opens this page with ?from=stashui (the pages send no referrer)
+  if (new URLSearchParams(location.search).get("from") === "stashui") sessionStorage.setItem("pmvgen.fromUI", "1");
   fromUI = sessionStorage.getItem("pmvgen.fromUI") === "1";
 } catch (e) { /* storage blocked – classic Stash links */ }
 

@@ -20,7 +20,7 @@ let problemsCache = null; // { at, r } – the last check, kept for this visit
 const TAG_DEFAULTS = { problems: "Funscript problem", multi: "Several funscripts" };
 async function tagNames() {
   try {
-    const saved = JSON.parse((await pluginConfig("pepega-stashui")).fsTags || "{}") || {};
+    const saved = JSON.parse((await pluginConfig("stashui")).fsTags || "{}") || {};
     return { problems: String(saved.problems || "").trim() || TAG_DEFAULTS.problems, multi: String(saved.multi || "").trim() || TAG_DEFAULTS.multi };
   } catch (e) {
     return Object.assign({}, TAG_DEFAULTS);
@@ -157,7 +157,7 @@ export function render(main, params, query) {
       if (!i) return;
       names[i.dataset.tagname] = i.value.trim() || TAG_DEFAULTS[i.dataset.tagname];
       i.value = names[i.dataset.tagname];
-      await setPluginConfig("pepega-stashui", { fsTags: JSON.stringify(names) }).catch(() => {});
+      await setPluginConfig("stashui", { fsTags: JSON.stringify(names) }).catch(() => {});
     };
     body.onclick = async (e) => {
       if (e.target.closest("[data-rescan]")) return paintProblems(true);

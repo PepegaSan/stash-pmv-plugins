@@ -1,0 +1,222 @@
+/* ==========================================================================
+   Stash UI – effects layer (fx.js sets html.kb-fx; Settings → This interface → Effects)
+   Same look (ink, blush, hatching, hard shadows) – it only moves: button shine and ripples,
+   tilting cards with a light that follows the mouse, a hatched wipe on page changes,
+   pop-in dialogs and toasts, a glow behind the mouse.
+   Normal AND liquid glass: html.kb-glass.kb-fx … further down.
+   ========================================================================== */
+
+html.kb-fx {
+  --fx-hi: rgba(255, 255, 255, .6);
+  --fx-glow: rgba(255, 62, 138, .26);
+  --fx-spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* ---------- Page change: one hatched wipe + the page rises in ---------- */
+html.kb-fx .kb-main { animation: kb-fx-page .3s ease; }
+@keyframes kb-fx-page { from { opacity: 0; } }
+#kb-wipe {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 95;
+  height: 4px;
+  background: var(--hatch), var(--pink);
+  box-shadow: 0 0 14px var(--pink);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+  opacity: 0;
+}
+#kb-wipe.is-go { animation: kb-fx-wipe .7s var(--ease) both; }
+@keyframes kb-fx-wipe {
+  0% { transform: scaleX(0); transform-origin: left; opacity: 1; }
+  55% { transform: scaleX(1); transform-origin: left; opacity: 1; }
+  56% { transform: scaleX(1); transform-origin: right; opacity: 1; }
+  100% { transform: scaleX(0); transform-origin: right; opacity: 0; }
+}
+/* Reading progress of long pages */
+#kb-prog {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 94;
+  width: 100%;
+  height: 2px;
+  background: var(--pink-2);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+  opacity: .9;
+}
+/* Light behind the mouse – a plain transform, no repaint of the page */
+#kb-glow {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: 520px;
+  height: 520px;
+  margin: -260px 0 0 -260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fx-glow), transparent 65%);
+  opacity: 0;
+  transition: opacity .6s ease;
+  pointer-events: none;
+  will-change: transform;
+}
+html.kb-fx.kb-fx-moved #kb-glow { opacity: .55; }
+
+/* ---------- Buttons: shine sweeps over on hover, ripple on press ---------- */
+:where(html.kb-fx) :where(.kb-btn, .kb-chip, .kb-seg button, .kb-seg > a, .kb-nav a, .kb-nav button) { position: relative; } /* zero specificity: buttons that are fixed or absolute (menu button) keep their own position */
+html.kb-fx :is(.kb-btn, .kb-chip, .kb-seg button, .kb-seg > a, .kb-nav a, .kb-nav button, .kb-nsfw-btn, .kb-railmode-btn) { overflow: hidden; }
+/* Shimmer along the edge: on hover a light runs slowly left to right along the top and bottom edge and the two meet at the right end (a pseudo-element, not a background – liquid glass paints its own) */
+html.kb-fx :is(.kb-btn, .kb-nav a, .kb-nav button, .kb-nsfw-btn, .kb-railmode-btn)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--fx-hi) 70%, #fff) no-repeat -150% 0 / 60% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0;
+  transform: none;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+html.kb-fx .kb-btn:hover:not(:disabled)::before,
+html.kb-fx :is(.kb-nsfw-btn, .kb-railmode-btn):hover::before,
+html.kb-fx .kb-nav :is(a, button):hover::before { opacity: 1; animation: kb-fx-run 1.5s ease-in-out forwards; }
+@keyframes kb-fx-run { to { background-position: 250% 0; } }
+html.kb-fx .kb-btn:not(.is-primary):not(.is-ghost):hover:not(:disabled) { transform: translateY(-1px); }
+html.kb-fx .kb-btn:active:not(:disabled), html.kb-fx :is(.kb-nsfw-btn, .kb-railmode-btn):active { transform: translateY(1px) scale(.95); }
+html.kb-fx :is(.kb-nsfw-btn, .kb-railmode-btn) { transition: transform .15s var(--fx-spring), background .2s, color .2s; }
+html.kb-fx :is(.kb-nsfw-btn, .kb-railmode-btn) .kb-ic { transition: transform .25s var(--fx-spring); }
+html.kb-fx :is(.kb-nsfw-btn, .kb-railmode-btn):hover .kb-ic { transform: scale(1.2) rotate(-12deg); }
+html.kb-fx .kb-btn.is-primary:active:not(:disabled) { transform: translate(2px, 2px) scale(.98); }
+html.kb-fx .kb-btn.is-primary:not(:disabled) { animation: kb-fx-nudge 4s ease-out 1s infinite; }
+@keyframes kb-fx-nudge { 0%, 100% { filter: none; } 6% { filter: brightness(1.3) saturate(1.3); } 30% { filter: none; } }
+html.kb-fx .kb-btn .kb-ic { transition: transform .25s var(--fx-spring); }
+html.kb-fx .kb-btn:hover:not(:disabled) .kb-ic { transform: scale(1.3) rotate(-14deg); }
+html.kb-fx .kb-btn.is-icon:hover:not(:disabled) .kb-ic { transform: scale(1.35) rotate(18deg); }
+
+.kb-rip {
+  position: absolute;
+  z-index: 0;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 30%, var(--pink-2) 31% 62%, transparent 64%);
+  opacity: .95;
+  pointer-events: none;
+  animation: kb-fx-rip .7s ease-out forwards;
+}
+@keyframes kb-fx-rip { to { transform: scale(var(--rs, 14)); opacity: 0; } }
+
+/* Chips and segmented buttons spring a little */
+html.kb-fx .kb-chip { transition: transform .2s var(--fx-spring), background .15s, box-shadow .15s; }
+html.kb-fx .kb-chip:hover { transform: translateY(-2px) rotate(-1deg); }
+html.kb-fx .kb-chip:active { transform: scale(.94); }
+html.kb-fx .kb-chip.is-on { animation: kb-fx-pop .35s var(--fx-spring); }
+html.kb-fx .kb-seg button.is-on, html.kb-fx .kb-seg > a.is-on { animation: kb-fx-pop .3s var(--fx-spring); }
+@keyframes kb-fx-pop { from { transform: scale(.82); } }
+
+/* Switches: the knob overshoots */
+html.kb-fx .kb-switch i::after { transition: transform .3s var(--fx-spring), background .15s; }
+html.kb-fx .kb-switch:active i::after { width: 22px; }
+
+/* Fields: focus ring grows in */
+html.kb-fx .kb-field { transition: border-color .15s, box-shadow .25s var(--ease), transform .2s var(--ease); }
+html.kb-fx .kb-field:focus { transform: translateY(-1px); box-shadow: 0 0 0 4px rgba(255, 62, 138, .22), 0 8px 24px rgba(255, 62, 138, .14); }
+
+/* ---------- Cards: tilt, zoom, a light that follows the mouse ---------- */
+@media (hover: hover) and (pointer: fine) {
+  html.kb-fx .kb-piece { transition: box-shadow .25s ease; }
+  html.kb-fx .kb-piece.is-tilting { z-index: 2; transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-4px); transition: box-shadow .25s ease, transform .08s linear; }
+  html.kb-fx .kb-piece:hover { box-shadow: 0 0 0 2px var(--pink), 0 16px 34px rgba(0, 0, 0, .5), 0 0 28px rgba(255, 62, 138, .28); }
+  html.kb-fx .kb-piece:hover > img.is-loaded { transform: scale(1.08); }
+  html.kb-fx .kb-piece.is-tilting::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    background: radial-gradient(circle 150px at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .22), transparent 70%);
+    pointer-events: none;
+  }
+}
+/* Other cards (performers, playlists, plugins …) lift and glow */
+html.kb-fx :is(.kb-perf, .kb-pl, .kb-room, .kb-plugin, .kb-card) { transition: transform .25s var(--ease), box-shadow .25s ease, border-color .2s; }
+html.kb-fx :is(.kb-perf, .kb-pl, .kb-room, .kb-plugin, .kb-card):hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0, 0, 0, .4), 0 0 24px rgba(255, 62, 138, .18); }
+
+/* ---------- Menu ---------- */
+html.kb-fx .kb-nav :is(a, button) {
+  background-image: linear-gradient(var(--pink), var(--pink));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 0 60%;
+  transition: background-color .15s, color .15s, transform .25s var(--ease), background-size .25s var(--ease);
+}
+html.kb-fx .kb-nav :is(a, button):hover { transform: translateX(4px); background-size: 3px 60%; }
+html.kb-fx .kb-nav a.is-active { background-size: 3px 80%; }
+html.kb-fx .kb-nav .kb-ic { transition: transform .3s var(--fx-spring), color .15s; }
+html.kb-fx .kb-nav :is(a, button):hover .kb-ic { transform: scale(1.2) rotate(-8deg); }
+html.kb-fx .kb-mark { transition: transform .35s var(--fx-spring), color .15s; }
+html.kb-fx .kb-mark:hover { transform: rotate(-9deg) skewX(-12deg) scale(1.07); }
+html.kb-fx .kb-mark::before { transition: transform .35s var(--ease); }
+html.kb-fx .kb-mark:hover::before { transform: translate(3px, 2px); }
+html.kb-fx .kb-nav .kb-count.is-dot::after { animation: kb-fx-beat 1.8s ease-in-out infinite; }
+@keyframes kb-fx-beat { 50% { transform: scale(1.5); box-shadow: 0 0 14px var(--pink); } }
+
+/* ---------- Dialogs, scrims, toasts ---------- */
+html.kb-fx .kb-dialog { animation: kb-fx-dialog .4s var(--fx-spring) both; }
+@keyframes kb-fx-dialog { from { opacity: 0; transform: translate(-50%, -46%) scale(.92) rotate(-.8deg); } }
+html.kb-fx .kb-dialog::before { animation: kb-fx-hatch .6s var(--ease) .15s both; transform-origin: left; }
+@keyframes kb-fx-hatch { from { transform: scaleX(0); } }
+html.kb-fx .kb-scrim { animation: kb-fade .3s ease; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+html.kb-fx .kb-toast { animation: kb-fx-toast .5s var(--fx-spring) both; }
+@keyframes kb-fx-toast { from { opacity: 0; transform: translateY(24px) scale(.85) rotate(2deg); } }
+
+/* ---------- Details ---------- */
+html.kb-fx ::selection { color: var(--ink); background: var(--pink-2); }
+html.kb-fx *:focus-visible { outline-offset: 3px; animation: kb-fx-ring .35s var(--ease); }
+@keyframes kb-fx-ring { from { outline-offset: 10px; outline-color: transparent; } }
+html.kb-fx { scrollbar-width: thin; scrollbar-color: var(--pink-deep) transparent; }
+html.kb-fx ::-webkit-scrollbar { width: 10px; height: 10px; }
+html.kb-fx ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: var(--pink-deep) padding-box; }
+html.kb-fx ::-webkit-scrollbar-thumb:hover { background: var(--pink) padding-box; }
+html.kb-fx ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Liquid glass: white light instead of hard pink, rounder, a rim that catches the mouse ---------- */
+html.kb-glass.kb-fx { --fx-hi: rgba(255, 255, 255, .55); --fx-glow: rgba(255, 255, 255, .16); }
+html.kb-glass.kb-fx .kb-btn.is-primary:not(:disabled) { animation: none; }
+html.kb-glass.kb-fx .kb-rip { background: radial-gradient(circle, rgba(255, 255, 255, .75) 0 30%, rgba(255, 255, 255, .25) 31% 60%, transparent 62%); }
+html.kb-glass.kb-fx .kb-btn:not(.is-primary):not(.is-ghost):hover:not(:disabled) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 8px 22px rgba(0, 0, 0, .3); }
+html.kb-glass.kb-fx .kb-piece { border-radius: 14px; }
+html.kb-glass.kb-fx .kb-piece:hover { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .6), 0 18px 40px rgba(0, 0, 0, .45), 0 0 34px rgba(255, 255, 255, .18); }
+html.kb-glass.kb-fx .kb-piece::after { background: radial-gradient(circle 170px at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .34), transparent 70%); }
+html.kb-glass.kb-fx :is(.kb-perf, .kb-pl, .kb-room, .kb-plugin, .kb-card):hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 18px 36px rgba(0, 0, 0, .38), 0 0 30px rgba(255, 255, 255, .1); }
+html.kb-glass.kb-fx .kb-nav :is(a, button) { background-image: none; }
+html.kb-glass.kb-fx .kb-nav :is(a, button):hover { transform: translateX(3px) scale(1.02); }
+html.kb-glass.kb-fx .kb-dialog { animation: kb-fx-glassdlg .5s var(--fx-spring) both; }
+@keyframes kb-fx-glassdlg { from { opacity: 0; transform: translate(-50%, -44%) scale(.9); filter: blur(10px); } }
+html.kb-glass.kb-fx #kb-wipe { background: linear-gradient(90deg, transparent, #fff, transparent); box-shadow: 0 0 18px rgba(255, 255, 255, .8); }
+html.kb-glass.kb-fx #kb-prog { background: linear-gradient(90deg, rgba(255, 255, 255, .3), #fff); }
+html.kb-glass.kb-fx ::selection { color: #fff; background: rgba(255, 255, 255, .28); }
+
+/* Narrow screens: no tilt, no menu slide */
+@media (max-width: 760px) {
+  html.kb-fx .kb-nav :is(a, button):hover { transform: none; }
+  #kb-glow { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #kb-glow, #kb-wipe, #kb-prog, .kb-rip { display: none; }
+}
+

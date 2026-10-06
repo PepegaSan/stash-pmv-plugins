@@ -2,7 +2,7 @@
 // Layout = ordered groups with item ids, plus hidden ids. Items that appear later (a new menu entry in an
 // update, a newly installed plugin) are put into their default group, so nothing is ever lost.
 
-import { store, folderMode } from "./ui.js";
+import { store } from "./ui.js";
 
 export const NAV = [
   { group: null, items: [
@@ -16,7 +16,7 @@ export const NAV = [
     { href: "studios", label: "Studios", icon: "studio", match: /^studio/ },
     { href: "groups", label: "Groups", icon: "layers", match: /^group/ },
     { href: "performers", label: "Performers", icon: "person", match: /^performer/, count: "performer_count" },
-    { href: "tags", label: "Tags", icon: "tag", match: /^tag/, count: "tag_count" },
+    { href: "tags", label: "Tags", icon: "tag", match: /^tags?(\/|$)/, count: "tag_count" },
   ] },
   { group: "Watch", items: [
     { href: "queue", label: "Queue", icon: "queue", match: /^queue/, count: "queue" },
@@ -33,6 +33,8 @@ export const NAV = [
     { href: "stats", label: "Statistics", icon: "chart", match: /^stats/ },
     { action: "log", label: "Log", icon: "logs" },
     { href: "duplicates", label: "Duplicates", icon: "copies", match: /^duplicates/ },
+    { href: "tagger", label: "Scene tagger", icon: "tag", match: /^tagger/ },
+    { href: "phone", label: "Phone upload", icon: "phone", match: /^phone/ },
     { href: "settings", label: "Settings", icon: "gear", match: /^settings/ },
     { href: "plugins", label: "Plugins", icon: "plug", match: /^plugins/ },
     { href: "whatsnew", label: "What's new", icon: "info", match: /^whatsnew/, count: "news" },
@@ -42,6 +44,7 @@ export const NAV = [
 
 const KEY = "railLayout";
 const FOLDERS = "folders";
+const SAVED = "savedfilters"; // Stash's saved filters and the playlists, under the folder tree
 // Never hideable (you could lock yourself out of the way back): Start and Settings
 export const LOCKED = new Set(["p:", "p:settings"]);
 export const navId = (it) => (it.action ? "a:" + it.action : "p:" + it.href);
@@ -53,7 +56,7 @@ function defaults() {
   for (const g of NAV) {
     const key = g.group || "";
     const ids = g.items.map(navId);
-    if (key === "Library") ids.push(FOLDERS);
+    if (key === "Library") ids.push(FOLDERS, SAVED);
     groups.push({ key, items: ids });
     ids.forEach((id) => items.set(id, key));
     if (key === "Watch") groups.push({ key: "Extensions", items: [] });
@@ -66,6 +69,7 @@ export function catalog() {
   const m = new Map();
   for (const g of NAV) for (const it of g.items) m.set(navId(it), { id: navId(it), nav: it });
   m.set(FOLDERS, { id: FOLDERS, folders: true });
+  m.set(SAVED, { id: SAVED, saved: true });
   const mode = store.get("extMode", "show");
   const off = new Set(store.get("extHidden", []));
   if (mode !== "hide") {
@@ -131,13 +135,12 @@ export function visibleRail() {
   const layout = loadRail();
   const cat = catalog();
   const off = new Set(layout.hidden);
-  const mode = folderMode();
   return layout.groups
     .map((g) => ({
       key: g.key,
       name: g.name,
       custom: g.name != null,
-      items: g.items.filter((id) => cat.has(id) && !off.has(id) && (id !== FOLDERS || mode === "all")).map((id) => cat.get(id)),
+      items: g.items.filter((id) => cat.has(id) && !off.has(id)).map((id) => cat.get(id)),
     }))
     .filter((g) => g.items.length);
 }

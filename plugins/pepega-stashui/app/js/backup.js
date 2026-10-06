@@ -9,7 +9,7 @@ import { t } from "./i18n.js";
 import { CHANGES } from "./changelog.js";
 
 const FORMAT = "stashui-backup";
-const PLUGINS = ["pepega-stashui", "pepega-pmvGenerator", "pmvGenerator", "mediaStorm"]; // whose settings in Stash are backed up
+const PLUGINS = ["stashui", "pmvGenerator", "mediaStorm"]; // whose settings in Stash are backed up
 // What is only remembered to be quick (rebuilt by itself) is not worth keeping
 const SKIP = /^stashui\.(statsCache|folderTree|extFound|extPlugins\d*|large|eventLog|foldersOnce)$/;
 const mine = (k) => (k.startsWith("stashui.") || k.startsWith("mediaStorm.")) && !SKIP.test(k);
@@ -65,7 +65,7 @@ export async function importBackup(file) {
       try {
         await setPluginConfig(id, c);
       } catch (e) {
-        if (id === "pepega-stashui") throw e; // the others may simply not be installed here
+        if (id === "stashui") throw e; // the others may simply not be installed here
       }
     }
     for (const [k, v] of local) localStorage.setItem(k, v);

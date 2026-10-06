@@ -60,6 +60,7 @@ export function placardHtml(kind, x) {
       <div class="kb-plc-row">
         <button class="kb-plc-btn" data-edit>${icon("edit")}${t("Edit")}</button>
         <button class="kb-plc-btn" data-queue>${icon("queue")}${t("Queue")}</button>
+        <button class="kb-plc-btn is-danger" data-delete title="${t("Delete this item (asks first)")}">${icon("close")}${t("Delete")}</button>
         ${folder ? `<button class="kb-plc-btn" data-folder title="${esc(folder)}">${icon("folder")}${t("Folder")}</button>` : ""}
         ${kind === "scene" ? `<button class="kb-plc-btn" data-extplay title="${t("Play this scene in an external player (mpv, VLC …) – for formats the browser can't play")}">${icon("tv")}${t("External player")}</button>` : ""}
         ${kind === "scene" ? `<button class="kb-plc-btn" data-cover title="${t("Use the frame you're looking at as the scene's cover")}">${icon("image")}${t("Cover")}</button>` : ""}
@@ -95,6 +96,10 @@ export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder,
       if (e.target.closest("[data-fav]")) return fav();
       if (e.target.closest("[data-o]")) return o(1);
       if (e.target.closest("[data-edit]")) return openEditor(kind, [{ id: x.id }], { onSaved: refresh, onDeleted });
+      if (e.target.closest("[data-delete]")) {
+        const { deleteWithConfirm } = await import("./edit.js");
+        return void (await deleteWithConfirm(kind, x.id, onDeleted || refresh));
+      }
       if (e.target.closest("[data-queue]")) {
         const q = store.get("queue", []);
         q.push({ kind, id: x.id, title: x.title || x.id, thumb: kind === "scene" ? x.paths.screenshot : x.paths.thumbnail });

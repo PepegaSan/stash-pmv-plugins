@@ -34,7 +34,7 @@ const HIT_WIN = Math.round(FPS * 1.5);
 export const TUNE = { low: 0.8, k: 1.6, floor: 0.4, gap: 0.85, switch: 1.25, confirm: 2 }; // (exported for tests)
 
 // The helper, via the plugin backend → { port, token, app }
-export async function liveConnect(app, plugin = "pepega-pmvGenerator") {
+export async function liveConnect(app, plugin = "pmvGenerator") {
   const d = await gql(`mutation($p: ID!, $a: Map) { runPluginOperation(plugin_id: $p, args: $a) }`, { p: plugin, a: { mode: "live_start", app } });
   const out = d.runPluginOperation;
   if (!out) throw new Error("No answer from the PMV Generator backend – is Python in the PATH?");

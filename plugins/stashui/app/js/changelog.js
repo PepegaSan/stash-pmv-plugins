@@ -4,6 +4,218 @@
 
 export const CHANGES = [
   {
+    v: "3.71.0",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Six new languages: Japanese (日本語), Vietnamese (Tiếng Việt), French (Français), Spanish (Español), German (Deutsch) and Polish (Polski). Pick one under Settings → This interface → Language – or leave it on Automatic, then it follows the language set in Stash. Polish even counts correctly (1 scena, 2 sceny, 5 scen). The patch notes on this page stay in English and Chinese for now.", "新增六种语言：日语（日本語）、越南语（Tiếng Việt）、法语（Français）、西班牙语（Español）、德语（Deutsch）和波兰语（Polski）。在“设置 → 此界面 → 语言”中选择，或保持“自动”，此时会跟随 Stash 中设置的语言。波兰语的数量词也能正确变化（1 scena、2 sceny、5 scen）。本页的更新说明暂时仍只有英文和中文。"],
+      ["pmv", "PMV Generator 2.22.0: translated into the same six languages.", "PMV 生成器 2.22.0：已翻译成同样的六种语言。"],
+      ["storm", "Media Storm 2.7.0: translated into the same six languages.", "媒体风暴 2.7.0：已翻译成同样的六种语言。"],
+    ],
+  },
+  {
+    v: "3.70.3",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.21.3: the lines between the fields of a split screen are thinner now (2 px at 720p, 3 px at 1080p instead of 4 px), so the clips sit closer together.", "PMV 生成器 2.21.3：分屏中各区域之间的分隔线更细了（720p 为 2 像素，1080p 为 3 像素，原来是 4 像素），片段之间更紧凑。"],
+    ],
+  },
+  {
+    v: "3.70.2",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.21.2: with “Fit”, a clip whose shape is only a little off the field's (up to about 16 %) now fills the field – a few percent are cropped – instead of showing thin blurred bars at the sides that the zoom pulse covered and uncovered again. Clips with a very different shape still get their bars.", "PMV 生成器 2.21.2：使用“适应”时，如果片段形状与画面区域只有轻微差异（约 16% 以内），现在会直接填满该区域（裁掉几个百分点），而不再露出两侧细窄的模糊边条（缩放脉冲会反复盖住又露出它们）。形状差异很大的片段仍保留边条。"],
+    ],
+  },
+  {
+    v: "3.70.1",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.21.1: fixed – a new clip no longer zooms out into the field (that showed borders). The zoom-in entry now always zooms in, alternating a strong and a soft zoom. The zoom pulse itself only ever zooms in.", "PMV 生成器 2.21.1：已修复——新片段不再缩小进入画面（那样会露出边框）。“放大进入”现在始终是放大，强弱交替。缩放脉冲本身也只会放大。"],
+    ],
+  },
+  {
+    v: "3.70.0",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.21.0: the color look has a strength and a color of your own (a light pink or blue breath over everything); new Brightness (smooth, no burnt highlights); new Rim of the picture (blur, motion or lens – only the edges, the middle stays sharp); Smooth scaling for less pixelated clips.", "PMV 生成器 2.21.0：色调现在可调强度，并支持自定义颜色（给整个画面轻轻罩上一层粉色或蓝色）；新增亮度（平滑，不会过曝）；新增画面边缘效果（模糊、动态或镜头——只作用于边缘，中间保持清晰）；新增平滑缩放，减少像素块。"],
+      ["pmv", "The zoom pulse is smoother and sits exactly on the beat (it eases in just before it and fades out softly). New: its strength, and pumping on every beat, every 2nd beat or each bar only.", "缩放脉冲更平滑，并且精确落在拍点上（在拍点前缓缓进入，之后柔和消退）。新增：脉冲强度，以及每一拍、每隔一拍或仅每小节脉动。"],
+      ["pmv", "New Pace for Automatic cuts: Slow, Normal or Fast – is the PMV slow or fast paced.", "自动剪切新增节奏设置：慢、正常或快——决定 PMV 是慢节奏还是快节奏。"],
+    ],
+  },
+  {
+    v: "3.69.7",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.20.3: “Scrolling sides” now scrolls like a real feed – the old clip moves up (or down) and out, the new one follows right behind it from below (or above). Before, the new clip's blurred backdrop covered the old clip.", "PMV 生成器 2.20.3：“侧边滚动”现在像真正的信息流一样滚动——旧片段向上（或向下）移出，新片段紧随其后从下方（或上方）进入。此前新片段的模糊背景会盖住旧片段。"],
+    ],
+  },
+  {
+    v: "3.69.6",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.20.2: in the “Reveal opening” it is one single clip that grows – no cuts to other clips until the drop.", "PMV 生成器 2.20.2：“开场渐显”期间只有一个片段在变大——在 drop 之前不会切换到其他片段。"],
+    ],
+  },
+  {
+    v: "3.69.5",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.20.1: the “Reveal opening” window now has the clip's own shape (a portrait clip stands upright), the clip fills it, everything around is black, the corners are rounded and a soft glow breathes with the beat.", "PMV 生成器 2.20.1：“开场渐显”的窗口现在采用片段自身的形状（竖屏片段竖着显示），片段铺满窗口，四周为黑色，边角圆润，并带有随节拍呼吸的柔和光晕。"],
+    ],
+  },
+  {
+    v: "3.69.4",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.20.0: new switch “Reveal opening” – the first clip sits small in the middle with rounded corners and slowly grows; at the first drop the picture opens up into the layouts.", "PMV 生成器 2.20.0：新增开关“开场渐显”——第一个片段以圆角小窗口出现在中央并缓慢变大，第一次 drop 时画面展开为所选布局。"],
+      ["pmv", "New switch “Scrolling sides”: in 3-way layouts the middle clip stays longer while the clips at the sides scroll up or down like a feed (direction chosen per phase).", "新增开关“侧边滚动”：在三分屏布局中，中间的片段停留更久，两侧的片段像信息流一样向上或向下滚动（方向每个阶段随机）。"],
+    ],
+  },
+  {
+    v: "3.69.3",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.19.0: new switch “Follow the scenes' timeline” – clips come from the part of their scene that matches how far the song is (song start = scene beginnings, song end = scene endings).", "PMV 生成器 2.19.0：新增开关“跟随场景的时间线”——片段取自其场景中与歌曲进度相对应的部分（歌曲开头 = 场景开头，歌曲结尾 = 场景结尾）。"],
+      ["pmv", "When no clip can be played, the error now lists which clips were tried and why (and hints at codec problems: HEVC / AV1 → H.264). After a show the end card lists skipped clips.", "没有片段可播放时，错误信息现在会列出尝试过的片段及原因（并提示编码问题：HEVC / AV1 → H.264）。节目结束后，结束卡片会列出被跳过的片段。"],
+      ["pmv", "It is now said clearly that the recording runs in real time: hints at the Record switch and the REC badge, and a stopped show tells how far the video got.", "现在明确说明录制是实时进行的：录制开关和 REC 标记处有提示，提前停止的节目会说明视频录到了哪里。"],
+    ],
+  },
+  {
+    v: "3.69.2",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Stash UI 3.69.2: fixed – with the menu reduced to icons, the two buttons at the top were squeezed to thin lines. They are normal rounded squares again, one above the other.", "Stash UI 3.69.2：已修复——菜单缩为仅图标时，顶部的两个按钮被压成细线。现在它们恢复为正常的圆角方形，上下排列。"],
+      ["pmv", "PMV Generator 2.18.16: the shared files were updated.", "PMV 生成器 2.18.16：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.69.1",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Stash UI 3.69.1: the two buttons at the top of the menu are a bit smaller and no longer overlap the Start entry.", "Stash UI 3.69.1：菜单顶部的两个按钮略微缩小，不再与“开始”项重叠。"],
+      ["pmv", "PMV Generator 2.18.15: the shared files were updated.", "PMV 生成器 2.18.15：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.69.0",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Sound on / Muted button in the Scenes toolbar too (the same switch as on the home page and in Settings → Player and previews).", "场景工具栏中也有了“声音开/已静音”按钮（与主页和“设置 → 播放器与预览”中的开关相同）。"],
+      ["ui", "The two buttons at the top of the menu (menu size, NSFW mode) are rounded squares now, sit on the right one above the other, and have the same effects as the other buttons (shimmer, ripple, icon bounce) – in normal and liquid glass.", "菜单顶部的两个按钮（菜单大小、NSFW 模式）现在是圆角方形，位于右侧上下排列，并拥有与其他按钮相同的效果（流光、涟漪、图标弹跳）——普通和液态玻璃样式均适用。"],
+      ["pmv", "PMV Generator 2.18.14: the shared files were updated.", "PMV 生成器 2.18.14：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.68.2",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Stash UI 3.68.2: some scrapers (e.g. the built-in auto tag) can only look up the file, not search by name. The source list now says “file only” / “name only”, and a search they can't do gives a clear message instead of Stash's error – in the Scene tagger and in the editor's “Fill in from the internet”.", "Stash UI 3.68.2：有些抓取器（例如内置的自动标签）只能按文件查找，不能按名称搜索。来源列表现在会标注“仅限文件”/“仅限名称”，做不到的搜索会给出清晰的提示，而不是 Stash 的错误信息——场景标记器和编辑器的“从网上填写”都适用。"],
+      ["pmv", "PMV Generator 2.18.13: the shared files were updated.", "PMV 生成器 2.18.13：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.68.1",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Stash UI 3.68.1: fixed – closing the detailed rating (or another drawer or dialog) with the × in fullscreen closed the whole player.", "Stash UI 3.68.1：已修复——全屏时点击 × 关闭详细评分（或其他侧栏、对话框）会把整个播放器一起关闭。"],
+      ["pmv", "PMV Generator 2.18.12: the shared files were updated.", "PMV 生成器 2.18.12：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.68.0",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Advanced filter in Scenes, Images and Galleries (Filter → Advanced …): any number of criteria like in classic Stash – title, path, dates, durations, counts, codec, resolution, tags / performers / studios with “any / all / none”, “is missing …” and more, each with a condition (contains, is, between, is empty …). It sits on top of the quick filters, is kept in the address and in playlists.", "场景、图片和图库中的高级筛选（筛选 → 高级 …）：像经典 Stash 一样可添加任意多个条件——标题、路径、日期、时长、数量、编码、分辨率、标签/演员/工作室（任一/全部/没有）、“缺少 …” 等，每个条件都有判断方式（包含、等于、介于、为空 …）。它叠加在快速筛选之上，会保存在地址和播放列表中。"],
+      ["ui", "Scene tagger (menu → Manage): the scenes that aren't organized, one row each – look each one up by its file or by a title on StashDB or with a scraper, check what was found field by field, save (and mark it organized). “Look up this page” does the whole page by file.", "场景标记器（菜单 → 管理）：列出尚未整理的场景，每个一行——通过文件或标题在 StashDB 或抓取器中查找，逐项检查找到的内容后保存（并标记为已整理）。“查找本页”会按文件一次查找整页。"],
+      ["ui", "The folder tree in the menu: when it is off (a big library switches it off), the menu now says so and offers “Show the folder tree here” and a link to the Folders page – before it simply vanished.", "菜单中的文件夹树：关闭时（大型媒体库会自动关闭），菜单现在会说明原因，并提供“在此显示文件夹树”和“文件夹”页面的链接——以前它只是消失了。"],
+      ["ui", "The Delete key deletes the scene or image you are looking at (it asks first). The saved filter that is open is lit in the menu.", "按 Delete 键可删除当前查看的场景或图片（会先确认）。当前打开的已保存筛选会在菜单中高亮。"],
+      ["pmv", "PMV Generator 2.18.11: the shared files were updated.", "PMV 生成器 2.18.11：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.67.0",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Delete button in the player's info bar: it asks first, and the next video of the list or queue keeps playing instead of going back to the list.", "播放器信息栏新增删除按钮：会先确认，删除后继续播放列表或队列中的下一个视频，而不是返回列表。"],
+      ["ui", "Saved filters in the menu: Stash's own saved filters (scenes, images) and your playlists are listed under the folder tree – one click opens the list with it. Can be hidden or moved in Home → Customize → Sidebar.", "菜单中的已保存筛选：文件夹树下方列出 Stash 自带的已保存筛选（场景、图片）和你的播放列表——点击即可用它打开列表。可在“主页 → 自定义 → 侧边栏”中隐藏或移动。"],
+      ["ui", "Fixed: the detailed rating (and other dialogs and drawers) did not open while the player was in fullscreen.", "已修复：播放器全屏时，详细评分（以及其他对话框和侧栏）无法打开。"],
+      ["ui", "Fixed: stepping to the next or previous image flashed the page underneath for a moment.", "已修复：切换到上一张或下一张图片时，下方页面会短暂闪现。"],
+      ["pmv", "PMV Generator 2.18.10: the shared files were updated.", "PMV 生成器 2.18.10：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.66.1",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.66.1: fixed the button that brings back a hidden menu – the new effects had moved it to the bottom of the page.", "Stash UI 3.66.1：修复了用于恢复已隐藏菜单的按钮——新特效把它移到了页面底部。"],
+      ["pmv", "PMV Generator 2.18.9: the shared files were updated.", "PMV 生成器 2.18.9：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.66.0",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.66.0: effects and animations. Buttons shine when you point at them and send out a ripple when pressed, cards lean towards the mouse with a light that follows it, pages rise in under a hatched wipe, dialogs and messages pop in, the menu icons wiggle and a soft glow follows the mouse. Same look, in normal and liquid glass. Switch off: Settings → This interface → Effects and animations (also off when your system asks for less motion). Also: the home page now has the same selection bar as Scenes (favorite, edit, add to queue, delete – also for scenes and images mixed), and the bar is liquid glass in the glass look.", "Stash UI 3.66.0：特效和动画。鼠标指向按钮时会闪过光泽，按下时扩散涟漪；卡片朝鼠标倾斜并有跟随的光线；切换页面时出现斜线擦除并让页面升起；对话框和消息弹出；菜单图标摆动；柔和的光晕跟随鼠标。外观不变，普通和液态玻璃模式均适用。关闭：设置 → 此界面 → 特效和动画（系统要求减少动态效果时也会自动关闭）。另外：主页现在也有与“场景”页相同的选择栏（收藏、编辑、加入队列、删除，场景和图片混选也可以），并且选择栏在玻璃模式下是液态玻璃。"],
+      ["pmv", "PMV Generator 2.18.8: the shared files were updated.", "PMV 生成器 2.18.8：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.65.0",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.65.0: Phone upload (menu: Manage → Phone upload). Send photos and videos from your phone's gallery to your library over your home Wi-Fi: press Start, scan the QR code with the phone, pick the files – they are streamed straight into a folder of your library (default “Phone uploads”, you choose the library folder and the subfolder), keep the date they have on the phone, and Stash scans the folder by itself a few seconds after the last file. Big videos are fine (no size limit, written to disk as they arrive). Safety: it runs only while you use it (Stop, or by itself after three hours without use), only people with the link / QR code can send, only photo and video types are accepted, nothing is overwritten, and the folder has to be inside a library folder. Use it on a network you trust. Windows may ask once whether Python may use the private network – allow it. Only tested with simulated uploads on this PC, not with a real phone.", "Stash UI 3.65.0：手机上传（菜单：管理 → 手机上传）。通过家庭 Wi-Fi 把手机相册中的照片和视频发送到你的媒体库：点击“开始”，用手机扫描二维码，选择文件——它们会被直接流式写入媒体库中的一个文件夹（默认“Phone uploads”，媒体库文件夹和子文件夹可自选），保留手机上的原始日期，最后一个文件到达几秒后 Stash 会自动扫描该文件夹。大视频没有问题（无大小限制，边接收边写入磁盘）。安全：只在你使用时运行（点“停止”，或三小时无人使用后自动停止），只有拥有链接/二维码的人才能发送，只接受照片和视频类型，不会覆盖任何文件，且文件夹必须位于媒体库文件夹之内。请在你信任的网络中使用。Windows 可能会询问一次是否允许 Python 使用专用网络——请允许。仅在本机用模拟上传测试过，未用真实手机测试。"],
+      ["pmv", "PMV Generator 2.18.7: the shared files were updated.", "PMV 生成器 2.18.7：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.64.2",
+    date: "2026-10-05",
+    items: [
+      ["pmv", "PMV Generator 2.18.6: fixed the suggestion lists of the Tags and Performers fields – they were drawn far below the field, out of sight, so typing a tag showed nothing. They appear right under the field again (normal and Liquid glass).", "PMV 生成器 2.18.6：修复了“标签”和“演员”输入框的建议列表——它们被绘制在输入框下方很远的位置，看不到，所以输入标签时什么都不显示。现在它们再次出现在输入框正下方（普通和液态玻璃外观）。"],
+      ["ui", "Stash UI 3.64.2: a shared stylesheet was extended (for the PMV Generator).", "Stash UI 3.64.2：扩展了一个共享样式表（用于 PMV 生成器）。"],
+    ],
+  },
+  {
+    v: "3.64.1",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.64.1: the tag search is more robust. While the tag list is still loading it says “Loading tags …” and the suggestions appear by themselves as soon as it is there (before: nothing, until you typed another letter). If the whole list can't be loaded (very large libraries, a slow Stash), it asks Stash for matches while you type instead. An error shows up in the list instead of leaving it empty. This is also the tag search of the PMV Generator.", "Stash UI 3.64.1：标签搜索更稳健。标签列表仍在加载时会显示“正在加载标签 …”，加载完成后建议会自动出现（以前：在你再输入一个字母之前什么都不显示）。如果无法加载整个列表（非常大的库、Stash 较慢），则会在你输入时向 Stash 请求匹配项。出错时会在列表中显示错误，而不是留空。PMV 生成器的标签搜索也是同一个。"],
+      ["pmv", "PMV Generator 2.18.5: the tag search is more robust (see Stash UI 3.64.1).", "PMV 生成器 2.18.5：标签搜索更稳健（见 Stash UI 3.64.1）。"],
+    ],
+  },
+  {
+    v: "3.64.0",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.64.0: groups can be made and edited here now. Library → Groups: “New group” (cover picture by upload, link or paste, name, aliases, date, director, studio, links, synopsis, tags). On a group's page: “Add scenes” (browse or search your scenes, tick as many as you like, add them in one go), “Edit group” and “Delete group”. The scenes are added to the group; they stay in your library when a group is deleted.", "Stash UI 3.64.0：现在可以在这里创建和编辑群组。媒体库 → 群组：“新建群组”（可通过上传、链接或粘贴设置封面，以及名称、别名、日期、导演、工作室、链接、简介、标签）。在群组页面：“添加场景”（浏览或搜索场景，勾选任意多个后一次添加）、“编辑群组”和“删除群组”。场景会被加入群组；删除群组时场景仍保留在你的库中。"],
+      ["pmv", "PMV Generator 2.18.4: the shared files were updated.", "PMV 生成器 2.18.4：共享文件已更新。"],
+    ],
+  },
+  {
+    v: "3.63.2",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.63.2: tag and studio search no longer picks anything for you. The suggestions show while you type – click one, or use ↑/↓ and Enter. Only a name you typed exactly (or an alias) is highlighted, so Enter takes that one. Enter on a name that matches nothing still creates it (where that is allowed). Also the tag search of the PMV Generator.", "Stash UI 3.63.2：标签和工作室搜索不再替你自动选择。输入时会显示建议——点击其中一个，或用 ↑/↓ 加回车。只有你完整输入的名称（或别名）会高亮，回车就选它。输入没有任何匹配的名称并按回车，仍会创建它（在允许创建的地方）。PMV 生成器的标签搜索也是如此。"],
+      ["pmv", "PMV Generator 2.18.3: the tag search no longer auto-picks (see Stash UI 3.63.2).", "PMV 生成器 2.18.3：标签搜索不再自动选择（见 Stash UI 3.63.2）。"],
+    ],
+  },
+  {
+    v: "3.63.1",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.63.1: tag and studio search now put the name you typed first – the exact name, then an alias, then names that start with it. Before, Enter could take another tag that merely contained the text (typing “anal” could pick a longer tag). This is also the tag search of the PMV Generator.", "Stash UI 3.63.1：标签和工作室搜索现在把你输入的名称排在最前——先是完全匹配，其次是别名，再是以它开头的名称。以前按回车可能选中仅包含该文字的其他标签（输入“anal”可能选到更长的标签）。PMV 生成器的标签搜索也是同一个。"],
+      ["pmv", "PMV Generator 2.18.2: the tag search picks the tag you typed (see Stash UI 3.63.1). README: a note on browsers and codecs (H.264 is light, HEVC/4K heavy; Safari can lag with many clips).", "PMV 生成器 2.18.2：标签搜索会选中你输入的标签（见 Stash UI 3.63.1）。README：新增关于浏览器和编码的说明（H.264 很轻，HEVC/4K 较重；片段很多时 Safari 可能卡顿）。"],
+    ],
+  },
+  {
+    v: "3.63.0",
+    date: "2026-10-05",
+    items: [
+      ["ui", "Stash UI 3.63.0: a group can be deleted – open the group, “Delete group” (only the group is deleted, its scenes stay in your library). Plugins page: every enabled plugin has an “All settings in classic Stash” button – settings that a plugin draws itself with its own code (not listed in its file) are only there, because the classic interface is where plugins can add to the page.", "Stash UI 3.63.0：现在可以删除群组——打开群组，点击“删除群组”（只删除群组，其中的场景保留在库中）。插件页面：每个已启用的插件都有“在经典 Stash 中查看全部设置”按钮——插件用自己的代码绘制的设置（未列在其文件中）只在那里，因为经典界面才是插件可以扩展页面的地方。"],
+      ["pmv", "PMV Generator 2.18.1: the shared files were updated.", "PMV 生成器 2.18.1：共享文件已更新。"],
+    ],
+  },
+  {
     v: "3.62.1",
     date: "2026-10-05",
     items: [

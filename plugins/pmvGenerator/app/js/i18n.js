@@ -6,8 +6,22 @@
 export const LANGS = [
   ["en", "English"],
   ["zh-CN", "简体中文"],
+  ["ja", "日本語"],
+  ["vi", "Tiếng Việt"],
+  ["fr", "Français"],
+  ["es", "Español"],
+  ["de", "Deutsch"],
+  ["pl", "Polski"],
 ];
-const FILES = { "zh-CN": () => import("./locales/zh-CN.js") };
+const FILES = {
+  "zh-CN": () => import("./locales/zh-CN.js"),
+  ja: () => import("./locales/ja.js"),
+  vi: () => import("./locales/vi.js"),
+  fr: () => import("./locales/fr.js"),
+  es: () => import("./locales/es.js"),
+  de: () => import("./locales/de.js"),
+  pl: () => import("./locales/pl.js"),
+};
 const KEY = "stashui.lang"; // "auto" (like Stash) or a code from LANGS
 
 let dict = null;
@@ -18,6 +32,9 @@ export function t(text, params) {
   if (params) out = out.replace(/\{(\w+)\}/g, (m, k) => (params[k] != null ? params[k] : m));
   return out;
 }
+
+// Polish counts 2–4 (but not 12–14) with its own form: plural(n, one, many) then looks up "<many>#few"
+export const few = (n) => lang === "pl" && n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
 
 // For Intl / toLocaleString
 export const locale = () => (lang === "en" ? "en-US" : lang);
@@ -35,11 +52,12 @@ export function choose(code) {
   } catch (e) { /* blocked – only for this page view */ }
 }
 
-// Stash's language setting (e.g. "zh-CN", "en-GB") → one of ours; Traditional Chinese etc. stay English for now
+// Stash's language setting (e.g. "zh-CN", "de-DE", "en-GB") → one of ours; Traditional Chinese etc. stay English for now
 export function match(code) {
   const c = String(code || "").toLowerCase();
   if (/^zh[-_](cn|sg|hans)/.test(c) || c === "zh") return "zh-CN";
-  return "en";
+  const m = c.match(/^(ja|vi|fr|es|de|pl)(?![a-z])/);
+  return m ? m[1] : "en";
 }
 
 // Load the language before the first render. stashLanguage: Stash's interface language (for "auto").

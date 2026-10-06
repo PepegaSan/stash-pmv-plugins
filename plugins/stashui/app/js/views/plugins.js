@@ -142,6 +142,7 @@ export async function render(main, params, query) {
       <div class="kb-pfoot">
         ${p.url ? `<a class="kb-plugin-link" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${t("Project page")}</a>` : ""}
         <span class="kb-spacer"></span>
+        ${p.enabled ? `<a class="kb-btn is-ghost" href="#/extern/classic-settings?path=${encodeURIComponent("/settings?tab=plugins")}" title="${esc(t("Settings a plugin draws itself (with its own code) aren't listed here – they are in classic Stash, where plugins can add to the page"))}">${icon("gear")}${t("All settings in classic Stash")}</a>` : ""}
         ${pk ? `<button class="kb-btn is-ghost kb-pdanger" data-uninstall="${esc(pk.package_id)}"${busy ? " disabled" : ""}>${icon("trash")}${t("Uninstall")}</button>` : ""}
       </div>
     </article>`;

@@ -8,7 +8,7 @@ A complete new interface for [Stash](https://github.com/stashapp/stash), built f
 - **Heart** = favorite.
 - Font: Bahnschrift (included with Windows; other systems fall back to a similar sans-serif).
 
-Open it: just open Stash (e.g. `http://localhost:9999`) – the home page redirects to Stash UI. Directly: `/plugin/pepega-stashui/assets/index.html`.
+Open it: just open Stash (e.g. `http://localhost:9999`) – the home page redirects to Stash UI. Directly: `/plugin/stashui/assets/index.html`.
 
 ![Home](../../docs/screenshots/stashui-home.png)
 
@@ -36,7 +36,7 @@ Open it: just open Stash (e.g. `http://localhost:9999`) – the home page redire
 | Extensions | Every enabled plugin gets a menu entry under Extensions – with its own symbol when it ships an `icon.svg`, `icon.png` or `icon.webp` next to its page. |
 | Studios | **Make, edit, delete and scrape** studios (name, aliases, links, details, parent studio, tags, logo; “Fill in from the internet” uses StashDB-style boxes and studio scrapers) – also a new name typed into the Studio field of the editor. Every studio as a logo card (search, sort); a studio's page: scenes, images and galleries including sub-studios, links, aliases, parent studio. The edit drawer of scenes, images and galleries has a **Studio** field (and “Edit several” sets one for all); lists have a studio filter, which saved filters keep. |
 | Saved filters | Scenes and Images have a **Saved filters** menu: one click applies a saved one. Save the current filters with “Save as playlist” – Playlists are the saved filters. |
-| Markers, Groups | **Markers** (Watch): every marked moment as a grid – search, tag filter, sort, hover preview; a click opens the scene at that moment. **Groups** (Library): all groups as poster cards, a page per group with its scenes in the group's order (Stash 0.27+) |
+| Markers, Groups | **Markers** (Watch): every marked moment as a grid – search, tag filter, sort, hover preview; a click opens the scene at that moment. **Groups** (Library): all groups as poster cards, a page per group with its scenes in the group's order (Stash 0.27+) Groups can be made and edited here (cover, name, date, director, studio, tags …); on a group's page: add scenes (browse or search, tick many), edit, delete (only the group – its scenes stay). |
 | External player | **External player** in a scene's info panel hands the video (stream address, with the API key if there is one, subtitles and the current position) to mpv, VLC, IINA, Infuse, MPC-HC, PotPlayer, nPlayer or MX Player through their link types – mpv needs mpv-handler and VLC on Windows / Linux vlc-protocol; on iPhone / iPad / Mac / Android the apps bring theirs. Which players are offered: Settings → Player and previews (kept in Stash) |
 | Menu and selecting | The menu on the left: full, icons only or hidden (button at its top / Settings → This interface). **Select all {n} results** in the selection bar selects everything the search found, not just the loaded pages. Dates are typed year first with a calendar button; **E** opens the editor in the player; keys with Ctrl / Cmd / Alt are left to the browser |
 | Large libraries | From 20 000 scenes or 100 000 images (**Large library mode**: automatic, on or off – Settings → This interface) Stash UI loads less: folders aren't counted on their own (the Folders page asks, with progress and a cancel button; a failed try isn't repeated on every page load), home sections load when scrolled to – two at a time, kept for five minutes –, Versus plays the preview clips (Settings → Versus: scenes), scans of all funscripts (Interactive → Problems / Overview) start on a click and keep their result, Stash's totals are asked for once, and leaving a page stops its requests |
@@ -54,12 +54,14 @@ Open it: just open Stash (e.g. `http://localhost:9999`) – the home page redire
 | Statistics | **Achievements**: a streak of days in a row (and your best), and medals in steps – plays, hours watched, how much of the library you've seen, night owl, Versus picks, O – with the way to the next step; new ones are announced. **Your week** (watch time, plays, most watched scene, top performer and tag, busiest day – against the week before), then everything for a chosen period (7 / 30 / 90 days, a year, all time) compared with the period before: watch time, plays, different scenes (and how many for the first time), O; activity by day, week or month with quick looks shown apart; top scenes, performers, tags and studios with trend and a small curve over the period; weekday and time of day; how much of the library you've seen and what you never watched. Count by watch time or by plays. Comes from the play and O history Stash keeps for every scene |
 | Duplicates | Scenes that look the same (Stash's perceptual hashes), side by side with resolution, codec, bitrate and size – the best copy is marked. Delete single copies or “keep the best” in one click; deleting the files from disk is an extra checkbox. “Not duplicates” hides a group. Needs phashes (Tasks → Generate) |
 | Settings | All Stash settings in sections: library, previews, playback, paths, login, log (with viewer), classic interface, DLNA, scrapers, more options, database (back up, optimize, clean up), this interface |
-| Plugins | Installed: on/off, settings, run tasks, check for updates, update (one or all), uninstall. Browse: install plugins from your sources, with search. Sources: add, edit, remove plugin sources – no need to go to classic Stash |
+| Plugins | Installed: on/off, settings, run tasks, check for updates, update (one or all), uninstall. Browse: install plugins from your sources, with search. Sources: add, edit, remove plugin sources – no need to go to classic Stash Every enabled plugin has an “All settings in classic Stash” button – settings a plugin draws with its own code (not listed in its file) live there. |
+| Phone upload | Manage → Phone upload: send photos and videos from your phone's gallery to your library over your home Wi-Fi. **Start**, scan the QR code with the phone, pick the files – they are written into a folder of your library (default “Phone uploads”), and Stash scans it by itself. Runs only while you use it; only people with the link can send; only photo and video types are accepted. |
+| Effects and animations | Settings → This interface: button shine and ripples, tilting cards with a moving light, a hatched wipe on page changes, pop-in dialogs and messages, a glow behind the mouse. Normal and liquid glass; off with one switch and automatically when the system asks for less motion. |
 | Classic Stash | The original Stash in the same look, embedded with quick picks: performers, studios, groups, markers, scene tagger, scrapers, tools, settings |
 
 ## Languages
 
-Stash UI is available in **English** and **Simplified Chinese (简体中文)**. By default it follows the interface language set in Stash (classic Stash → Settings → Interface → Language); you can also pick one under **Settings → This interface → Language**.
+Stash UI is available in **English**, **Simplified Chinese (简体中文)**, **Japanese (日本語)**, **Vietnamese (Tiếng Việt)**, **French (Français)**, **Spanish (Español)**, **German (Deutsch)** and **Polish (Polski)**. By default it follows the interface language set in Stash (classic Stash → Settings → Interface → Language); you can also pick one under **Settings → This interface → Language**.
 
 ![Stash UI in Simplified Chinese](../../docs/screenshots/stashui-zh.png)
 
@@ -75,7 +77,8 @@ export default {
 ```
 
 - Anything missing simply shows in English, so partial translations work.
-- `python tools/i18n_keys.py zh-CN` lists the texts a language file is still missing.
+- `python tools/i18n_keys.py zh-CN` (or `ja`, `de` …) lists the texts a language file is still missing.
+- Polish counts 2–4 with its own form: besides `"scenes"` the file has `"scenes#few"` (see `pl.js`).
 - A new language: copy `zh-CN.js`, translate the values, and add it to `LANGS` and `FILES` in `app/js/i18n.js`.
 - Found an odd or too long wording? Open an issue or a pull request.
 
@@ -113,6 +116,7 @@ Stash UI works on its own. If you also install **Media Storm** or the **PMV Gene
 | J | Next highlight | – |
 | 0–9 | Jump to 0–90 % | – |
 | 1–5 | Rating | Rating |
+| Del | Delete (asks first) | Delete (asks first) |
 | H | Heart (favorite) | Heart (favorite) |
 | O | O counter +1 | O counter +1 |
 | F | Fullscreen | Fullscreen |
@@ -141,6 +145,12 @@ Settings → General → **Install as app**: Stash UI gets its own window and a 
 - **Player menu** (gear next to fullscreen): quality (original or Stash's transcodes), subtitles (Stash's captions – the section appears when a scene has some), VR and speed.
 - **VR**: 180°/360° videos, mono, side by side or top/bottom – drag to look around, wheel or two fingers to zoom. Guessed from the file name (e.g. `_180_LR`) or a "VR" tag, and remembered per scene. Shows one eye on a normal screen; headsets aren't supported yet.
 - **Fullscreen**: move the mouse near the right edge to slide in the info panel (Settings → This interface → “Info panel in fullscreen”).
+- **Advanced filter** (Filter → Advanced …): any number of criteria on top of the quick filters, like classic Stash's “Add filter” – text fields (contains, is, regex, empty), numbers and dates (is, between, greater / less), yes / no fields, resolution, format, tags / performers / studios (any, all, none), “is missing …”. It is kept in the address and in playlists.
+- **Scene tagger** (menu → Manage): the scenes that aren't organized with a StashDB / scraper lookup per scene – by file or by title – and a field-by-field check before saving. Same scrapers as “Fill in from the internet” in the editor.
+- **Sound button in Scenes**: Sound on / Muted for the hover previews sits in the Scenes toolbar as well as on the home page.
+- **Delete in the player**: the info bar has a Delete button (it asks first, with the option to delete the file too). The next video of the list or queue keeps playing instead of going back to the list.
+- **Saved filters in the menu**: Stash's own saved filters (Scenes, Images) and your playlists sit under the folder tree – one click opens the list with it. Hide or move the section in Home → Customize → Sidebar.
+- The detailed rating, dialogs and drawers also open while the player is in fullscreen; stepping from one image or video to the next no longer flashes the page underneath.
 - **Colors**: Settings → This interface → Colors. Pick a preset (Plum, Midnight, OLED black, Forest, Ember, Ocean, Violet, Classic Stash) or set each color – accent, backgrounds, text, success/error – with the color wheel. Save your own colors as presets. Optional **background image**: a random image with the tag “background” (the same images the Random Backgrounds plugin uses in classic Stash) – on every start or, if switched on, on every page – or one image you choose (from those images or any URL), with a darken slider. Optional **Liquid glass** (transparency slider, blur can be switched off): see-through, blurred panels with a light edge over a soft glow in the theme colors – the photo or video under the mouse tints the background, and in the player the running video glows behind the info panel and into the black bars. Saved in the browser; the PMV Generator uses the same look.
 - **Keep the classic home page**: Settings → This interface → “This interface as home page” off (or the plugin setting “Keep classic home page”). For a single tab: `http://localhost:9999/?classic=1`.
 - Pages that only exist in classic Stash (registered by other plugins) are embedded through classic Stash; its navigation is hidden there.

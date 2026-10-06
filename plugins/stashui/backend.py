@@ -58,12 +58,27 @@ Called through Stash's `runPluginOperation` (interface: raw):
   "<video> (<label>).funscript" (a taken name gets " 2", " 3" …) – the original isn't touched.
       args:   {"mode": "funscript_save_variant", "scene_id": "12", "label": "Soft", "content": "<funscript text>"}
       output: {"path", "name"}
+
+* modes "phone_status" / "phone_start" / "phone_stop": "Phone upload". phoneup.py (next to this file) is a small
+  receiver in the home network: the phone opens its page (QR code in Stash UI), picks photos and videos from the
+  gallery and they are written into one folder inside a library folder. One receiver at a time; its port, token and
+  folder are kept in <temp>/stashui-phone.json.
+      phone_status: {"mode": "phone_status"}  → {"running", "roots", "folder", "urls", "port", "token", "ips"}
+      phone_start:  {"mode": "phone_start", "root": "<a library folder>", "name": "Phone uploads"}
+                    (the upload folder is <root>/<name>; name may be a path below root) → like phone_status
+      phone_stop:   {"mode": "phone_stop"} → {"running": false}
 """
 
 import hashlib
 import json
 import os
+import secrets
+import socket
+import subprocess
 import sys
+import tempfile
+import time
+import urllib.parse
 import urllib.request
 
 MAX_SIZE = 30 * 1024 * 1024
@@ -540,6 +555,140 @@ def funscript_overview(stash, args):
     }
 
 
+# ---------- Phone upload ----------
+PHONE_STATE = os.path.join(tempfile.gettempdir(), "stashui-phone.json")  # (not the plugin folder: an update would replace it)
+
+
+def lan_ips():
+    """This PC's addresses in the local network, the likeliest first (192.168.x, 10.x, 172.16-31.x)."""
+    found = []
+    try:  # the address the PC uses to reach the outside – no packet is sent
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))
+        found.append(s.getsockname()[0])
+        s.close()
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.append(info[4][0])
+    except OSError:
+        pass
+
+    def rank(ip):
+        if ip.startswith("192.168."):
+            return 0
+        if ip.startswith("10."):
+            return 1
+        if ip.startswith("172.") and 16 <= int(ip.split(".")[1]) <= 31:
+            return 2
+        return 3
+
+    ips = [ip for ip in dict.fromkeys(found) if not ip.startswith("127.") and not ip.startswith("169.254.") and ip != "0.0.0.0"]
+    return sorted(ips, key=rank)
+
+
+def phone_load():
+    try:
+        with open(PHONE_STATE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def phone_ping(st):
+    try:
+        url = f"http://127.0.0.1:{st['port']}/api/ping?k={urllib.parse.quote(st['token'])}"
+        with urllib.request.urlopen(url, timeout=2) as r:
+            return json.load(r)
+    except Exception:  # noqa: BLE001 – not running / not answering
+        return None
+
+
+def phone_info(st, roots, running):
+    ips = lan_ips()
+    return {
+        "running": running,
+        "roots": roots,
+        "folder": (st or {}).get("folder", ""),
+        "port": (st or {}).get("port"),
+        "token": (st or {}).get("token", "") if running else "",
+        "ips": ips,
+        "urls": [f"http://{ip}:{st['port']}/?k={st['token']}" for ip in ips] if running and st else [],
+    }
+
+
+def phone_stop_server(st):
+    if not st:
+        return
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{st['port']}/api/stop?k={urllib.parse.quote(st['token'])}", timeout=3).read()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        os.remove(PHONE_STATE)
+    except OSError:
+        pass
+
+
+def phone_status(stash, args):
+    roots, _ = libraries(stash)
+    st = phone_load()
+    running = bool(st and phone_ping(st))
+    if st and not running:
+        st = None
+    return phone_info(st, roots, running)
+
+
+def phone_start(stash, args):
+    roots, _ = libraries(stash)
+    if not roots:
+        raise RuntimeError("Stash has no library folder yet")
+    root = os.path.realpath(str(args.get("root") or roots[0]))
+    if not inside(root, roots):
+        raise ValueError("the upload folder has to be inside a library folder of Stash")
+    name = str(args.get("name") or "Phone uploads").replace("\\", "/").strip("/ ")
+    if not name or any(part in ("..", ".") for part in name.split("/")):
+        raise ValueError("bad folder name")
+    folder = os.path.realpath(os.path.join(root, *name.split("/")))
+    if not inside(folder, roots):
+        raise ValueError("the upload folder has to be inside a library folder of Stash")
+    os.makedirs(folder, exist_ok=True)
+    st = phone_load()
+    if st and phone_ping(st):
+        if os.path.normcase(st.get("folder", "")) == os.path.normcase(folder):
+            return phone_info(st, roots, True)
+        phone_stop_server(st)  # another folder wanted: restart
+        time.sleep(0.4)
+    s = socket.socket()
+    s.bind(("0.0.0.0", 0))
+    port = s.getsockname()[1]
+    s.close()
+    token = secrets.token_urlsafe(9)
+    flags = 0
+    if os.name == "nt":
+        flags = 0x00000008 | 0x00000200 | 0x08000000  # detached, own process group, no window
+    subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneup.py"), str(port), token, folder],
+                     creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
+                     start_new_session=(os.name != "nt"))
+    st = {"port": port, "token": token, "folder": folder}
+    for _ in range(50):
+        if phone_ping(st):
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError("the upload receiver didn't start")
+    with open(PHONE_STATE, "w", encoding="utf-8") as f:
+        json.dump(st, f)
+    return phone_info(st, roots, True)
+
+
+def phone_stop(stash, args):
+    roots, _ = libraries(stash)
+    phone_stop_server(phone_load())
+    return phone_info(None, roots, False)
+
+
 def main():
     data = json.loads(sys.stdin.read() or "{}")
     args = data.get("args") or {}
@@ -567,6 +716,12 @@ def main():
             out = funscript_save(Stash(data.get("server_connection")), args)
         elif mode == "funscript_remove":
             out = funscript_remove(Stash(data.get("server_connection")), args)
+        elif mode == "phone_status":
+            out = phone_status(Stash(data.get("server_connection")), args)
+        elif mode == "phone_start":
+            out = phone_start(Stash(data.get("server_connection")), args)
+        elif mode == "phone_stop":
+            out = phone_stop(Stash(data.get("server_connection")), args)
         else:
             raise ValueError(f"unknown mode: {mode or '(empty)'}")
     except Exception as e:

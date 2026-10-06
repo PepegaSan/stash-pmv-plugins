@@ -9,7 +9,7 @@ import { studiosCache } from "./studiopicker.js";
 import { createStudio } from "./studioedit.js";
 
 let schema = null;
-async function loadSchema() {
+export async function loadSchema() {
   if (schema) return schema;
   const d = await gql(`query SceneScrapeSchema {
     u: __type(name: "SceneUpdateInput") { inputFields { name } }
@@ -20,7 +20,7 @@ async function loadSchema() {
   return schema;
 }
 
-async function loadSources() {
+export async function loadSources() {
   const d = await gql(`query SceneSources {
     listScrapers(types: [SCENE]) { id name scene { supported_scrapes } }
     configuration { general { stashBoxes { endpoint name } } }
@@ -32,7 +32,17 @@ async function loadSources() {
   return { list: [...boxes, ...scrapers], byUrl };
 }
 
-const day = (v) => (/^\d{4}-\d{2}-\d{2}/.test(String(v || "")) ? String(v).slice(0, 10) : "");
+// What a source can do: a StashDB-style box both; a scraper maybe only a text search or only the file lookup
+export const sourceLabel = (s) => s.name + (s.box || (s.byName && s.byFragment) ? "" : s.byFragment ? " (" + t("file only") + ")" : " (" + t("name only") + ")");
+export const canByName = (s) => !!s && (!!s.box || !!s.byName);
+export const canByFile = (s) => !!s && (!!s.box || !!s.byFragment);
+export const day = (v) => (/^\d{4}-\d{2}-\d{2}/.test(String(v || "")) ? String(v).slice(0, 10) : "");
+export const linksOf = (x) => [...new Set([...(x.urls || []), x.url].filter(Boolean))];
+// the fields asked of a scraped scene (which exist depends on the Stash version)
+export function scrapedFields(sch) {
+  const SC = ["title", "details", "date", "urls", "url", "image", "remote_site_id", "code", "director"].filter((k) => sch.scraped.has(k)).join(" ");
+  return `${SC}${sch.scraped.has("studio") ? " studio { stored_id name }" : ""}${sch.scraped.has("tags") ? " tags { stored_id name }" : ""}${sch.scraped.has("performers") ? " performers { stored_id name }" : ""}`;
+}
 
 // host: the section to fill. ctx: { id, title, el (the drawer), picker (tags), perfs, studio, setCover(dataUrl), setStashIds(list), stashIds }
 export async function mountSceneScrape(host, ctx) {
@@ -51,7 +61,7 @@ export async function mountSceneScrape(host, ctx) {
   host.innerHTML = `
     <b>${t("Fill in from the internet")}</b>
     <div class="kb-pe-scrapebar">
-      ${sources.list.length ? `<select class="kb-field" data-src>${sources.list.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}</select>` : ""}
+      ${sources.list.length ? `<select class="kb-field" data-src>${sources.list.map((s) => `<option value="${esc(s.id)}">${esc(sourceLabel(s))}</option>`).join("")}</select>` : ""}
       <input class="kb-field" data-sq value="${esc(ctx.title || "")}" placeholder="${esc(t("Title or link – empty = look the file up"))}">
       <button type="button" class="kb-btn is-primary" data-sgo>${icon("search")}${t("Search")}</button>
     </div>
@@ -60,11 +70,9 @@ export async function mountSceneScrape(host, ctx) {
     <label class="kb-check"><input type="checkbox" data-mk checked> ${t("Create studios, performers and tags that don't exist yet")}</label>
     <div class="kb-pe-results" data-sres></div>`;
   const $ = (s) => host.querySelector(s);
-  const SC = ["title", "details", "date", "urls", "url", "image", "remote_site_id", "code", "director"].filter((k) => sch.scraped.has(k)).join(" ");
-  const SF = `${SC}${sch.scraped.has("studio") ? " studio { stored_id name }" : ""}${sch.scraped.has("tags") ? " tags { stored_id name }" : ""}${sch.scraped.has("performers") ? " performers { stored_id name }" : ""}`;
+  const SF = scrapedFields(sch);
   const srcOf = () => sources.list.find((s) => s.id === ($("[data-src]") || {}).value);
   const sourceInput = (s) => (s.box ? { stash_box_endpoint: s.box } : { scraper_id: s.scraper });
-  const linksOf = (x) => [...new Set([...(x.urls || []), x.url].filter(Boolean))];
   let results = [];
 
   async function search() {
@@ -81,6 +89,8 @@ export async function mountSceneScrape(host, ctx) {
       const s = srcOf();
       if (!s) throw new Error(t("Choose a source, or paste a link"));
       // a name asks by text, an empty search by the scene itself (its fingerprints / what Stash knows about it)
+      if (q && !canByName(s)) throw new Error(t("This source can't search by name – it only looks up the file. Leave the search empty, or choose another source."));
+      if (!q && !canByFile(s)) throw new Error(t("This source can't look up a file – type a title or choose another source."));
       const input = q ? { query: q } : { scene_id: ctx.id };
       const r = await gql(`query($s: ScraperSourceInput!, $i: ScrapeSingleSceneInput!) { scrapeSingleScene(source: $s, input: $i) { ${SF} } }`, { s: sourceInput(s), i: input });
       results = r.scrapeSingleScene || [];

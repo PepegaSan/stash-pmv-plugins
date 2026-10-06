@@ -14,6 +14,7 @@ export const PREVIEW_MODES = ["on", "off", "poster"]; // always · never · not 
 // Put the settings on the page: CSS variables and classes on <html>
 export function applyDisplay() {
   const r = document.documentElement;
+  import("./fx.js").then((m) => m.applyFx());
   const rail = RAIL_MODES.includes(store.get("railMode", "full")) ? store.get("railMode", "full") : "full";
   r.dataset.rail = rail;
   r.style.setProperty("--rail", (rail === "mini" ? 64 : rail === "hidden" ? 0 : clamp(store.get("railWidth", 236), 180, 360)) + "px");

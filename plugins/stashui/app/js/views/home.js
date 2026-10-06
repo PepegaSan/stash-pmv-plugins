@@ -11,6 +11,7 @@ import { roomsHtml, fillRoomCovers } from "./folder.js";
 import { tagPicker } from "./tagpicker.js";
 import { perfPicker, hasPerformers } from "./perfpicker.js";
 import { mountRailEditor } from "./homerail.js";
+import { track, forget, closeBar } from "../bulkbar.js";
 
 function greeting() {
   const h = new Date().getHours();
@@ -47,7 +48,7 @@ window.addEventListener("stash:library-changed", () => homeCache.clear());
 
 // A small wall with a fixed number of items (key: the section – its result is kept)
 function wall(el, fetcher, rowHeight, key) {
-  return new Hang(el, {
+  const h = new Hang(el, {
     rowHeight: rowHeight || 210,
     fetchPage: async (page) => {
       if (page > 1) return { count: 0, pieces: [] };
@@ -68,6 +69,8 @@ function wall(el, fetcher, rowHeight, key) {
     },
     onError: (e) => errorToast(e, "Home"),
   });
+  track(h); // the selection bar (favorite, edit, queue, delete) works across all walls of the page
+  return h;
 }
 
 const BUILTIN = {
@@ -158,6 +161,7 @@ export async function render(main) {
   const cleanup = () => {
     hangs.forEach((h) => h.destroy());
     hangs = [];
+    closeBar();
     stopCovers();
     stopCovers = () => {};
   };
@@ -309,6 +313,7 @@ export async function render(main) {
     const roll = () => {
       if (h) {
         h.destroy();
+        forget(h);
         hangs = hangs.filter((x) => x !== h);
       }
       h = wall(

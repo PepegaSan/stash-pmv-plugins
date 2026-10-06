@@ -15,9 +15,9 @@ applyTheme(); // same colors as in Stash UI (same browser storage)
     stashLang = (await gql(`query { configuration { interface { language } } }`)).configuration.interface.language || "";
   } catch (e) { /* standalone or older Stash – the browser language decides */ }
   const lang = await initLang(stashLang);
-  if (lang === "zh-CN") {
+  if (lang !== "en") {
     try {
-      startDomTranslation(document.body, (await import("./locales/pmv-zh-CN.js")).default);
+      startDomTranslation(document.body, (await import(`./locales/pmv-${lang}.js`)).default);
     } catch (e) {
       console.error("[PMV Generator] translation", e);
     }

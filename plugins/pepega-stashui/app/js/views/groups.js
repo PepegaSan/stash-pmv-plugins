@@ -1,11 +1,13 @@
 // Groups (Stash's collections of scenes – formerly "movies"): all groups as poster cards, and one group with its
 // scenes (in the order of the group). Scrolling loads more.
 
-import { esc, icon, debounce, errorToast, plural, fmtDate, starsHtml } from "../ui.js";
+import { esc, icon, debounce, errorToast, toast, confirmDialog, plural, fmtDate, starsHtml } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, routeSignal } from "../api.js";
 import { setQuery } from "../main.js";
 import { mediaBrowser } from "./media.js";
+import { openGroupEditor } from "./groupedit.js";
+import { openAddMedia } from "./perfadd.js";
 
 const SORTS = [
   ["name", "Alphabetical"],
@@ -36,6 +38,7 @@ async function renderList(main, query) {
         <p class="kb-sub" data-sub></p>
       </div>
       <div class="kb-head-tools">
+        <button type="button" class="kb-btn is-primary" data-new>${icon("plus")}${t("New group")}</button>
         <label class="kb-search">${icon("search")}<input class="kb-field" type="search" data-q placeholder="${t("Search groups")}" value="${esc(query.q || "")}"></label>
         <select class="kb-field" data-sort aria-label="${t("Sort order")}">${SORTS.map(([v, l]) => `<option value="${v}">${t(l)}</option>`).join("")}</select>
       </div>
@@ -71,7 +74,7 @@ async function renderList(main, query) {
       $("[data-sub]").textContent = plural(total, "group", "groups");
       const list = d.findGroups.groups;
       if (reset) $("[data-list]").innerHTML = "";
-      if (!loaded && !list.length) $("[data-list]").innerHTML = `<div class="kb-empty"><b>${t("No groups found")}</b><p>${$("[data-q]").value ? t("Try another search.") : t("Groups collect scenes that belong together – make one in classic Stash.")}</p></div>`;
+      if (!loaded && !list.length) $("[data-list]").innerHTML = `<div class="kb-empty"><b>${t("No groups found")}</b><p>${$("[data-q]").value ? t("Try another search.") : t("Groups collect scenes that belong together – make your first one with “New group”.")}</p></div>`;
       else $("[data-list]").insertAdjacentHTML("beforeend", list.map(card).join(""));
       loaded += list.length;
       page++;
@@ -87,6 +90,7 @@ async function renderList(main, query) {
     setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === "name" ? "" : $("[data-sort]").value });
     load(true);
   };
+  $("[data-new]").onclick = () => openGroupEditor(null, { name: $("[data-q]").value.trim(), onSaved: (id) => (location.hash = "#/group/" + id) });
   $("[data-q]").addEventListener("input", debounce(reload, 300));
   $("[data-sort]").onchange = reload;
   load(true);
@@ -97,6 +101,16 @@ async function renderList(main, query) {
 }
 
 async function renderOne(main, id, query) {
+  let destroy = null;
+  const redraw = async () => {
+    if (destroy) destroy();
+    destroy = (await drawOne(main, id, query, redraw)) || null;
+  };
+  await redraw();
+  return () => destroy && destroy();
+}
+
+async function drawOne(main, id, query, redraw) {
   let g;
   try {
     g = (
@@ -127,13 +141,39 @@ async function renderOne(main, id, query) {
         <nav class="kb-crumbs"><span><a href="#/groups">${t("Groups")}</a></span></nav>
         <h1 class="kb-h1">${esc(g.name)}</h1>
         <p class="kb-sub">${plural(g.scene_count || 0, "scene", "scenes")}</p>
-        ${g.rating100 ? `<div class="kb-plc-acts">${starsHtml(g.rating100)}</div>` : ""}
+        <div class="kb-plc-acts">${g.rating100 ? starsHtml(g.rating100) : ""}<button type="button" class="kb-btn" data-add>${icon("plus")}${t("Add scenes")}</button><button type="button" class="kb-btn" data-edit>${icon("edit")}${t("Edit group")}</button><button type="button" class="kb-btn is-ghost kb-pdanger" data-del>${icon("trash")}${t("Delete group")}</button></div>
         ${facts.length ? `<dl class="kb-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl>` : ""}
         ${(g.tags || []).length ? `<div class="kb-chips">${g.tags.map((tg) => `<a class="kb-chip" href="#/tag/${esc(tg.id)}">${esc(tg.name)}</a>`).join("")}</div>` : ""}
         ${g.synopsis ? `<p class="kb-lead kb-perf-details">${esc(g.synopsis)}</p>` : ""}
       </div>
     </header>
     <section data-browser></section>`;
+  main.querySelector("[data-edit]").onclick = () => openGroupEditor(id, { onSaved: redraw });
+  main.querySelector("[data-add]").onclick = () =>
+    openAddMedia({ id: g.id, name: g.name }, redraw, {
+      only: ["scene"],
+      title: t("Add scenes to the group"),
+      hint: t("Everything you tick is added to “{name}”. Scenes that are already in it aren't shown.", { name: g.name }),
+      filter: (gid) => ({ groups: { value: [gid], modifier: "EXCLUDES" } }),
+      link: (gid) => ({ group_ids: { ids: [gid], mode: "ADD" } }),
+      done: (n) => t("{n} scenes added to the group", { n }),
+    });
+  main.querySelector("[data-del]").onclick = async () => {
+    const r = await confirmDialog({
+      title: t("Delete group “{name}”?", { name: g.name }),
+      text: g.scene_count ? t("Only the group is deleted – its {n} scenes stay in your library.", { n: g.scene_count }) : t("The group is empty. It is deleted."),
+      ok: t("Delete"),
+      danger: true,
+    });
+    if (!r.ok) return;
+    try {
+      await gql(`mutation($i: GroupDestroyInput!) { groupDestroy(input: $i) }`, { i: { id: g.id } });
+      toast(t("Group deleted"), "ok");
+      location.hash = "#/groups";
+    } catch (e) {
+      errorToast(e, "Delete");
+    }
+  };
   const b = mediaBrowser(main.querySelector("[data-browser]"), {
     kinds: ["scene"],
     query,

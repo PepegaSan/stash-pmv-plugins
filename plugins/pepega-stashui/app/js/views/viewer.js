@@ -217,7 +217,7 @@ export async function render(host, params) {
   const onKey = (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target.closest && e.target.closest("input, textarea, select")) return;
-    if (document.querySelector("#overlay-root .kb-drawer, #overlay-root .kb-dialog")) return;
+    if (document.querySelector(".kb-drawer, .kb-dialog")) return;
     const k = e.key.toLowerCase();
     let handled = true;
     if (k === "escape") document.fullscreenElement ? document.exitFullscreen() : zoom > 1 ? setZoom(1) : closeOverlay();
@@ -227,6 +227,7 @@ export async function render(host, params) {
     else if (k === "z") setZoom(zoom > 1 ? 1 : 2.5);
     else if (k === "f") fullscreen();
     else if (k === "i") $("[data-panel]").click();
+    else if (k === "delete") $("[data-delete]") && $("[data-delete]").click(); // asks first
     else if (k === "h") plc.fav().catch((err) => errorToast(err, "Favorite"));
     else if (k === "o") plc.o(1).catch((err) => errorToast(err, "O counter"));
     else if (/^[1-5]$/.test(k)) plc.rate(Number(k)).catch((err) => errorToast(err, "Rating"));

@@ -7,7 +7,7 @@ const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "CODE", "PRE"]);
 // Names from the library stay as they are: folder rows and chosen folders, tag chips, found PMVs
 const DATA = "[data-noi18n], [data-fid], [data-fchips] .kb-chip, .kb-chip[data-id], .kb-pmvg-tpl";
 
-export function startDomTranslation(root, { texts, patterns }) {
+export function startDomTranslation(root, { texts, patterns, sep = "、" }) {
   const exact = new Map(Object.entries(texts));
   const pats = patterns.map(([re, out]) => [new RegExp("^" + re + "$"), out]);
   // Parts without lowercase words (numbers, "16:9", "720p", "VHS") stay as they are
@@ -21,9 +21,9 @@ export function startDomTranslation(root, { texts, patterns }) {
       if (m) return out.replace(/\$(\d)/g, (x, i) => (m[+i] == null ? "" : tr(m[+i], depth + 1) ?? m[+i]));
     }
     // Lists: "Automatic · 6 layouts", "best moments, smart crop" – each part on its own
-    for (const [sep, join] of [[" · ", " · "], [", ", "、"]]) {
-      if (!s.includes(sep)) continue;
-      const parts = s.split(sep).map((p) => tr(p, depth + 1) ?? (neutral(p) ? p : null));
+    for (const [by, join] of [[" · ", " · "], [", ", sep]]) {
+      if (!s.includes(by)) continue;
+      const parts = s.split(by).map((p) => tr(p, depth + 1) ?? (neutral(p) ? p : null));
       if (parts.every((p) => p != null)) return parts.join(join);
     }
     return null;

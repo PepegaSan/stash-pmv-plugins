@@ -1000,8 +1000,18 @@ export async function render(host, params, query = {}) {
       paintCoverUndo();
     },
     onDeleted: () => {
+      // keep watching: the next video of the list plays on, the list itself loses the scene
+      const gone = x.id;
+      const { list, pos } = upcoming();
+      const nxt = list[pos + 1] || list[pos - 1];
+      if (ctx.hang) ctx.hang.remove(["scene:" + gone]);
+      if (inQueue) store.set("queue", store.get("queue", []).filter((q) => !(q.kind === "scene" && String(q.id) === String(gone))));
+      else if (ctx.pieces) ctx.pieces = ctx.pieces.filter((p) => !(p.kind === "scene" && p.id === gone));
+      if (nxt && !mini) {
+        if (inQueue) store.set("queuePos", Math.max(0, Math.min(pos, store.get("queue", []).length - 1)));
+        return nxt.kind === "image" ? go("image/" + nxt.id, true) : openScene(nxt.id);
+      }
       closeOverlay();
-      if (ctx.hang) ctx.hang.remove(["scene:" + x.id]);
     },
     position: () => v.currentTime,
     goFolder: () => goToFolder(f.path),
@@ -1471,7 +1481,7 @@ export async function render(host, params, query = {}) {
   const onKey = (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return; // (the browser's own keys: Ctrl+R reloads, Ctrl+F searches …)
     if (e.target.closest && e.target.closest("input, textarea, select, .kb-drawer, .kb-dialog")) return;
-    if (document.querySelector("#overlay-root .kb-drawer, #overlay-root .kb-dialog")) return;
+    if (document.querySelector(".kb-drawer, .kb-dialog")) return;
     const k = e.key.toLowerCase();
     let handled = true;
     if (k === "escape") document.fullscreenElement ? document.exitFullscreen() : closeOverlay();
@@ -1488,6 +1498,7 @@ export async function render(host, params, query = {}) {
     else if (k === "b") addMarker();
     else if (k === "e") host.querySelector("[data-edit]") && host.querySelector("[data-edit]").click(); // edit
     else if (k === "r") host.querySelector("[data-advrate]") && host.querySelector("[data-advrate]").click(); // the detailed rating
+    else if (k === "delete") host.querySelector("[data-delete]") && host.querySelector("[data-delete]").click(); // asks first
     else if (k === "n") next(1);
     else if (k === "p") next(-1);
     else if (k === "i") $("[data-panel]").click();

@@ -165,23 +165,29 @@ async function editOne(kind, id, { onSaved, onDeleted }) {
     }
   };
   el.querySelector("[data-del]").onclick = async () => {
-    const r = await confirmDialog({
-      title: t(TITLES[kind][1]),
-      text: t("The item disappears from Stash. With the box ticked, the file on disk is deleted too – this can't be undone."),
-      ok: t("Delete"),
-      danger: true,
-      checkbox: t("Also delete the file from disk"),
-    });
-    if (!r.ok) return;
-    try {
-      await destroyItems(kind, [id], r.checked);
-      toast(t("Deleted"), "ok");
-      d.close();
-      onDeleted ? onDeleted() : onSaved && onSaved();
-    } catch (e) {
-      errorToast(e, "Deleting failed");
-    }
+    if (await deleteWithConfirm(kind, id, onDeleted || onSaved)) d.close();
   };
+}
+
+// Ask, delete, tell. True when the item is gone.
+export async function deleteWithConfirm(kind, id, then) {
+  const r = await confirmDialog({
+    title: t(TITLES[kind][1]),
+    text: t("The item disappears from Stash. With the box ticked, the file on disk is deleted too – this can't be undone."),
+    ok: t("Delete"),
+    danger: true,
+    checkbox: t("Also delete the file from disk"),
+  });
+  if (!r.ok) return false;
+  try {
+    await destroyItems(kind, [id], r.checked);
+    toast(t("Deleted"), "ok");
+    then && then();
+    return true;
+  } catch (e) {
+    errorToast(e, "Deleting failed");
+    return false;
+  }
 }
 
 function editMany(kind, pieces, { onSaved }) {

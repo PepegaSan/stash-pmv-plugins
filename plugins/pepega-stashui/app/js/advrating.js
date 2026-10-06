@@ -35,7 +35,7 @@ export const defaults = (kind) =>
 // ---------- Settings ----------
 export async function loadConfig(kind) {
   try {
-    const all = JSON.parse((await pluginConfig("pepega-stashui")).advRating || "{}") || {};
+    const all = JSON.parse((await pluginConfig("stashui")).advRating || "{}") || {};
     const g = all[kind] && Array.isArray(all[kind].groups) && all[kind].groups.length ? all[kind] : null;
     return g ? JSON.parse(JSON.stringify(g)) : defaults(kind);
   } catch (e) {
@@ -45,10 +45,10 @@ export async function loadConfig(kind) {
 export async function saveConfig(kind, cfg) {
   let all = {};
   try {
-    all = JSON.parse((await pluginConfig("pepega-stashui")).advRating || "{}") || {};
+    all = JSON.parse((await pluginConfig("stashui")).advRating || "{}") || {};
   } catch (e) { /* none yet */ }
   all[kind] = cfg;
-  await setPluginConfig("pepega-stashui", { advRating: JSON.stringify(all) });
+  await setPluginConfig("stashui", { advRating: JSON.stringify(all) });
 }
 
 // ---------- Calculation ----------

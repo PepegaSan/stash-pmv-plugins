@@ -49,7 +49,7 @@ SECTIONS.splice(SECTIONS.findIndex((x) => x.id === "classic-ui"), 0, Object.assi
 
 // Search: what the custom pages contain (their labels, as shown)
 const CUSTOM_ENTRIES = {
-  look: ["Colors", "Liquid glass"],
+  look: ["Colors", "Liquid glass", "Effects and animations"],
   "player-ui": ["At the end of a video", "Start at a random spot", "Info panel in fullscreen", "Sound in previews", "The Handy", "Connection key", "Script offset"],
   "this-ui": ["Language", "Folder loading", "This interface as home page", "Install as app", "Studio on scenes", "Other plugins in the menu", "Rating system", "Thumbnail size", "Favorites", "Backup and restore", "Reset interface settings"],
   database: ["Back up database", "Optimize database", "Clean up generated files"],
@@ -335,8 +335,14 @@ async function renderSystem(body) {
 // ---------- This interface ----------
 
 function renderLook(body) {
-  body.innerHTML = `<form class="kb-set-form" data-form>${themeHtml()}</form>`;
+  body.innerHTML = `<form class="kb-set-form" data-form>${themeHtml()}
+    <div class="kb-set kb-theme"><div class="kb-theme-body"><label class="kb-theme-glass"><span class="kb-switch"><input type="checkbox" data-fx${store.get("fx", true) !== false ? " checked" : ""}><i></i></span><span><b>${t("Effects and animations")}</b><small>${t("Button shine and ripples, tilting cards with a moving light, a wipe on page changes and a glow behind the mouse. Off by itself when your system asks for less motion.")}</small></span></label></div></div></form>`;
   bindTheme(body);
+  body.querySelector("[data-fx]").addEventListener("change", (e) => {
+    store.set("fx", e.target.checked);
+    applyDisplay();
+    toast(t("Saved"), "ok");
+  });
 }
 
 const RATE_SYS = [["stars:full", "Stars (whole)"], ["stars:half", "Stars (half)"], ["stars:quarter", "Stars (quarter)"], ["stars:tenth", "Stars (tenth)"], ["decimal:", "Decimal (0.0–10.0)"]];
@@ -428,8 +434,8 @@ function renderPlayerUi(body) {
 }
 
 async function renderApp(body) {
-  const d = await gql(`query { configuration { plugins(include: ["pepega-stashui"]) } }`);
-  const cfg = (d.configuration.plugins && d.configuration.plugins["pepega-stashui"]) || {};
+  const d = await gql(`query { configuration { plugins(include: ["stashui"]) } }`);
+  const cfg = (d.configuration.plugins && d.configuration.plugins.stashui) || {};
   body.innerHTML = `
     <form class="kb-set-form" data-form>
       <label class="kb-set"><span class="kb-set-label"><b>${t("Language")}</b><small>${t("“Automatic” follows the language set in Stash (classic Stash → Settings → Interface).")}</small></span>
@@ -562,7 +568,7 @@ async function renderApp(body) {
   };
   body.querySelector("[data-home]").onchange = async (e) => {
     try {
-      await setPluginConfig("pepega-stashui", { keepClassicHome: !e.target.checked });
+      await setPluginConfig("stashui", { keepClassicHome: !e.target.checked });
       localStorage.setItem("stashui.keepClassicHome", String(!e.target.checked));
       toast(t("Saved"), "ok");
     } catch (err) {

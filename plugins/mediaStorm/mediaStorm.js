@@ -163,9 +163,11 @@
         l = (await gql("query { configuration { interface { language } } }")).configuration.interface.language || "";
       } catch (e) { /* older Stash */ }
       l = String(l || navigator.language || "").toLowerCase();
-      return /^zh[-_](cn|sg|hans)/.test(l) || l === "zh" ? "zh-CN" : "en";
+      if (/^zh[-_](cn|sg|hans)/.test(l) || l === "zh") return "zh-CN";
+      const m = l.match(/^(ja|vi|fr|es|de|pl)(?![a-z])/);
+      return m ? m[1] : "en";
     }
-    function run({ texts, patterns }) {
+    function run({ texts, patterns, sep = "、" }) {
       const exact = new Map(Object.entries(texts));
       const pats = patterns.map(([re, out]) => [new RegExp("^" + re + "$"), out]);
       const neutral = (p) => !/[a-z]{2,}/.test(p);
@@ -178,9 +180,9 @@
           const m = s.match(re);
           if (m) return out.replace(/\$(\d)/g, (x, i) => (m[+i] == null ? "" : tr(m[+i], depth + 1) ?? m[+i]));
         }
-        for (const [sep, join] of [[" · ", " · "], [", ", "、"]]) {
-          if (!s.includes(sep)) continue;
-          const parts = s.split(sep).map((p) => tr(p, depth + 1) ?? (neutral(p) ? p : null));
+        for (const [by, join] of [[" · ", " · "], [", ", sep]]) {
+          if (!s.includes(by)) continue;
+          const parts = s.split(by).map((p) => tr(p, depth + 1) ?? (neutral(p) ? p : null));
           if (parts.every((p) => p != null)) return parts.join(join);
         }
         return null;
@@ -358,8 +360,8 @@
   let msFavId;
   async function loadMsPlaylists() {
     try {
-      const d = await gql(`query { configuration { plugins(include: ["pepega-stashui"]) } }`);
-      const cfg = (d.configuration.plugins || {})["pepega-stashui"] || {};
+      const d = await gql(`query { configuration { plugins(include: ["stashui"]) } }`);
+      const cfg = (d.configuration.plugins || {}).stashui || {};
       const list = JSON.parse(cfg.playlists || "[]");
       msPlaylists = Array.isArray(list) ? list.filter((p) => p && p.id && p.query) : [];
     } catch (e) {
