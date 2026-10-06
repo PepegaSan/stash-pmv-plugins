@@ -102,6 +102,19 @@ def merge_tree(upstream_prefix, dest_dir, skip_names):
             f.write(data)
 
 
+def patch_pepega_railcfg(path):
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        s = f.read()
+    needle = '{ action: "pmv", label: "PMV Generator", icon: "music", plugin: "pmvGenerator" },'
+    repl = '{ action: "pmv", label: "PMV Generator Pepega", icon: "music", plugin: "pepega-pmvGenerator" },'
+    if needle in s:
+        s = s.replace(needle, repl, 1)
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(s)
+
+
 def patch_pepega_main(path):
     """Re-apply Pepega fork hooks after upstream main.js is merged in."""
     if not os.path.isfile(path):
@@ -239,6 +252,7 @@ def main():
     write_pepega_yml(os.path.join(pepega_ui, "pepega-stashui.yml"), stashui_v)
     patch_api_js(os.path.join(pepega_ui, "app/js/api.js"))
     patch_pepega_main(os.path.join(pepega_ui, "app/js/main.js"))
+    patch_pepega_railcfg(os.path.join(pepega_ui, "app/js/railcfg.js"))
 
     skip_pmv = set(PEPEGA_PMV_KEEP)
     merge_tree("plugins/pmvGenerator", pepega_pmv, skip_pmv)
