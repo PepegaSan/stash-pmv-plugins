@@ -11,8 +11,10 @@ import { bootPluginHost } from "./plugin-host.js";
 
 const pluginHostReady = bootPluginHost();
 
+
 applyTheme(); // chosen colors before anything is drawn
 initAmbient();
+import("./fx.js").then((m) => m.applyFx()); // effects layer (Settings → This interface → Effects)
 
 // Install as an app: the worker only exists so browsers offer "Install" (needs https or localhost).
 // The install prompt comes early, Settings → General picks it up later.
@@ -56,11 +58,13 @@ const ROUTES = [
   { re: /^versus$/, view: "versus" },
   { re: /^versus\/ranking$/, view: "versus", params: { tab: "ranking" } },
   { re: /^duplicates$/, view: "dupes" },
+  { re: /^tagger$/, view: "tagger" },
   { re: /^queue$/, view: "queue" },
   { re: /^tasks$/, view: "tasks" },
   { re: /^settings$/, view: "settings" },
   { re: /^settings\/([a-z-]+)$/, view: "settings", keys: ["section"] },
   { re: /^plugins$/, view: "plugins" },
+  { re: /^phone$/, view: "phone" },
   { re: /^extern\/([a-z-]+)$/, view: "embed", keys: ["name"] },
   { re: /^scene\/(\d+)$/, view: "player", keys: ["id"], overlay: true },
   { re: /^image\/(\d+)$/, view: "viewer", keys: ["id"], overlay: true },
@@ -133,10 +137,12 @@ const loaders = {
   funscripts: () => import("./views/funscripts.js"),
   whatsnew: () => import("./views/whatsnew.js"),
   dupes: () => import("./views/dupes.js"),
+  tagger: () => import("./views/tagger.js"),
   queue: () => import("./views/queue.js"),
   tasks: () => import("./views/tasks.js"),
   settings: () => import("./views/settings.js"),
   plugins: () => import("./views/plugins.js"),
+  phone: () => import("./views/phone.js"),
   embed: () => import("./views/embed.js"),
   player: () => import("./views/player.js"),
   viewer: () => import("./views/viewer.js"),
@@ -163,10 +169,10 @@ async function route() {
       app.base.hash = "#/";
       app.base.direct = true; // closing leads to the home page instead of out of the app
     }
-    if (app.overlay) {
-      app.overlay.cleanup && app.overlay.cleanup();
-      app.overlay.el.remove();
-    }
+    // The old overlay stays in the DOM until the new one is drawn (no flash of the page underneath when
+    // you step from one image/scene to the next)
+    const prevEl = app.overlay ? app.overlay.el : null;
+    if (app.overlay) app.overlay.cleanup && app.overlay.cleanup();
     const el = document.createElement("div");
     el.className = "kb-overlay-host";
     overlayRoot.appendChild(el);
@@ -174,11 +180,12 @@ async function route() {
     app.overlay = { el, pushed, key: r.view + r.path };
     try {
       const mod = await loaders[r.view]();
-      if (seq !== routeSeq) return;
+      if (seq !== routeSeq) return void (prevEl && prevEl.remove());
       app.overlay.cleanup = await mod.render(el, r.params, r.query, r);
     } catch (e) {
       errorToast(e, "Couldn't open");
     }
+    if (prevEl) prevEl.remove();
     return;
   }
 
@@ -224,7 +231,7 @@ const railClosed = new Set(store.get("railClosed", []));
 const groupHead = (key, extra = "", label = null) =>
   `<button type="button" class="kb-rail-group${railClosed.has(key) ? " is-closed" : ""}" data-railgrp="${esc(key)}" aria-expanded="${!railClosed.has(key)}">${label != null ? esc(label) : t(key)}${extra}<i class="kb-rail-caret"></i></button>`;
 function paintRailGroups() {
-  document.querySelectorAll("#rail [data-railbody]").forEach((b) => (b.hidden = railClosed.has(b.dataset.railbody)));
+  document.querySelectorAll("#rail [data-railbody]").forEach((b) => (b.hidden = railClosed.has(b.dataset.railbody) || (b.id === "savedtree" && !b.innerHTML)));
 }
 
 const navHtml = (it) =>
@@ -243,7 +250,10 @@ function groupHtml(g) {
     run = "";
   };
   for (const e of g.items) {
-    if (e.folders) {
+    if (e.saved) {
+      flush();
+      out += `${groupHead("Saved filters")}<div class="kb-tree" id="savedtree" data-railbody="Saved filters" hidden></div>`;
+    } else if (e.folders) {
       flush();
       out += `${groupHead("Folders")}<div class="kb-tree" id="tree" data-railbody="Folders"><div class="kb-rail-foot">${t("Loading …")}</div></div>`;
     } else run += e.nav ? navHtml(e.nav) : extHtml(e.ext);
@@ -274,6 +284,7 @@ function renderRail() {
     bindRail(rail);
   }
   refreshCounts();
+  renderSaved();
   markRail(parseHash());
   pluginsOn ? applyPluginLinks() : refreshPluginLinks();
   import("./display.js").then((m) => m.applyDisplay()); // (the NSFW button shows its state)
@@ -282,6 +293,11 @@ window.addEventListener("stash:rail-changed", renderRail);
 
 function bindRail(rail) {
   rail.addEventListener("click", (e) => {
+    if (e.target.closest("[data-foldersall]")) {
+      store.set("folderMode", "all");
+      treeData = null;
+      return renderRail();
+    }
     const gh = e.target.closest("[data-railgrp]");
     if (gh) {
       const k = gh.dataset.railgrp;
@@ -331,7 +347,9 @@ async function refreshPluginLinks() {
     plugins = (await gql(`query { plugins { id name version enabled tasks { name } settings { name } paths { javascript } } }`).catch(() => gql(`query { plugins { id name version enabled tasks { name } settings { name } } }`))).plugins;
     on = new Set(plugins.filter((p) => p.enabled).flatMap((p) => [norm(p.id), norm(p.name)]));
     // Its backend cuts sound out of videos – the real ID is needed, the folder may be named differently
-    const pmv = plugins.find((p) => p.enabled && (norm(p.id) === "pepegapmvgenerator" || norm(p.name) === "pmvgeneratorpepega"));
+    const pmv = plugins.find(
+      (p) => p.enabled && (norm(p.id) === "pepegapmvgenerator" || norm(p.name) === "pmvgeneratorpepega")
+    );
     app.pmvPlugin = pmv ? pmv.id : null;
   } catch (e) {
     return; // unknown – leave the entries visible
@@ -457,7 +475,8 @@ async function renderTree() {
   if (!box) return;
   await isLarge(); // a big library: no folder counting on its own
   if (folderMode() !== "all") {
-    document.querySelectorAll('#rail [data-railgrp="Folders"], #rail [data-railbody="Folders"]').forEach((el) => (el.style.display = "none"));
+    // not drawn (a big library, or switched off): say so, and offer it – counting the folders reads the whole library
+    box.innerHTML = `<div class="kb-rail-foot">${store.get("folderMode") ? t("The folder tree is off in Settings.") : t("The folder tree is off – your library is big.")}</div><button type="button" class="kb-btn is-ghost" data-foldersall>${t("Show the folder tree here")}</button> <a class="kb-rail-foot" href="#/folders">${t("Open the Folders page")}</a>`;
     return;
   }
   try {
@@ -495,11 +514,45 @@ async function renderTree() {
   box.innerHTML = treeData.roots.map((r) => row(r, 0)).join("");
 }
 
+// Saved filters in the menu: Stash's own (scenes, images) and the playlists – one click opens the list with it
+async function renderSaved() {
+  const box = document.getElementById("savedtree");
+  if (!box) return;
+  const head = document.querySelector('#rail [data-railgrp="Saved filters"]');
+  try {
+    const [{ loadPlaylists, linkOf }, { loadStashFilters }] = await Promise.all([import("./playlists.js"), import("./stashfilters.js")]);
+    const [pls, sc, im] = await Promise.all([loadPlaylists().catch(() => []), loadStashFilters("scene").catch(() => []), loadStashFilters("image").catch(() => [])]);
+    const row = (href, name, hint) => `<div class="kb-tree-row" style="--d:0"><span class="kb-tree-caret"></span><a href="${esc(href)}" title="${esc(hint)}">${esc(name)}</a></div>`;
+    const html =
+      pls.map((p) => row(linkOf(p), p.name, t("Playlist"))).join("") +
+      sc.map((x) => row(`#/scenes?sf=${encodeURIComponent(x.id)}`, x.name, t("Scenes"))).join("") +
+      im.map((x) => row(`#/images?sf=${encodeURIComponent(x.id)}`, x.name, t("Images"))).join("");
+    box.innerHTML = html;
+    box.hidden = !html || railClosed.has("Saved filters");
+    if (head) head.style.display = html ? "" : "none";
+    markSaved(parseHash());
+  } catch (e) {
+    if (head) head.style.display = "none";
+  }
+}
+window.addEventListener("stash:playlists-changed", renderSaved);
+
+// The saved filter that is open is lit in the menu (matched by its sf / pl parameter and the list it opens)
+function markSaved(r) {
+  document.querySelectorAll("#savedtree a").forEach((a) => {
+    const [p, qs = ""] = a.getAttribute("href").replace(/^#\//, "").split("?");
+    const q = new URLSearchParams(qs);
+    const key = q.has("sf") ? "sf" : "pl";
+    a.classList.toggle("is-active", p === r.path && !!r.query && r.query[key] === q.get(key));
+  });
+}
+
 function markRail(r) {
   document.querySelectorAll(".kb-nav a[data-match]").forEach((a) => {
     a.classList.toggle("is-active", new RegExp(a.dataset.match).test(r.path));
   });
   renderTree();
+  markSaved(r);
 }
 
 export async function refreshCounts() {

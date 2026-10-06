@@ -14,7 +14,6 @@ PEPEGA_STASHUI_KEEP = [
     "app/js/plugin-host.js",
     "app/js/views/player.js",
     "app/js/views/plugins.js",
-    "app/js/main.js",
 ]
 
 PEPEGA_PMV_KEEP = [
@@ -102,6 +101,52 @@ def merge_tree(upstream_prefix, dest_dir, skip_names):
             f.write(data)
 
 
+def patch_pepega_main(path):
+    """Re-apply Pepega fork hooks after upstream main.js is merged in."""
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        s = f.read()
+    if "bootPluginHost" in s and "pepega-pmvGenerator" in s:
+        return
+    if 'import { visibleRail } from "./railcfg.js";' in s and "bootPluginHost" not in s:
+        s = s.replace(
+            'import { visibleRail } from "./railcfg.js";\n',
+            'import { visibleRail } from "./railcfg.js";\n'
+            'import { bootPluginHost } from "./plugin-host.js";\n\n'
+            "const pluginHostReady = bootPluginHost();\n\n",
+            1,
+        )
+    if "await pluginHostReady" not in s:
+        s = s.replace(
+            "async function route() {\n  const r = parseHash();",
+            "async function route() {\n"
+            "  try {\n"
+            "    await pluginHostReady;\n"
+            "  } catch (err) {\n"
+            '    console.error("[Stash UI] plugin host failed", err);\n'
+            "  }\n"
+            "  const r = parseHash();",
+            1,
+        )
+    s = s.replace(
+        'export const PMV_PAGE = "/plugin/pmvGenerator/assets/index.html?from=stashui";',
+        'export const PMV_PAGE = "/plugin/pepega-pmvGenerator/assets/index.html?from=pepega-stashui";',
+    )
+    s = s.replace(
+        'const pmv = plugins.find((p) => p.enabled && (norm(p.id) === "pmvgenerator" || norm(p.name) === "pmvgenerator"));',
+        "const pmv = plugins.find(\n"
+        '      (p) => p.enabled && (norm(p.id) === "pepegapmvgenerator" || norm(p.name) === "pmvgeneratorpepega")\n'
+        "    );",
+    )
+    s = s.replace(
+        'const OWN = new Set(["stashui", "mediastorm", "pmvgenerator"]);',
+        'const OWN = new Set(["pepega-stashui", "mediastorm", "pepegapmvgenerator"]);',
+    )
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(s)
+
+
 def patch_api_js(path):
     if not os.path.isfile(path):
         return
@@ -162,6 +207,7 @@ def main():
     restore_files(pepega_ui, PEPEGA_STASHUI_KEEP, bui)
     write_pepega_yml(os.path.join(pepega_ui, "pepega-stashui.yml"), stashui_v)
     patch_api_js(os.path.join(pepega_ui, "app/js/api.js"))
+    patch_pepega_main(os.path.join(pepega_ui, "app/js/main.js"))
 
     skip_pmv = set(PEPEGA_PMV_KEEP)
     merge_tree("plugins/pmvGenerator", pepega_pmv, skip_pmv)
