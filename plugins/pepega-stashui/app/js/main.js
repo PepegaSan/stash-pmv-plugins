@@ -341,16 +341,7 @@ function bindRail(rail) {
 // Matched by ID or name, ignoring case and separators – a copy installed under another folder
 // name (e.g. "MediaStorm", "media-storm") is still found
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-const pmvPluginVisible = () => pluginsOn && (pluginsOn.has("pmvgenerator") || pluginsOn.has("pepegapmvgenerator"));
-const applyPluginLinks = () =>
-  document.querySelectorAll("#rail [data-plugin]").forEach((b) => {
-    const key = norm(b.dataset.plugin);
-    const on =
-      key === "pmvgenerator" || key === "pepegapmvgenerator"
-        ? pmvPluginVisible()
-        : pluginsOn && pluginsOn.has(key);
-    b.hidden = !on;
-  });
+const applyPluginLinks = () => document.querySelectorAll("#rail [data-plugin]").forEach((b) => (b.hidden = !pluginsOn.has(norm(b.dataset.plugin))));
 export const PMV_PAGE = "/plugin/pepega-pmvGenerator/assets/index.html?from=pepega-stashui"; // so its links lead back here
 async function refreshPluginLinks() {
   let on;
