@@ -1399,7 +1399,7 @@ export function render(main) {
     if (words) words.value = S.words || "";
     $("[data-rgdir]").value = S.rgDlDir || "";
     mountTags();
-  mountMainTags();
+    mountMainTags();
     mountFolders();
     mountPerfs();
     paintRgChips();
