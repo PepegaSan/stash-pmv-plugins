@@ -1,6 +1,6 @@
 name: PMV Generator Pepega
 description: Pepega build of the PMV Generator. Installs next to the original, so each one can be switched on its own. Pick a song (or take the music from a video in your library) – on every beat it cuts to a clip from your library, with split-screen layouts, effects and beat-synced transitions. Runs live in the browser; optionally recorded and saved back to Stash as a scene. Also a live visualizer for Plex or Spotify, and rebuilds an existing PMV with your own clips. Optionally mixes in clips from RedGifs.
-version: 2.22.0
+version: 2.27.1
 url: https://github.com/PepegaSan/stash-pmv-plugins
 # Small backend: saves recordings into the library; RedGifs (API detour, saving clips)
 exec:

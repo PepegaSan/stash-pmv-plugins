@@ -1,6 +1,6 @@
 name: Media Storm
 description: Opens its own tab in which random images and videos from your library appear in waves – with media mix, volume, fades, eight layouts, effects, moods, folder and tag filters, waves on the beat of a song, optional RedGifs, hotkeys and Random Backgrounds support.
-version: 2.7.0
+version: 2.8.0
 url: https://github.com/anonym88312/stash-pmv-plugins
 
 # Backend for RedGifs: suggestions in the panel of the Stash interface and downloads into the library

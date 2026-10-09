@@ -53,7 +53,7 @@ export async function scoreMap(kind, name) {
   }
   const map = new Map();
   if (parts.length) {
-    const d = await gql(`query AdvScores(${Object.keys(vars).map((k) => `$${k}: [ID!]`).join(", ")}) { ${parts.join(" ")} }`, vars);
+    const d = await gql(`query AdvScores(${Object.keys(vars).map((k) => `$${k}: [ID!]`).join(", ")}) { ${parts.join(" ")} }`, vars, { heavy: true });
     for (let n = 0; n <= 5; n++) ((d["s" + n] || {})[list] || []).forEach((x) => map.set(x.id, n));
   }
   maps[key] = { at: Date.now(), map };

@@ -20,6 +20,8 @@ const hostOf = (u) => {
   }
 };
 
+import { mountSlots } from "../ext.js";
+
 export async function render(main, params, query) {
   const p = await getPerformer(params.id);
   if (!p) {
@@ -68,12 +70,14 @@ export async function render(main, params, query) {
         ${critOf("performer", p) ? `<div class="kb-critlist" title="${t("Detailed rating")}">${critOf("performer", p).map((c) => `<span class="kb-critchip"><b>${esc(c.name)}</b><i style="--v:${c.score * 20}%"></i><em>${c.score}</em></span>`).join("")}</div>` : ""}
         ${p.tags.length ? `<div class="kb-chips">${p.tags.map((tg) => `<a class="kb-chip" href="#/tag/${tg.id}">${esc(tg.name)}</a>`).join("")}</div>` : ""}
         ${p.urls && p.urls.length ? `<div class="kb-chips kb-perf-links">${p.urls.map((u) => `<a class="kb-chip" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(u))} ↗</a>`).join("")}</div>` : ""}
+        <div class="kb-xhead" data-xhead></div>
         ${p.details ? `<p class="kb-lead kb-perf-details">${esc(p.details)}</p>` : ""}
       </div>
     </header>
     <div data-taglink></div>
     <section data-browser></section>`;
-  const b = mediaBrowser(main.querySelector("[data-browser]"), { kinds, initialKind, query, base: () => ({ filter: { performers: { value: [p.id], modifier: "INCLUDES" } } }) });
+  const xhead = mountSlots("performer.header", main.querySelector("[data-xhead]"), { page: "performer", id: p.id, item: p }, { reload: () => go(location.hash.replace(/^#\/?/, ""), true) });
+  const b = mediaBrowser(main.querySelector("[data-browser]"), { kinds, initialKind, query, page: "performer", params: { id: p.id }, base: () => ({ filter: { performers: { value: [p.id], modifier: "INCLUDES" } } }) });
 
   // A tag on a performer only describes them – it doesn't link anything. Items that carry one of the
   // performer's tags (e.g. a creator tag from a downloader), or lie in a folder named like the
@@ -142,7 +146,7 @@ export async function render(main, params, query) {
     try {
       let total = 0;
       for (const [, find, arg, list, bulk, type] of KINDS) {
-        const r = await gql(`query PerfTagIds { ${find}(${arg}: ${src.filter}, filter: { per_page: -1 }) { ${list} { id } } }`);
+        const r = await gql(`query PerfTagIds { ${find}(${arg}: ${src.filter}, filter: { per_page: -1 }) { ${list} { id } } }`, undefined, { heavy: true });
         const ids = r[find][list].map((x) => x.id);
         if (!ids.length) continue;
         await gql(`mutation($i: ${type}!) { ${bulk}(input: $i) { id } }`, { i: { ids, performer_ids: { ids: [p.id], mode: "ADD" } } });
@@ -213,5 +217,8 @@ export async function render(main, params, query) {
     setQuery({ edit: "" });
     edit(true);
   }
-  return () => b.destroy();
+  return () => {
+    xhead.destroy();
+    b.destroy();
+  };
 }

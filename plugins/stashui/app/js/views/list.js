@@ -20,6 +20,6 @@ export function render(main, params, query) {
       </div>
     </header>
     <section data-browser></section>`;
-  const b = mediaBrowser(main.querySelector("[data-browser]"), { kinds: [kind], query, playlist: kind !== "gallery" });
+  const b = mediaBrowser(main.querySelector("[data-browser]"), { kinds: [kind], query, playlist: kind !== "gallery", page: kind === "scene" ? "scenes" : kind === "image" ? "images" : "galleries" });
   return () => b.destroy();
 }

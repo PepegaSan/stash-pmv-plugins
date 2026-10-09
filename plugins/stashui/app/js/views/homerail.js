@@ -3,7 +3,7 @@
 
 import { esc, icon, confirmDialog } from "../ui.js";
 import { t } from "../i18n.js";
-import { LOCKED, catalog, loadRail, saveRail, resetRail, isCustomRail } from "../railcfg.js";
+import { LOCKED, catalog, loadRail, saveRail, resetRail, isCustomRail, navIcon } from "../railcfg.js";
 
 export function mountRailEditor(root) {
   let layout = loadRail();
@@ -12,7 +12,7 @@ export function mountRailEditor(root) {
 
   const listed = (e) => !!e;
   const nameOf = (e) => (e.nav ? t(e.nav.label) : e.ext ? e.ext.name : e.saved ? t("Saved filters") : t("Folders"));
-  const iconOf = (e) => (e.nav ? icon(e.nav.icon) : e.ext ? (e.ext.icon ? `<img class="kb-ext-ic" alt="" src="${esc(e.ext.icon)}">` : icon("plug")) : e.saved ? icon("slides") : icon("folder"));
+  const iconOf = (e) => (e.nav ? navIcon(e.nav.icon) : e.ext ? (e.ext.icon ? `<img class="kb-ext-ic" alt="" src="${esc(e.ext.icon)}">` : icon("plug")) : e.saved ? icon("slides") : icon("folder"));
   const gname = (g) => (g.key === "" ? t("Top of the menu") : g.name != null ? g.name : t(g.key));
 
   function render() {

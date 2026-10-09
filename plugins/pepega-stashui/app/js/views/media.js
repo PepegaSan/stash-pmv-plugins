@@ -15,6 +15,7 @@ import { perfPicker, hasPerformers } from "./perfpicker.js";
 import { studioPicker, studiosCache } from "./studiopicker.js";
 import { openEditor } from "./edit.js";
 import { loadStashFilters, stashFilter } from "../stashfilters.js";
+import { hasSources, extendPage, mountSlots, registerList } from "../ext.js";
 import { openAdvFilter, parseAdv, advStr, advCount, andInto } from "../advfilter.js";
 
 export const KIND_NAME = { scene: ["Scene", "Scenes"], image: ["Image", "Images"], gallery: ["Gallery", "Galleries"] };
@@ -81,6 +82,7 @@ export function mediaBrowser(host, opts) {
         <select class="kb-field" data-sort aria-label="${t("Sort order")}"></select>
         <button class="kb-btn is-icon" data-dir title="${t("Reverse direction")}" aria-label="${t("Reverse direction")}"></button>
         <button class="kb-btn" data-filter>${icon("filter")}<span>${t("Filter")}</span></button>
+        <span class="kb-xtool" data-xtool></span>
         <span class="kb-spacer"></span>
         ${kinds.includes("scene") ? `<button type="button" class="kb-btn is-ghost" data-mute title="${t("Sound in hover previews")}"></button>` : ""}
         <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="130" max="480" step="10" data-rowh value="${rowH()}" aria-label="${t("Size")}"></label>
@@ -91,10 +93,42 @@ export function mediaBrowser(host, opts) {
       </div>
       <div class="kb-filters" data-filters hidden></div>
       <p class="kb-hint kb-sfnote" data-sfnote hidden></p>
+      <div class="kb-xbar" data-xbar></div>
       <p class="kb-resultline" data-result></p>
+      <div data-empty></div>
       <div data-hang></div>
     </div>`;
   const $ = (s) => host.querySelector(s);
+
+  // Places for extension plugins: a bar above the list, buttons in the toolbar (ctx follows kind, filters and count)
+  let lastFilter = {};
+  let lastSort = st.sort;
+  let lastRestricted = false;
+  let lastCount = null;
+  const slotBase = () => ({ page: opts.page || "", params: opts.params || {}, kind, filter: lastFilter, sort: lastSort, dir: st.dir, q: st.q, restricted: lastRestricted, count: lastCount });
+  const slotBar = mountSlots("list.bar", $("[data-xbar]"), slotBase(), { reload: () => load() });
+  const slotTool = mountSlots("list.toolbar", $("[data-xtool]"), slotBase(), { reload: () => load() });
+  const pushSlots = () => {
+    slotBar.set(slotBase());
+    slotTool.set(slotBase());
+  };
+  // Open list: an extension source that registers or calls invalidate() later is asked again for the pages already loaded
+  let pageLog = [];
+  const unregister = registerList({
+    async reextend(prefix) {
+      const h = hang;
+      const log = pageLog;
+      if (!h || !log.length) return;
+      const all = [];
+      for (const e of log) {
+        const list = await extendPage(Object.assign({}, e.ctx), prefix);
+        list.forEach((x) => all.push({ before: x.before == null ? null : e.ctx.kind + ":" + x.before, last: e.last, piece: x.piece }));
+      }
+      if (h !== hang) return;
+      h.replaceExtras(prefix, all);
+      h.opts.onLoaded && h.opts.onLoaded(h);
+    },
+  });
 
   // Sound in the hover previews: the same switch as on the home page and in Settings → Player and previews
   const paintMute = () => {
@@ -318,8 +352,26 @@ export function mediaBrowser(host, opts) {
     const filter = bf(kind, st, base);
     const sort = st.sort === "random" ? "random_" + st.seed : st.sort;
     $("[data-result]").textContent = "";
+    $("[data-empty]").innerHTML = "";
+    lastFilter = filter;
+    lastSort = sort;
+    lastCount = null;
+    pageLog = [];
     const box = $("[data-hang]");
     let critAll = null;
+    let prevRaw = null; // the last raw item of the previous page (for extensions)
+    // Cards of extension plugins for this page (ext.js) – none when no plugin has registered a source.
+    // Every page is kept (pageLog): invalidate() asks the sources again for them.
+    const extras = async (page, count, items, restricted) => {
+      const prev = prevRaw;
+      prevRaw = items.length ? items[items.length - 1] : prev;
+      lastRestricted = restricted;
+      const ctx = { page: opts.page || "", params: opts.params || {}, kind, sort, dir: st.dir, q: st.q, filter, restricted, pageNumber: page, perPage: 60, count, items, prev };
+      pageLog.push({ ctx, last: items.length ? kind + ":" + items[items.length - 1].id : null });
+      if (!hasSources()) return undefined;
+      const list = await extendPage(ctx);
+      return list.map((x) => ({ before: x.before == null ? null : kind + ":" + x.before, piece: x.piece })); // (the card list keys items as kind:id)
+    };
     hang = new Hang(box, {
       rowHeight: rowH(),
       fetchPage: async (page) => {
@@ -333,20 +385,24 @@ export function mediaBrowser(host, opts) {
           const pageIds = order.slice((page - 1) * 60, page * 60);
           const got = pageIds.length ? await findItems(kind, { per_page: pageIds.length }, {}, pageIds) : { items: [] };
           const byId = new Map(got.items.map((x) => [x.id, x]));
-          return { count: order.length, pieces: pageIds.map((id) => byId.get(id)).filter(Boolean).map((x) => toPiece(kind, x, app.favId)) };
+          const raws = pageIds.map((id) => byId.get(id)).filter(Boolean);
+          return { count: order.length, pieces: raws.map((x) => toPiece(kind, x, app.favId)), extras: await extras(page, order.length, raws, !!ids) };
         }
         const r = await findItems(kind, { q: st.q || undefined, page, per_page: 60, sort, direction: st.dir }, filter, ids);
-        return { count: r.count, pieces: r.items.map((x) => toPiece(kind, x, app.favId)) };
+        return { count: r.count, pieces: r.items.map((x) => toPiece(kind, x, app.favId)), extras: await extras(page, r.count, r.items, !!ids) };
       },
       onLoaded: (h) => {
         $("[data-result]").textContent = h.count ? plural(h.count, KIND_UNIT[kind][0], KIND_UNIT[kind][1]) : "";
         const kc = host.querySelector(`[data-kcount="${kind}"]`);
         if (kc) kc.textContent = fmtNum(h.count);
-        if (!h.count) {
-          box.innerHTML = `<div class="kb-empty"><b>${t("Nothing found")}</b><p>${
-            filterOpen || st.q ? t("Nothing matches this search and these filters. Loosen the filters or reset them.") : t("Nothing here yet.")
-          }</p>${filterOpen || st.q ? `<button class="kb-btn" data-clearall>${t("Reset filters")}</button>` : ""}</div>`;
-        }
+        // (above the list, not instead of it: cards from extension plugins may still be there)
+        $("[data-empty]").innerHTML = h.count
+          ? ""
+          : `<div class="kb-empty${h.extras.length ? " is-slim" : ""}"><b>${t("Nothing found")}</b><p>${
+              filterOpen || st.q ? t("Nothing matches this search and these filters. Loosen the filters or reset them.") : t("Nothing here yet.")
+            }</p>${filterOpen || st.q ? `<button class="kb-btn" data-clearall>${t("Reset filters")}</button>` : ""}</div>`;
+        lastCount = h.count;
+        pushSlots();
         opts.onCount && opts.onCount(kind, h.count);
       },
       onError: (e) => errorToast(e, "Couldn't load"),
@@ -378,13 +434,18 @@ export function mediaBrowser(host, opts) {
   // ---------- Selection & actions ----------
 
   let bulkEl = null;
+  let bulkSlots = null;
   function exitSelect() {
     if (hang) hang.clearSelection();
+    if (bulkSlots) bulkSlots.destroy();
+    bulkSlots = null;
     if (bulkEl) bulkEl.remove();
     bulkEl = null;
   }
   function renderBulk(set, h) {
     if (!set.size) {
+      if (bulkSlots) bulkSlots.destroy();
+      bulkSlots = null;
       if (bulkEl) bulkEl.remove();
       bulkEl = null;
       return;
@@ -392,18 +453,34 @@ export function mediaBrowser(host, opts) {
     if (!bulkEl) {
       bulkEl = document.createElement("div");
       bulkEl.className = "kb-bulk";
+      bulkEl.innerHTML = `<span class="kb-dc" data-bm1></span><span class="kb-xbulk" data-xbulk></span><span class="kb-dc" data-bm2></span>`;
       document.body.appendChild(bulkEl);
       bulkEl.addEventListener("click", onBulk);
+      // buttons of extension plugins: ctx.ids() is the selection as it is now
+      bulkSlots = mountSlots("bulk.actions", bulkEl.querySelector("[data-xbulk]"), { page: opts.page || "", params: opts.params || {}, kind, ids: () => (hang ? hang.selectedPieces().map((p) => p.id) : []), pieces: () => (hang ? hang.selectedPieces() : []) }, { reload: () => load() });
     }
-    bulkEl.innerHTML = `<b>${t("{what} selected", { what: plural(set.size, "item", "items") })}</b>
+    bulkEl.querySelector("[data-bm1]").innerHTML = `<b>${t("{what} selected", { what: plural(set.size, "item", "items") })}</b>
       <button class="kb-btn" data-b="all">${h.done ? t("Select all") : h.count ? t("Select all {n} results", { n: fmtNum(h.count) }) : t("Select all loaded")}</button>
       <button class="kb-btn" data-b="fav"><span class="kb-dotmini"></span>${t("Favorite")}</button>
       <button class="kb-btn" data-b="unfav">${t("Remove favorite")}</button>
       <button class="kb-btn" data-b="edit">${icon("edit")}${t("Edit")}</button>
       ${kind !== "gallery" ? `<button class="kb-btn" data-b="queue">${icon("queue")}${t("Add to queue")}</button>` : ""}
-      <button class="kb-btn is-danger" data-b="delete">${icon("trash")}${t("Delete")}</button>
-      <span class="kb-spacer"></span>
-      <button class="kb-btn" data-b="none">${t("Done")}</button>`;
+      <button class="kb-btn is-danger" data-b="delete">${icon("trash")}${t("Delete")}</button>`;
+    bulkEl.querySelector("[data-bm2]").innerHTML = `<span class="kb-spacer"></span><button class="kb-btn" data-b="none">${t("Done")}</button>`;
+    if (bulkSlots) bulkSlots.set({ kind, count: set.size });
+  }
+  // After editing several items: only their cards are drawn again – the list stays where it is (a full reload would start
+  // again at the top with the first page)
+  async function refreshItems(ids) {
+    const h = hang;
+    try {
+      const r = await findItems(kind, { per_page: Math.max(1, ids.length) }, {}, ids);
+      if (h !== hang) return;
+      r.items.forEach((x) => h.update(toPiece(kind, x, app.favId)));
+      exitSelect();
+    } catch (err) {
+      load();
+    }
   }
   async function onBulk(e) {
     const b = e.target.closest("[data-b]");
@@ -446,7 +523,7 @@ export function mediaBrowser(host, opts) {
         }
         case "edit":
           return openEditor(kind, pieces, {
-            onSaved: () => load(),
+            onSaved: () => refreshItems(ids),
           });
         case "delete": {
           const r = await confirmDialog({
@@ -478,6 +555,7 @@ export function mediaBrowser(host, opts) {
       paintSfNote();
       st = readState({}, kind, opts.defaults && opts.defaults[kind]);
       renderTools();
+      pushSlots();
       return apply();
     }
     if (e.target.closest("[data-mute]")) {
@@ -614,6 +692,9 @@ export function mediaBrowser(host, opts) {
     destroy() {
       hang && hang.destroy();
       exitSelect();
+      unregister();
+      slotBar.destroy();
+      slotTool.destroy();
     },
     reload: load,
     get hang() {

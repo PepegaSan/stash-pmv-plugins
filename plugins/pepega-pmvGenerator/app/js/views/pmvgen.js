@@ -7,6 +7,8 @@ import { esc, icon, toast, errorToast, fmtDuration, fmtBytes, fmtNum, store, pro
 import * as rg from "../redgifs.js";
 import { gql, favoriteTagId, countItems, pluginConfig, setPluginConfig } from "../api.js";
 import { analyzeBars } from "../bars.js";
+import { buildFunscript, FS_DEFAULTS } from "../funscriptgen.js";
+import { attachHandy, getHandy } from "../interactive.js";
 import { analyzeFile, analyzeBuffer, sliceBuffer, songFromFrames, rescale, shift } from "../beats.js";
 import { extractAudio, parseTime, fmtTime } from "../audiox.js";
 import { scanPmv } from "../pmvscan.js";
@@ -26,6 +28,7 @@ const BACKEND = window.PMVGEN_PLUGIN || "pmvGenerator"; // plugin whose backend 
 const SCENE_LINK = window.PMVGEN_SCENE_LINK || ((id) => "/scenes/" + id);
 
 const DEFAULTS = {
+  ...FS_DEFAULTS, // the funscript for The Handy (fsOn, fsPace, fsSize, fsWhere, fsStyle, fsRests, fsAccent, fsSpeed)
   glass: true, // liquid glass look (own switch, independent of Stash UI's)
   mode: "song", // song = your own song(s), plex = music from Plex, tpl = use a PMV as template
   shuffle: false, // several songs: shuffled
@@ -52,6 +55,7 @@ const DEFAULTS = {
   maxRes: "any", // any | 720 | 1080 | 1440 – lower runs smoother
   fav: false,
   shape: "all", // clip shape: all | portrait | landscape
+  layoutShape: {}, // clip shape per layout (layout id → all | portrait | landscape), missing = all
   bestSpots: true, // best moments instead of random
   cleanCuts: true, // a clip's start has no scene change in the first seconds (it would cut by itself)
   smartCrop: true, // crop follows what matters
@@ -70,6 +74,15 @@ const DEFAULTS = {
   lookAmt: 100, // strength of the look (%)
   lookColor: "#ff4d94", // the tint of the "custom" look
   bright: 0, // smooth extra brightness (%)
+  soft: false, // soft seams: the fields of a split screen blend into each other
+  softAmt: 50, // how wide the blend is (%)
+  divW: 2, // width of the dividers between the fields (px at 1280 wide, scales with the picture)
+  cutLead: 0, // cuts land this many ms before the beat (the picture is a touch early, which feels tighter)
+  minBeats: 0, // a clip stays at least this many beats before its field is cut again (0 = off)
+  maxBeats: 0, // … and is replaced after at most this many beats (0 = off)
+  reshuffleEach: false, // several songs / Plex: new clips for every new song
+  introEach: false, // several songs / Plex: intro and outro come again for every song
+  recSplit: false, // several songs: one recording per song
   edge: "off", // rim of the picture: off | blur | motion | lens
   edgeAmt: 50, // how strong / how far in (%)
   smooth: true, // clips scaled smoothly (less pixelated)
@@ -153,8 +166,10 @@ const CUTS = [
 const SECTIONS = [
   ["cut", "Cutting", "When to cut and which split screens"],
   ["fx", "Effects", "What happens on cuts, beats and drops"],
-  ["look", "Look & picture", "Colors, format and how clips fill the frame"],
+  ["look", "Color & look", "Color mood, brightness and film effects"],
+  ["frame", "Picture & frame", "Format, fit, seams and edges"],
   ["sound", "Sound", "Song and clip volume"],
+  ["fs", "Funscript", "A script for The Handy that follows the song"],
   ["out", "Output", "Intro, outro and recording"],
 ];
 const CHEVRON = `<svg class="kb-pmvg-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -351,14 +366,18 @@ export function render(main) {
           </div>
         </div>
         <p class="kb-hint kb-pmvg-count" data-count></p>
-        <span class="kb-lab-t">Clip selection</span>
+        <span class="kb-lab-t">Clip selection <small>– which part of a scene is taken</small></span>
         <div class="kb-pmvg-opts">
           ${sw("bestSpots", "Best moments instead of random", "Looks at several spots per scene (motion, skin, your markers) and takes the best one")}
           ${sw("cleanCuts", "Clean cuts", "With best moments: a clip starts where its scene runs on for the next few seconds – no hidden cut inside the clip that jumps to another scene by itself")}
           ${sw("smartCrop", "Smart crop", "The crop follows what matters in the clip instead of sticking to the center")}
+        </div>
+        <span class="kb-lab-t">Clip order <small>– which clip follows which</small></span>
+        <div class="kb-pmvg-opts">
           ${sw("matchCut", "Match cuts", "At each cut, the clip that best matches the previous one in color, brightness and composition comes next")}
-          ${sw("sequenced", "Follow the scenes' timeline", "A clip comes from the part of its scene that matches how far the song is: the start of the song uses the beginnings of the scenes, the end of the song their endings (a song of known length only)")}
+          <div class="kb-dc" data-seqwrap>${sw("sequenced", "Follow the scenes' timeline", "A clip comes from the part of its scene that matches how far the song is: the start of the song uses the beginnings of the scenes, the end of the song their endings (a song of known length only)")}</div>
           ${sw("variety", "Variety", "The same scene or performer doesn't come up again shortly after")}
+          ${sw("reshuffleEach", "New clips for every song", "With several songs or Plex: when the next song starts, all clips are replaced by new ones (R does that any time)")}
         </div>
         <span class="kb-lab-t">RedGifs <small>– mix in clips from RedGifs (needs internet)</small></span>
         <div class="kb-pmvg-rg">
@@ -394,22 +413,38 @@ export function render(main) {
         <div class="kb-pmvg-sec" data-sec="cut">
           ${secHead("cut")}
           <div class="kb-pmvg-pane" id="pmvg-pane-cut" data-pane="cut">
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Timing</b><small>When the picture changes</small></div>
             <span class="kb-lab-t">When to cut</span>
             <div class="kb-seg" data-seg="cut">${CUTS.map(([v, l, t]) => `<button type="button" data-v="${v}" title="${esc(t)}">${l}</button>`).join("")}</div>
             <div data-pacebox>
               <span class="kb-lab-t">Pace <small>– how fast “Automatic” cuts</small></span>
               <div class="kb-seg" data-seg="pace"><button type="button" data-v="slow" title="Calm: every 8 beats · medium: every 4 · loud: every 2">Slow</button><button type="button" data-v="normal" title="Calm: every 4 beats · medium: every 2 · loud: every beat">Normal</button><button type="button" data-v="fast" title="Calm: every 2 beats · medium and loud: every beat">Fast</button></div>
             </div>
-            <div class="kb-pmvg-opts">
-              ${sw("reveal", "Reveal opening", "The first clip sits small in the middle with rounded corners and slowly grows – at the first drop the picture opens up into the layouts (songs with a known length; not with templates)")}
-              ${sw("scroll", "Scrolling sides", "In 3-way layouts the middle clip stays longer while the clips at the sides scroll up or down, like swiping through a feed (needs the 3-way layouts)")}
+              <div class="kb-pmvg-opts">
+              <label class="kb-pmvg-range" title="The cut happens a little before the beat, so the picture is already there when the beat hits (2 frames are about 33 ms)"><span>${icon("sliders")}Cut ahead of the beat</span><input type="range" min="0" max="80" step="5" data-r="cutLead" aria-label="Cut ahead of the beat"><output data-ro="cutLead" data-unit=" ms"></output></label>
+              <label class="kb-pmvg-range" title="A clip stays on screen for at least this many beats before its field changes – no more clips that come and go on the next beat (0 = off)"><span>${icon("sliders")}Shortest clip</span><input type="range" min="0" max="16" step="1" data-r="minBeats" aria-label="Shortest clip in beats"><output data-ro="minBeats" data-unit=" beats" data-zero="off"></output></label>
+              <label class="kb-pmvg-range" title="A clip is replaced after at most this many beats, even when the pace would keep it longer (0 = off)"><span>${icon("sliders")}Longest clip</span><input type="range" min="0" max="32" step="1" data-r="maxBeats" aria-label="Longest clip in beats"><output data-ro="maxBeats" data-unit=" beats" data-zero="off"></output></label>
               ${sw("bars", "Bars and phrases", "Finds the \"one\" of each bar and where a phrase begins: cuts land on the strong beats, split screens change at the start of a phrase")}
+              </div>
             </div>
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Split screens</b><small>Which layouts and how they are filled</small></div>
             <span class="kb-lab-t">Layouts <small>– change to the beat, the louder the more fields</small></span>
             <div class="kb-chips kb-pmvg-layouts" data-layouts>${Object.entries(LAYOUTS).map(([k, l]) => `<button type="button" class="kb-chip" data-l="${k}" title="${esc(l.hint)}">${layoutIcon(k)}${l.name}</button>`).join("")}</div>
+            <span class="kb-lab-t">Clip shape per layout <small>– e.g. landscape clips only in full screen, portrait only in 3-way (set “Clip shape” in What to “All”)</small></span>
+            <div class="kb-pmvg-lshape" data-lshape>${Object.entries(LAYOUTS).map(([k, l]) => `<label class="kb-pmvg-lsrow" data-lsrow="${k}"><span>${layoutIcon(k)}${l.name}</span><select class="kb-field" data-ls="${k}"><option value="all">All</option><option value="landscape">Landscape only</option><option value="portrait">Portrait only</option></select></label>`).join("")}</div>
             <span class="kb-lab-t">Fields in 2-/3-way layouts</span>
             <div class="kb-seg" data-seg="split"><button type="button" data-v="cols" title="Columns – also in portrait format">side by side</button><button type="button" data-v="rows" title="Rows">stacked</button></div>
             <p class="kb-hint kb-pmvg-tip" data-tip hidden></p>
+            </div>
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Extras</b><small>Opening and scrolling</small></div>
+              <div class="kb-pmvg-opts">
+              ${sw("reveal", "Reveal opening", "The first clip sits small in the middle with rounded corners and slowly grows – at the first drop the picture opens up into the layouts (songs with a known length; not with templates)")}
+              ${sw("scroll", "Scrolling sides", "In 3-way layouts the middle clip stays longer while the clips at the sides scroll up or down, like swiping through a feed (needs the 3-way layouts)")}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -436,6 +471,8 @@ export function render(main) {
         <div class="kb-pmvg-sec" data-sec="look">
           ${secHead("look")}
           <div class="kb-pmvg-pane" id="pmvg-pane-look" data-pane="look">
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Color</b><small>Mood and brightness</small></div>
             <span class="kb-lab-t">Color look <small>– all clips in the same color mood</small></span>
             <div class="kb-seg kb-pmvg-looks" data-seg="look">${LOOKS.map(([v, l]) => `<button type="button" data-v="${v}"><i class="kb-pmvg-lookdot is-${v}"></i>${l}</button>`).join("")}</div>
             <div class="kb-pmvg-sound" data-lookbox>
@@ -446,16 +483,24 @@ export function render(main) {
             <div class="kb-pmvg-sound">
               <label class="kb-pmvg-range"><span>${icon("eye")}Brightness</span><input type="range" min="0" max="100" step="5" data-r="bright" aria-label="Brightness"><output data-ro="bright"></output></label>
             </div>
-            <span class="kb-lab-t">Rim of the picture <small>– only the edges, the middle stays sharp</small></span>
-            <div class="kb-seg" data-seg="edge"><button type="button" data-v="off">Off</button><button type="button" data-v="blur" title="Soft blur towards the edges">Blur</button><button type="button" data-v="motion" title="Light motion blur: streaks sideways at the left and right edge, up and down at the top and bottom">Motion</button><button type="button" data-v="lens" title="The edges look bent outwards, like through a lens">Lens</button></div>
-            <div class="kb-pmvg-sound" data-edgebox>
-              <label class="kb-pmvg-range"><span>${icon("sliders")}Strength</span><input type="range" min="0" max="100" step="5" data-r="edgeAmt" aria-label="Strength of the rim effect"><output data-ro="edgeAmt"></output></label>
-            </div>
-            <div class="kb-pmvg-opts">
-              ${sw("smooth", "Smooth scaling", "Clips are scaled with the best quality – less pixelated and jagged, a bit more work for the computer")}
+              <div class="kb-pmvg-opts">
               ${sw("lookEven", "Even out brightness", "Clips that are too dark get brightened, too bright ones toned down – looks all of a piece")}
-              ${LOOK_FX.map(fxSw).join("")}
+              </div>
             </div>
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Film effects</b><small>Old-film and zoom looks on every clip</small></div>
+              <div class="kb-pmvg-opts">
+              ${LOOK_FX.map(fxSw).join("")}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kb-pmvg-sec" data-sec="frame">
+          ${secHead("frame")}
+          <div class="kb-pmvg-pane" id="pmvg-pane-frame" data-pane="frame">
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Format</b><small>Shape of the picture and of the window</small></div>
             <span class="kb-lab-t">Picture <small>– “Fit” shows the whole clip, “Fill” crops it to fill the frame</small></span>
             <div class="kb-pmvg-row">
               <div class="kb-seg" data-seg="format"><button type="button" data-v="16:9">16:9 landscape</button><button type="button" data-v="9:16">9:16 portrait</button><button type="button" data-v="window" title="The picture gets the shape of your window and follows it when you resize the window (not while recording)">Match window</button></div>
@@ -464,6 +509,31 @@ export function render(main) {
             <span class="kb-lab-t">In the window <small>– when the picture and the window have different shapes: bars, filled (cropped) or stretched</small></span>
             <div class="kb-pmvg-row">
               <div class="kb-seg" data-seg="view"><button type="button" data-v="contain" title="All of the picture, bars where the shapes differ">Show all</button><button type="button" data-v="cover" title="The picture fills the window, the edges are cut off">Fill the window</button><button type="button" data-v="fill" title="The picture is stretched to the window (distorts)">Stretch</button></div>
+            </div>
+            </div>
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Seams and edges</b><small>Where clips meet and the rim of the picture</small></div>
+            <span class="kb-lab-t">Soft seams <small>– the line between the clips of a split screen is soft instead of sharp</small></span>
+            <div class="kb-pmvg-opts">
+              ${sw("soft", "Soften the seams", "No sharp lines between the fields: the seam is smeared softly (the clips don't overlap)")}
+            </div>
+            <div class="kb-pmvg-sound" data-softbox>
+              <label class="kb-pmvg-range"><span>${icon("sliders")}Softness</span><input type="range" min="0" max="100" step="5" data-r="softAmt" aria-label="How soft the seams are"><output data-ro="softAmt"></output></label>
+            </div>
+            <div class="kb-pmvg-sound" data-divbox>
+              <label class="kb-pmvg-range"><span>${icon("sliders")}Divider width</span><input type="range" min="1" max="8" step="1" data-r="divW" aria-label="Width of the dividers between the fields"><output data-ro="divW" data-unit=" px"></output></label>
+            </div>
+            <span class="kb-lab-t">Rim of the picture <small>– only the edges, the middle stays sharp</small></span>
+            <div class="kb-seg" data-seg="edge"><button type="button" data-v="off">Off</button><button type="button" data-v="blur" title="Soft blur towards the edges">Blur</button><button type="button" data-v="motion" title="Light motion blur: streaks sideways at the left and right edge, up and down at the top and bottom">Motion</button><button type="button" data-v="lens" title="The edges look bent outwards, like through a lens">Lens</button></div>
+            <div class="kb-pmvg-sound" data-edgebox>
+              <label class="kb-pmvg-range"><span>${icon("sliders")}Strength</span><input type="range" min="0" max="100" step="5" data-r="edgeAmt" aria-label="Strength of the rim effect"><output data-ro="edgeAmt"></output></label>
+            </div>
+            </div>
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Quality</b></div>
+              <div class="kb-pmvg-opts">
+              ${sw("smooth", "Smooth scaling", "Clips are scaled with the best quality – less pixelated and jagged, a bit more work for the computer")}
+              </div>
             </div>
           </div>
         </div>
@@ -484,19 +554,47 @@ export function render(main) {
           </div>
         </div>
 
+        <div class="kb-pmvg-sec" data-sec="fs">
+          ${secHead("fs")}
+          <div class="kb-pmvg-pane" id="pmvg-pane-fs" data-pane="fs">
+            <div class="kb-pmvg-opts">${sw("fsOn", "Play a funscript with the song", "Built from the song's beats and energy and played on The Handy together with the PMV (connection key: Stash UI → Settings → Interactive). Not with Plex or a live app – only with your own song files. After the show you can save it as a .funscript")}</div>
+            <div data-fsbox>
+              <span class="kb-lab-t">Pace <small>– strokes per beat</small></span>
+              <div class="kb-seg" data-seg="fsPace"><button type="button" data-v="auto" title="Calm parts slow, loud parts and drops fast">Follow the song</button><button type="button" data-v="slow" title="One stroke every 2 beats">Slow</button><button type="button" data-v="normal" title="One stroke per beat">Normal</button><button type="button" data-v="fast" title="Two strokes per beat">Fast</button></div>
+              <span class="kb-lab-t">Stroke size</span>
+              <div class="kb-seg" data-seg="fsSize"><button type="button" data-v="auto" title="Louder = bigger strokes">Follow the song</button><button type="button" data-v="small">Small</button><button type="button" data-v="medium">Medium</button><button type="button" data-v="large">Large</button><button type="button" data-v="full" title="The whole length, 0–100">Full</button></div>
+              <span class="kb-lab-t">Where on the stroke</span>
+              <div class="kb-seg" data-seg="fsWhere"><button type="button" data-v="low" title="Strokes in the lower part">Low</button><button type="button" data-v="mid">Middle</button><button type="button" data-v="high" title="Strokes in the upper part">High</button></div>
+              <span class="kb-lab-t">Style</span>
+              <div class="kb-seg" data-seg="fsStyle"><button type="button" data-v="sharp" title="Straight lines from beat to beat">Sharp</button><button type="button" data-v="smooth" title="Rounded, flowing strokes">Smooth</button></div>
+              <div class="kb-pmvg-opts">${sw("fsRests", "Gentle in calm parts", "Quiet passages get slow, small strokes")}${sw("fsAccent", "Accents", "A bigger stroke on the first beat of each bar and on drops")}</div>
+              <div class="kb-pmvg-sound"><label class="kb-pmvg-range"><span>${icon("sliders")}Top speed</span><input type="range" min="100" max="600" step="25" data-r="fsSpeed" aria-label="Top speed of the script"><output data-ro="fsSpeed"></output></label></div>
+              <p class="kb-hint">Top speed limits how fast the device is asked to move (units per second) – fast strokes get smaller instead. The script starts with the song; if it runs early or late, Stash UI's sync offset (Settings → Interactive) applies.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="kb-pmvg-sec" data-sec="out">
           ${secHead("out")}
           <div class="kb-pmvg-pane" id="pmvg-pane-out" data-pane="out">
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Title cards</b><small>Intro and outro</small></div>
             <div class="kb-pmvg-opts">
               ${sw("intro", "Intro", "Title card at the start: your title slams in, comic-SFX style")}
               ${sw("outro", "Outro", "Credits at the end: the picture fades dark, title and number of clips")}
+              ${sw("introEach", "Again for every song", "With several songs or Plex: intro and outro come again for each song (the outro when a song plays to its end)")}
             </div>
             <input class="kb-field" data-title placeholder="Title for intro/outro – empty = song name" value="${esc(S.title)}">
+            </div>
+            <div class="kb-pmvg-group">
+              <div class="kb-pmvg-grouphead"><b>Recording</b><small>Saves the result as a video</small></div>
             <div class="kb-pmvg-opts">
               ${sw("record", "Record", "Saves the result as a video, recorded while the show plays – so let it run to the end (stopping early ends the video there). Then download it or save it straight to Stash as a scene")}
+              ${sw("recSplit", "One video per song", "With several songs or Plex: the recording is cut into one video per song – each one can be downloaded or saved to Stash on its own")}
             </div>
             <span class="kb-lab-t">Recording quality</span>
             <div class="kb-seg" data-seg="quality"><button type="button" data-v="720">720p</button><button type="button" data-v="1080">1080p</button></div>
+            </div>
           </div>
         </div>
       </section>
@@ -506,7 +604,7 @@ export function render(main) {
         <h2><span class="kb-pmvg-no">4</span>Go</h2>
         <ul class="kb-pmvg-sum" data-sum></ul>
         <button class="kb-btn is-primary kb-pmvg-start" data-start disabled>${icon("bolt")}Pick a song first</button>
-        <p class="kb-hint">Keys while it runs: Space pause · F fullscreen · H hide the bar · I clip info · Esc stop</p>
+        <p class="kb-hint">Keys while it runs: Space pause · R new clips · F fullscreen · H hide the bar · I clip info · Esc stop</p>
         <div class="kb-pmvg-presets">
           <span class="kb-lab-t">My settings</span>
           <div class="kb-pmvg-row">
@@ -531,13 +629,22 @@ export function render(main) {
       seg.querySelectorAll("[data-v]").forEach((b) => b.classList.toggle("is-on", String(S[seg.dataset.seg]) === b.dataset.v));
     });
     main.querySelectorAll("[data-layouts] [data-l]").forEach((b) => b.classList.toggle("is-on", !!S.layouts[b.dataset.l]));
+    main.querySelectorAll("[data-lsrow]").forEach((r) => {
+      r.hidden = !S.layouts[r.dataset.lsrow];
+      r.querySelector("select").value = (S.layoutShape || {})[r.dataset.lsrow] || "all";
+    });
     $("[data-pacebox]").hidden = S.cut !== "auto";
     $("[data-colorrow]").hidden = S.look !== "custom";
     $("[data-lookbox]").hidden = S.look === "none";
     $("[data-edgebox]").hidden = S.edge === "off";
+    $("[data-softbox]").hidden = !S.soft;
+    $("[data-divbox]").hidden = !!S.soft;
     $("[data-pulsebox]").hidden = !S.fx.zoom;
+    $("[data-fsbox]").hidden = !S.fsOn;
     $("[data-seg=tagMode]").hidden = (S.stagesOn ? S.stages.length : S.tags.length) < 2;
     $("[data-markerwrap]").hidden = S.source !== "marker";
+    // (markers start at their marker and images have no timeline – "Follow the scenes' timeline" would do nothing)
+    $("[data-seqwrap]").style.display = S.source === "marker" || S.source === "image" ? "none" : "";
     $("[data-tags]").hidden = !!S.stagesOn;
     $("[data-stages]").hidden = !S.stagesOn;
     main.querySelectorAll("[data-t]").forEach((c) => (c.checked = !!getPath(S, c.dataset.t)));
@@ -559,9 +666,13 @@ export function render(main) {
     $("[data-collapseall]").classList.toggle("is-closed", !anyOpen);
     main.querySelectorAll("[data-r]").forEach((r) => {
       r.value = S[r.dataset.r];
-      r.style.setProperty("--p", S[r.dataset.r] + "%");
+      const lo = Number(r.min || 0);
+      r.style.setProperty("--p", ((S[r.dataset.r] - lo) / (Number(r.max || 100) - lo)) * 100 + "%");
     });
-    main.querySelectorAll("[data-ro]").forEach((o) => (o.textContent = S[o.dataset.ro] + " %"));
+    main.querySelectorAll("[data-ro]").forEach((o) => {
+      const v = S[o.dataset.ro];
+      o.textContent = !+v && o.dataset.zero != null ? o.dataset.zero : v + (o.dataset.unit ?? " %");
+    });
     $("[data-rgbox]").hidden = !(S.rgPct > 0);
     main.querySelectorAll("[data-sel]").forEach((x) => (x.value = S[x.dataset.sel]));
     paintRgChips();
@@ -583,8 +694,10 @@ export function render(main) {
     const tabSum = {
       cut: `${CUTS.find(([v]) => v === S.cut)[1]} · ${lays} ${lays === 1 ? "layout" : "layouts"}`,
       fx: `${fxOn} on`,
-      look: `${look} · ${S.format === "window" ? "window shape" : S.format}`,
+      look: look,
+      frame: `${S.format === "window" ? "window shape" : S.format} · ${S.fit === "cover" ? "fill" : "fit"}${S.soft ? " · soft seams" : ""}`,
       sound: `Song ${S.songVol} · Clips ${S.fx.voice ? S.clipVol : "off"}`,
+      fs: S.fsOn ? `${S.fsPace === "auto" ? "follows the song" : S.fsPace} · ${S.fsSize === "auto" ? "auto size" : S.fsSize}` : "off",
       out: [S.intro && "Intro", S.outro && "Outro", S.record && "Recording"].filter(Boolean).join(" · ") || "live only",
     };
     main.querySelectorAll("[data-tabsum]").forEach((s) => (s.textContent = tabSum[s.dataset.tabsum]));
@@ -599,6 +712,7 @@ export function render(main) {
       `<li><b>Cutting</b>${esc(tabSum.cut)}</li>`,
       `<li><b>Effects</b>${fxOn} on${S.look !== "none" ? " · look " + esc(look) : ""}</li>`,
       `<li><b>Sound</b>Song ${S.songVol} % · clips ${S.fx.voice ? `${S.clipVol} %, ${S.voiceMode === "always" ? "always" : "only on drops"}` : "off"}</li>`,
+      S.fsOn ? `<li><b>Funscript</b>${esc(tabSum.fs)}</li>` : "",
       `<li><b>Output</b>${esc(S.format === "window" ? "window shape" : S.format)} · ${esc(tabSum.out)}${S.record ? " · " + S.quality + "p" : ""}</li>`,
     ].join("");
   }
@@ -665,6 +779,14 @@ export function render(main) {
       paintSegs();
       toast(`Mood “${P.name}”`, "ok");
     }
+  });
+  main.addEventListener("change", (e) => {
+    const sel = e.target.closest("[data-ls]");
+    if (!sel) return;
+    S.layoutShape = Object.assign({}, S.layoutShape);
+    if (sel.value === "all") delete S.layoutShape[sel.dataset.ls];
+    else S.layoutShape[sel.dataset.ls] = sel.value;
+    save();
   });
   $("[data-words]").addEventListener("input", (e) => {
     S.words = e.target.value;
@@ -1999,13 +2121,27 @@ class Generator {
     this.tpl = tpl || null;
     this.ti = 0;
     this.log = []; // sequence (cuts, layouts) – readable on the stage element for tests
+    this.takes = []; // one recording per song ("One video per song"): { name, song, length, blob }
+    this.curK = 0; // the beat being handled (onBeat)
+    this.cutK = []; // group → the beat its clip was put on screen (shortest / longest clip)
+    this.songShown0 = 0; // clips shown before this song (the outro counts per song)
     this.dir = S.split;
     [this.W, this.H] = this.sizeFor();
     // Tag stages (A → B → C, the last on drops and in the finale): their own supply each; needs a song with an end
     this.nStages = stagesActive(S) && !this.tpl && !this.outside ? S.stages.length : 1;
+    // Tag stages that can't run (Plex, a live app, a template: no song of known length): the tags of all stages count
+    // together – instead of no tags at all (the general tag box is hidden while stages are on)
+    if (S.stagesOn && this.nStages < 2 && S.clipFrom === "filter" && Array.isArray(S.stages)) {
+      const all = [...new Set(S.stages.flatMap((st) => st.tags || []))];
+      if (all.length) {
+        this.S = Object.assign({}, S, { tags: all, tagMode: "any" });
+        toast("Tag stages need your own song – here the tags of all stages count together", "ok");
+      }
+    }
     this.stageNow = 0;
     this.dropUntil = -1;
     this.prepN = [];
+    this.prepShape = { landscape: 0, portrait: 0 };
     this.sp = Array.from({ length: this.nStages }, () => ({ sources: [], srcIdx: 0, page: { scene: 1, image: 1, marker: 1 }, seed: Math.floor(Math.random() * 1e8), fetching: null, dead: false }));
     this.ready = [];
     this.preparing = 0;
@@ -2043,7 +2179,7 @@ class Generator {
     this.comp = new Compositor(this.canvas, S);
     this.comp.title = String(S.title || "").trim() || this.song.name;
     this.comp.duration = this.music ? 0 : this.song.duration;
-    this.comp.credits = () => `${this.shown.size} Clips · ${Math.round(this.song.bpm)} BPM`;
+    this.comp.credits = () => `${this.shown.size - this.songShown0} Clips · ${Math.round(this.song.bpm)} BPM`;
     this.start().catch((e) => this.fail(e));
   }
   // The sound plays elsewhere (Plex, or an app we listen to) – no pause/volume of our own, but sync
@@ -2077,6 +2213,7 @@ class Generator {
               ? `<span class="kb-pmvg-sync" title="If the cuts come too early or too late: shift them ([ / ])"><button class="kb-btn is-ghost" data-act="sync-">−</button><span data-h="sync"></span><button class="kb-btn is-ghost" data-act="sync+">+</button><button class="kb-btn is-ghost" data-act="tap" title="Tap along to the beat you hear (T) – the sync sets itself">Tap</button></span>`
               : `<button class="kb-btn is-icon is-ghost" data-act="pause" title="Pause (Space)">${icon("pause")}</button>`
           }
+          <button class="kb-btn is-icon is-ghost" data-act="reshuffle" title="New clips – the music keeps playing (R)">${icon("shuffle")}</button>
           <button class="kb-btn is-icon is-ghost" data-act="info" title="Which clips are on screen (I)">${icon("info")}</button>
           <button class="kb-btn is-icon is-ghost" data-act="hidebar" title="Hide this bar (H) – H brings it back">${icon("close")}</button>
           <button class="kb-btn is-icon is-ghost" data-act="full" title="Fullscreen (F)">${icon("expand")}</button>
@@ -2114,6 +2251,7 @@ class Generator {
       if (a === "tap") this.tap();
       if (a === "rgsave") this.saveOnScreen();
       if (a === "voicemode") this.cycleVoiceMode();
+      if (a === "reshuffle") this.reshuffle();
       if (a === "full") this.fullscreen();
       if (a === "info") this.toggleInfo();
       if (a === "hidebar") this.toggleBar();
@@ -2127,6 +2265,7 @@ class Generator {
       else if ((e.key === "t" || e.key === "T") && this.outside && !e.repeat) this.tap();
       else if ((e.key === "[" || e.key === "]") && this.outside) this.nudge(e.key === "]" ? 0.05 : -0.05);
       else if (e.key === "f" || e.key === "F") this.fullscreen();
+      else if ((e.key === "r" || e.key === "R") && !e.repeat && !e.ctrlKey && !e.metaKey && !this.done) this.reshuffle();
       else if (e.key === "i" || e.key === "I") this.toggleInfo();
       else if (e.key === "h" || e.key === "H") this.toggleBar();
       else if ((e.key === "d" || e.key === "D") && this.rg) this.saveOnScreen();
@@ -2198,7 +2337,9 @@ class Generator {
     const row = (m, i) => {
       const [st, bad] = state(m);
       const name = m.rg ? `RedGifs${m.rg.user ? " · " + m.rg.user : ""}` : m.name || m.key;
-      return `<div><b>${i + 1}</b> ${esc(name)}${m.file && m.file !== name ? ` <small>${esc(m.file)}</small>` : ""} <small>${m.w}×${m.h}</small> <span class="${bad ? "is-bad" : ""}">${esc(st)}</span></div>`;
+      const tags = m.tagNames && m.tagNames.length ? ` <small>tags: ${esc(m.tagNames.join(", "))}</small>` : "";
+      const stage = this.nStages > 1 && m.stage != null ? ` <small>stage ${m.stage + 1}</small>` : "";
+      return `<div><b>${i + 1}</b> ${esc(name)}${m.file && m.file !== name ? ` <small>${esc(m.file)}</small>` : ""} <small>${m.w}×${m.h}</small>${tags}${stage} <span class="${bad ? "is-bad" : ""}">${esc(st)}</span></div>`;
     };
     const fails = (this.failed || []).slice(-5).reverse();
     box.innerHTML =
@@ -2347,11 +2488,20 @@ class Generator {
     const lists = await Promise.all(
       kinds.map(async (k) => {
         const q = k === "marker"
-          ? `query($f: FindFilterType, $x: SceneMarkerFilterType) { r: findSceneMarkers(filter: $f, scene_marker_filter: $x) { count scene_markers { id title seconds primary_tag { name } scene { id title paths { stream sprite vtt } files { duration width height basename } performers { id } } } } }`
+          ? `query($f: FindFilterType, $x: SceneMarkerFilterType) { r: findSceneMarkers(filter: $f, scene_marker_filter: $x) { count scene_markers { id title seconds${Generator.noEnd ? "" : " end_seconds"} primary_tag { id name } tags { id name } scene { id title paths { stream sprite vtt } files { duration width height basename } performers { id } } } } }`
           : k === "scene"
           ? `query($f: FindFilterType, $x: SceneFilterType, $ids: [ID!]) { r: findScenes(filter: $f, scene_filter: $x, ids: $ids) { count scenes { id title paths { stream sprite vtt } files { duration width height basename } scene_markers { id seconds } performers { id } } } }`
           : `query($f: FindFilterType, $x: ImageFilterType) { r: findImages(filter: $f, image_filter: $x) { count images { id title paths { image } visual_files { __typename ... on ImageFile { width height basename } } performers { id } } } }`;
-        const d = await gql(q, Object.assign({ f: { per_page: 60, page: P.page[k], sort: "random_" + P.seed }, x: spec.filter(k) }, spec.ids && k === "scene" ? { ids: spec.ids } : {}));
+        const vars = Object.assign({ f: { per_page: 60, page: P.page[k], sort: "random_" + P.seed }, x: spec.filter(k) }, spec.ids && k === "scene" ? { ids: spec.ids } : {});
+        let d;
+        try {
+          d = await gql(q, vars);
+        } catch (err) {
+          // an older Stash has no end_seconds on markers: ask again without it (and don't ask for it again)
+          if (k !== "marker" || Generator.noEnd || !/end_seconds/.test(String(err && err.message))) throw err;
+          Generator.noEnd = true;
+          d = await gql(q.replace(" end_seconds", ""), vars);
+        }
         const items = k === "marker" ? d.r.scene_markers : k === "scene" ? d.r.scenes : d.r.images;
         // Reached the end → start over with a new random order
         P.page[k] = P.page[k] * 60 >= d.r.count ? 1 : P.page[k] + 1;
@@ -2359,16 +2509,16 @@ class Generator {
           // A marker clip: its scene, starting at the marker
           return items
             .filter((mk) => mk.scene && mk.scene.paths.stream)
-            .map((mk) => ({ kind: "video", id: mk.scene.id, key: "marker:" + mk.id, url: mk.scene.paths.stream, dur: (mk.scene.files[0] || {}).duration || 0, marks: [], markers: [], at: mk.seconds,
+            .map((mk) => ({ kind: "video", id: mk.scene.id, key: "marker:" + mk.id, end: mk.end_seconds || 0, tagNames: [(mk.primary_tag || {}).name, ...(mk.tags || []).map((x) => x.name)].filter(Boolean), url: mk.scene.paths.stream, dur: (mk.scene.files[0] || {}).duration || 0, w: (mk.scene.files[0] || {}).width || 0, h: (mk.scene.files[0] || {}).height || 0, marks: [], markers: [], at: mk.seconds,
               sprite: mk.scene.paths.sprite, vtt: mk.scene.paths.vtt, name: mk.title || (mk.primary_tag || {}).name || mk.scene.title || (mk.scene.files[0] || {}).basename || "Marker " + mk.id,
               file: (mk.scene.files[0] || {}).basename || "", perf: (mk.scene.performers || []).map((pf) => pf.id) }));
         }
         return items
           .map((x) =>
             k === "scene"
-              ? x.paths.stream && { kind: "video", id: x.id, url: x.paths.stream, dur: (x.files[0] || {}).duration || 0, marks: (x.scene_markers || []).map((mk) => mk.seconds), markers: x.scene_markers || [],
+              ? x.paths.stream && { kind: "video", id: x.id, url: x.paths.stream, dur: (x.files[0] || {}).duration || 0, w: (x.files[0] || {}).width || 0, h: (x.files[0] || {}).height || 0, marks: (x.scene_markers || []).map((mk) => mk.seconds), markers: x.scene_markers || [],
                   sprite: x.paths.sprite, vtt: x.paths.vtt, name: x.title || (x.files[0] || {}).basename || "Scene " + x.id, file: (x.files[0] || {}).basename || "" }
-              : x.paths.image && (x.visual_files[0] || {}).__typename === "ImageFile" && { kind: "image", id: x.id, url: x.paths.image,
+              : x.paths.image && (x.visual_files[0] || {}).__typename === "ImageFile" && { kind: "image", id: x.id, url: x.paths.image, w: x.visual_files[0].width || 0, h: x.visual_files[0].height || 0,
                   name: x.title || x.visual_files[0].basename || "Image " + x.id, file: x.visual_files[0].basename || "" }
           )
           .filter(Boolean)
@@ -2385,7 +2535,7 @@ class Generator {
     P.srcIdx = 0;
   }
 
-  async nextSource(st = 0) {
+  async nextSource(st = 0, want = null) {
     // RedGifs share first; the rest comes from Stash – and each side fills in when the other runs dry
     if (this.rg && !this.rg.dead) {
       this.rgAcc += this.S.rgPct / 100;
@@ -2396,7 +2546,7 @@ class Generator {
       }
     }
     try {
-      return await this.nextStash(st);
+      return await this.nextStash(st, want);
     } catch (e) {
       const s = this.rg && !this.rg.dead ? ((this.stashDead = true), await this.nextRedgif()) : null;
       if (s) return s;
@@ -2419,13 +2569,13 @@ class Generator {
     toast("RedGifs – " + msg, "error");
   }
 
-  async nextStash(st = 0) {
+  async nextStash(st = 0, want = null) {
     // A stage without any matching clip borrows from the next one that has some
     for (let k = 0; k < this.nStages; k++) {
       const i = (st + k) % this.nStages;
       if (this.sp[i].dead) continue;
       try {
-        return await this.nextFrom(this.sp[i], i);
+        return await this.nextFrom(this.sp[i], i, want);
       } catch (e) {
         if (this.nStages < 2) throw e;
         this.sp[i].dead = true;
@@ -2434,12 +2584,21 @@ class Generator {
     throw new Error("No matching clips found – loosen the filters.");
   }
 
-  async nextFrom(P, st) {
+  async nextFrom(P, st, want = null) {
     // Several clips are prepared in parallel – fetch new ones only once
     for (let tries = 0; ; tries++) {
       while (P.srcIdx >= P.sources.length) {
         P.fetching = P.fetching || this.fetchSources(P, st).finally(() => (P.fetching = null));
         await P.fetching;
+      }
+      // A shape is short (per-layout clip shape): take a source of that shape that is already known
+      if (want) {
+        const fits = (x) => x.w && x.h && (want === "portrait" ? x.h > x.w : x.w >= x.h) && !(this.badKeys && this.badKeys.has(x.key));
+        // (new ones first, then not shown recently; with a small selection a repeat is better than the wrong shape)
+        let k = P.sources.findIndex((x, n) => n >= P.srcIdx && fits(x) && !this.isRecent(x));
+        if (k < 0) k = P.sources.findIndex((x) => fits(x) && !this.isRecent(x));
+        if (k < 0) k = P.sources.findIndex(fits);
+        if (k >= 0) return P.sources[k];
       }
       const s = P.sources[P.srcIdx++];
       if (this.badKeys && this.badKeys.has(s.key) && tries < P.sources.length) continue; // failed before
@@ -2472,11 +2631,14 @@ class Generator {
     // (match cuts need a bit more choice)
     // At most 3 at once: each one decodes and seeks its video – with 4K several at once choke the decoder
     while (!this.done && this.preparing < 3) {
-      const st = this.stageToFill(this.S.matchCut ? 8 : 6);
+      const want = this.shapeShort();
+      let st = this.stageToFill(this.S.matchCut ? 8 : 6);
+      if (st < 0 && want) st = this.stageToFill(this.S.matchCut ? 14 : 12);
       if (st < 0) break;
       this.preparing++;
       this.prepN[st] = (this.prepN[st] || 0) + 1;
-      this.prepareOne(st)
+      if (want) this.prepShape[want]++;
+      this.prepareOne(st, want)
         .then((m) => {
           if (this.done) return this.release(m);
           m.stage = st;
@@ -2487,9 +2649,20 @@ class Generator {
         .finally(() => {
           this.preparing--;
           this.prepN[st]--;
+          if (want) this.prepShape[want]--;
           if (!this.done && this.bad < 12) setTimeout(() => this.fillPool(), this.bad ? 200 : 0);
         });
     }
+  }
+
+  // Per-layout clip shape: which shape (landscape / portrait) the ready clips are short of (null = none)
+  shapeShort() {
+    const rules = this.S.layoutShape || {};
+    const need = [...new Set(this.layouts.map((k) => rules[k]).filter((v) => v === "landscape" || v === "portrait"))];
+    if (!need.length) return null;
+    const have = (sh) => this.ready.filter((m) => (sh === "portrait" ? m.h > m.w : m.w >= m.h)).length + this.prepShape[sh];
+    need.sort((a, b) => have(a) - have(b));
+    return have(need[0]) < 5 ? need[0] : null;
   }
 
   // Which stage needs clips next: the current one first, then a reserve for drops (the last) and the one coming up
@@ -2516,8 +2689,8 @@ class Generator {
     this.stageNow = t < this.dropUntil || prog >= 0.9 ? n - 1 : Math.min(n - 2, Math.floor((prog / 0.9) * (n - 1)));
   }
 
-  async prepareOne(st = 0) {
-    const s = await this.nextSource(st);
+  async prepareOne(st = 0, want = null) {
+    const s = await this.nextSource(st, want);
     try {
       return await this.prepareFrom(s);
     } catch (e) {
@@ -2631,7 +2804,9 @@ class Generator {
         }
       }
       await seek(start);
-      const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url };
+      const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url, tagNames: s.tagNames };
+      // A marker with an end: the clip stays inside it (the scene would play on into something else) – see loop()
+      if (s.at != null && s.end > s.at + 0.5) m.endAt = Math.min(s.end, dur - 0.1);
       m.sig = info || (await analyzeAsync(v, m.w, m.h));
       if (this.S.smartCrop) {
         m.focus = Object.assign({}, m.sig.focus);
@@ -2662,7 +2837,7 @@ class Generator {
 
   // Take the best of the ready clips: shape fits the field (portrait into a narrow field etc.),
   // match cut: looks like the clip that is leaving (out), variety: not the same scene/performer
-  takeMedia(aspect, out) {
+  takeMedia(aspect, out, strict = false) {
     if (!this.ready.length) return null;
     let outSig = null;
     if (this.S.matchCut && out) outSig = out.live || out.sig; // (measured in the background, see trackFocus)
@@ -2673,6 +2848,13 @@ class Generator {
     if (this.nStages > 1) {
       const mine = cand.filter((i) => this.ready[i].stage === this.stageNow);
       if (mine.length) cand = mine;
+    }
+    // Shape per layout: only landscape / portrait clips in this layout (none ready → whatever there is)
+    const want = (this.S.layoutShape || {})[this.layout];
+    if (want === "landscape" || want === "portrait") {
+      const fit = cand.filter((i) => (want === "portrait" ? this.ready[i].h > this.ready[i].w : this.ready[i].w >= this.ready[i].h));
+      if (fit.length) cand = fit;
+      else if (strict) return null; // (a single field: better keep the clip than show the wrong shape)
     }
     cand.slice(0, this.S.matchCut ? 8 : 5).forEach((i) => {
       const m = this.ready[i];
@@ -2739,10 +2921,11 @@ class Generator {
 
   cutGroup(gi, t, opt) {
     const old = this.groups[gi];
-    const m = this.takeMedia(aspectOfGroup(this.slots, gi), old);
+    const m = this.takeMedia(aspectOfGroup(this.slots, gi), old, true);
     if (!m) return false; // nothing ready yet → the field keeps running
     this.groups[gi] = m;
     this.cutT[gi] = t;
+    this.cutK[gi] = this.curK;
     if (opt && opt.scroll && old && old !== m) {
       // the old clip scrolls out: it keeps playing a moment longer
       const prev = this.leave[gi];
@@ -2772,10 +2955,12 @@ class Generator {
     for (let gi = 0; gi < n; gi++) {
       // New clips for all fields; if some are missing, old ones keep running
       const prev = old[gi % Math.max(1, old.length)] || null;
-      this.groups[gi] = this.takeMedia(aspectOfGroup(this.slots, gi), prev) || prev;
+      this.groups[gi] = this.takeMedia(aspectOfGroup(this.slots, gi), prev, !!prev) || prev;
       this.cutT[gi] = t;
+      this.cutK[gi] = this.curK;
     }
     this.cutT.length = n;
+    this.cutK.length = n;
     this.nextGroup = 0;
     this.dropUnused(old);
     this.cuts++;
@@ -2791,12 +2976,21 @@ class Generator {
     return e > 0.6 ? 3 : e > 0.35 ? 2 : 1;
   }
 
+  layoutReady(id) {
+    const rule = (this.S.layoutShape || {})[id];
+    if (rule !== "landscape" && rule !== "portrait") return true;
+    const fit = this.ready.filter((m) => (rule === "portrait" ? m.h > m.w : m.w >= m.h)).length;
+    return fit >= LAYOUTS[id].groups;
+  }
+
   pickLayout(e, drop) {
     let want = this.levelFor(e, drop);
     if (want === 3 && e > 0.8 && Math.random() < 0.2) want = 4; // a 4-way now and then
     const dist = (k) => Math.abs(LAYOUTS[k].level - want);
     // Never the same layout again – otherwise the next best match (e.g. 4-way ↔ mirrored 3-way)
-    const cands = this.layouts.filter((k) => k !== this.layout || this.layouts.length === 1);
+    // (a layout with a clip-shape rule only opens when enough clips of that shape are ready)
+    const cands = this.layouts.filter((k) => (k !== this.layout || this.layouts.length === 1) && this.layoutReady(k));
+    if (!cands.length) return null;
     const min = Math.min(...cands.map(dist));
     const pool = cands.filter((k) => dist(k) === min);
     return pool[Math.floor(Math.random() * pool.length)];
@@ -2864,6 +3058,7 @@ class Generator {
     } else {
       this.playSource(0);
       this.rebase();
+      this.fsStart();
     }
     this.paintTrack();
     const first = this.tpl && this.tpl.events.find((ev) => ev.type === "layout");
@@ -2876,6 +3071,57 @@ class Generator {
     this.raf = requestAnimationFrame(this.loop);
   }
 
+  // ---------- Funscript: built from the song, played on The Handy together with the show ----------
+
+  // A funscript for the current song (null when it can't be made); also kept for "Save funscript" at the end
+  fsBuild() {
+    this.fs = null;
+    if (!this.S.fsOn || !this.song || !this.song.beats || this.song.live) return null;
+    try {
+      this.fs = buildFunscript(this.song, this.bars, this.S);
+    } catch (e) {
+      console.warn("[PMV Generator] funscript", e);
+    }
+    return this.fs;
+  }
+  async fsStart() {
+    if (!this.S.fsOn || this.tpl || this.live || (this.music && this.music.type === "follow")) return;
+    const fs = this.fsBuild();
+    if (!fs) return;
+    this.fsClock = Object.assign(new EventTarget(), {
+      show: this,
+      get currentTime() {
+        return Math.max(0, this.show.pos());
+      },
+      get paused() {
+        return !!(this.show.paused || this.show.done);
+      },
+    });
+    let told = "";
+    this.fsHandy = attachHandy(this.fsClock, { paths: { funscript: "pmv" } }, {
+      getVariant: async () => this.fs,
+      onState: (h) => {
+        if (!h) return;
+        const st = h.state + (h.error || "");
+        if (st === told) return;
+        told = st;
+        if (h.state === "ready") toast("The Handy is ready – the funscript plays with the song", "ok");
+        else if (h.state === "error") toast("The Handy: " + h.error, "error");
+      },
+    });
+    getHandy().then((h) => h || toast("No Handy connection key – set it in Stash UI → Settings → Interactive", "error")).catch(() => {});
+  }
+  fsEvent(type) {
+    if (this.fsClock) this.fsClock.dispatchEvent(new Event(type));
+  }
+  saveFunscript() {
+    if (!this.fs) return;
+    const blob = new Blob([JSON.stringify(this.fs)], { type: "application/json" });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${fileName(this.song.name)}.funscript` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
   startRecorder(gain) {
     const dest = this.ac.createMediaStreamDestination();
     gain.connect(dest);
@@ -2885,11 +3131,35 @@ class Generator {
       toast("This browser can't record – running without recording", "error");
       return;
     }
-    this.chunks = [];
     this.mime = mime;
-    this.rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: this.S.quality === 1080 ? 12e6 : 7e6 });
-    this.rec.ondataavailable = (e) => e.data.size && this.chunks.push(e.data);
-    this.rec.start(1000);
+    this.recStream = stream;
+    this.newRecorder(0);
+  }
+  // A recorder of its own chunks (with "One video per song" a new one starts with each song)
+  newRecorder(t0) {
+    const chunks = [];
+    const rec = new MediaRecorder(this.recStream, { mimeType: this.mime, videoBitsPerSecond: this.S.quality === 1080 ? 12e6 : 7e6 });
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.start(1000);
+    this.rec = rec;
+    this.chunks = chunks;
+    this.recSong = this.song;
+    this.recT0 = t0;
+  }
+  // The next song starts: the recording of the last one is closed (a file of its own), a new one begins
+  splitTake(t0) {
+    if (!this.rec || this.rec.state === "inactive" || !this.recStream) return;
+    const old = { rec: this.rec, chunks: this.chunks, song: this.recSong, t0: this.recT0 };
+    const take = { name: old.song.name, song: old.song, length: Math.max(0, t0 - old.t0), blob: null };
+    this.newRecorder(t0);
+    if (this.paused) this.rec.pause();
+    this.pendingTakes = (this.pendingTakes || 0) + 1;
+    old.rec.onstop = () => {
+      take.blob = new Blob(old.chunks, { type: this.mime.split(";")[0] });
+      this.takes.push(take);
+      this.pendingTakes--;
+    };
+    old.rec.stop();
   }
 
   // Two clocks: pos() = where the song is (beats), now() = show time for the pictures. They're the same
@@ -2968,10 +3238,58 @@ class Generator {
     }
   }
 
+  // New clips without stopping the music: the supply starts over with a fresh random order, and as soon as the first
+  // clips are ready every field changes at once (the beats, the layout and the effects go on as they were)
+  async reshuffle(auto) {
+    if (this.done || this.reshuffling || this.revealing || !this.layout) return;
+    this.reshuffling = true;
+    if (!auto) this.say("New clips …");
+    try {
+      this.ready.forEach((m) => this.release(m));
+      this.ready = [];
+      this.sp.forEach((P) => {
+        P.sources = [];
+        P.srcIdx = 0;
+        P.page = { scene: 1, image: 1, marker: 1 };
+        P.seed = Math.floor(Math.random() * 1e8);
+        P.dead = false;
+      });
+      this.bad = 0;
+      this.fillPool();
+      const need = Math.min(3, LAYOUTS[this.layout] ? LAYOUTS[this.layout].groups : 1);
+      const t0 = performance.now();
+      while (!this.done && this.ready.length < need && performance.now() - t0 < 15000) await sleep(100);
+      if (this.done) return;
+      if (this.ready.length) {
+        const t = this.now();
+        this.setLayout(this.layout, t);
+        this.comp.flash(t, 0.3, "#fff");
+      }
+    } finally {
+      this.reshuffling = false;
+      if (!this.done && !auto) this.say(this.paused ? "Paused – Space continues" : "");
+    }
+  }
+
+  // The next song of the running show has started (rebase() is done; t0 = the show time of the change)
+  songChanged(t0) {
+    const S = this.S;
+    if (S.introEach) {
+      // intro and outro count from this song's start; the outro needs the song's length
+      this.comp.songStart = t0;
+      this.comp.duration = this.song.live ? 0 : Math.max(0, (this.song.duration || 0) - Math.max(0, this.pos()));
+      this.comp.title = String(S.title || "").trim() || this.song.name;
+      this.songShown0 = this.shown.size;
+    }
+    if (S.record && S.recSplit) this.splitTake(t0);
+    if (S.reshuffleEach) this.reshuffle(true);
+  }
+
   // Another song in the running show (call rebase() once its position is set)
   setSong(song) {
     this.song = song;
     this.setBars();
+    if (this.fsHandy && this.fsBuild()) this.fsHandy.setVariant(this.fs); // playlist: the new song gets its own script
     this.lastDrop = -99;
     this.h("name").textContent = song.name;
     this.h("bpm").textContent = `${Math.round(song.bpm)} BPM`;
@@ -3003,6 +3321,7 @@ class Generator {
         this.setSong(next);
         this.playSource(0);
         this.rebase(t0);
+        this.songChanged(t0);
         this.say(this.paused ? "Paused – Space continues" : "");
         this.paintTrack();
         if (!this.paused) this.comp.text(this.now());
@@ -3031,6 +3350,7 @@ class Generator {
       this.ext = at(u.pos);
       this.setHeld(!u.playing);
       this.rebase(t0);
+      this.songChanged(t0);
       this.sayPlex(u.playing ? "" : "Paused on Plex");
       return;
     }
@@ -3128,7 +3448,11 @@ class Generator {
     const p = this.pos();
     const t = p + (this.vOff || 0);
     const beats = this.song.beats;
-    while (this.bi < beats.length && beats[this.bi] <= p) this.onBeat(this.bi++, t);
+    // (with "cut ahead of the beat" the cut is made a few ms early; the zoom pulse still sits on the real beat)
+    const lead = (this.S.cutLead || 0) / 1000;
+    while (this.bi < beats.length && beats[this.bi] - lead <= p) this.onBeat(this.bi++, t);
+    // A marker clip with an end loops inside its marker
+    for (const m of this.groups) if (m && m.endAt && m.kind === "video" && m.el.currentTime >= m.endAt) m.el.currentTime = m.start;
     if (this.tpl) {
       const evs = this.tpl.events;
       while (this.ti < evs.length && evs[this.ti].t <= t) this.applyEvent(evs[this.ti++], t);
@@ -3216,6 +3540,9 @@ class Generator {
   // Direction: decide what happens on each beat
   onBeat(k, t) {
     const S = this.S;
+    this.curK = k;
+    const minB = Math.max(0, Math.round(+S.minBeats || 0));
+    const maxB = Math.max(0, Math.round(+S.maxBeats || 0));
     const beats = this.song.beats;
     const e = this.song.energy[k] || 0;
     const prev = this.song.energy[k - 4] || 0;
@@ -3251,16 +3578,17 @@ class Generator {
     const due = B
       ? ((B.phrase[k] && k - this.layoutBeat >= this.layoutHold && (moodChanged || (want >= 3 && Math.random() < 0.6))) || (bar && moodChanged && k - this.layoutBeat >= 24))
       : bar && k - this.layoutBeat >= this.layoutHold && (moodChanged || (want >= 3 && Math.random() < 0.6));
+    let nextLayout = null;
     if (this.tpl) {
       // Cuts and layouts come from the template (applyEvent)
-    } else if (this.layouts.length > 1 && (drop || due) && !this.revealing) {
-      this.setLayout(this.pickLayout(e, drop), t);
+    } else if (this.layouts.length > 1 && ((drop && k - this.layoutBeat >= minB) || due) && !this.revealing && (nextLayout = this.pickLayout(e, drop))) {
+      this.setLayout(nextLayout, t);
       this.layoutBeat = k;
       this.centerK = k;
       // Scrolling sides: in a 3-way layout (not on a drop, not in the loudest parts) the middle clip stays and the sides scroll
       this.scrollDir = S.scroll && !drop && e <= 0.9 && (this.layout === "tri" || this.layout === "trim") && Math.random() < 0.75 ? (Math.random() < 0.5 ? -1 : 1) : 0;
       this.sideN = 0;
-      this.layoutHold = drop ? 4 : 8; // after a drop, move on after just one bar
+      this.layoutHold = Math.max(drop ? 4 : 8, minB); // after a drop, move on after just one bar (or the shortest clip, if that is longer)
       this.lastCut = k;
       comp.flash(t, drop ? 0.9 : 0.35, drop ? "#ff3e8a" : "#fff");
     } else {
@@ -3286,11 +3614,33 @@ class Generator {
         }
       } else if (onGrid || (every === 4 && bar && k - this.lastCut >= 2)) {
         const n = LAYOUTS[this.layout].groups;
-        const gi = this.nextGroup % n;
-        if (this.cutGroup(gi, t)) {
+        let gi = this.nextGroup % n;
+        // Shortest clip: the next field whose clip has been on long enough (none yet → wait for a later beat)
+        if (minB) {
+          gi = -1;
+          for (let j = 0; j < n; j++) {
+            const c = (this.nextGroup + j) % n;
+            if (k - (this.cutK[c] ?? -99) >= minB) {
+              gi = c;
+              break;
+            }
+          }
+        }
+        if (gi >= 0 && this.cutGroup(gi, t)) {
           this.nextGroup = gi + 1;
           this.lastCut = k;
           if (e > 0.5) comp.flash(t, 0.15 + 0.3 * e, bar ? "#ff3e8a" : "#fff");
+        }
+      }
+    }
+
+    // Longest clip: a field whose clip has been on for that long is cut now, whatever the pace says
+    if (maxB && !this.revealing && !this.tpl && this.slots.length) {
+      const n = LAYOUTS[this.layout].groups;
+      for (let gi = 0; gi < n; gi++) {
+        if (this.cutK[gi] != null && k - this.cutK[gi] >= maxB && this.cutGroup(gi, t)) {
+          this.lastCut = k;
+          break;
         }
       }
     }
@@ -3457,12 +3807,14 @@ class Generator {
     b.innerHTML = icon(this.paused ? "play" : "pause");
     if (this.paused) {
       this.ac.suspend();
+      this.fsEvent("pause");
       if (this.mediaEl && this.song.media) this.mediaEl.pause();
       this.videos().forEach((m) => m.el.pause());
       if (this.rec && this.rec.state === "recording") this.rec.pause();
       this.say("Paused – Space continues");
     } else {
       this.ac.resume();
+      this.fsEvent("playing");
       if (this.mediaEl && this.song.media) this.mediaEl.play().catch(() => {});
       this.videos().forEach((m) => m.el.play().catch(() => {}));
       if (this.rec && this.rec.state === "paused") this.rec.resume();
@@ -3472,6 +3824,10 @@ class Generator {
 
   stopEverything() {
     this.done = true;
+    if (this.fsHandy) {
+      this.fsHandy.stop();
+      this.fsHandy = null;
+    }
     if (this.music && this.music.follow) this.music.follow.detach();
     cancelAnimationFrame(this.raf);
     try {
@@ -3499,6 +3855,13 @@ class Generator {
         this.rec.stop();
       });
       blob = new Blob(this.chunks, { type: this.mime.split(";")[0] });
+      if (this.takes.length || this.pendingTakes) {
+        // One video per song: the last song's video joins the others (the earlier ones may still be closing)
+        for (let i = 0; i < 40 && this.pendingTakes; i++) await sleep(50);
+        this.takes.push({ name: this.recSong.name, song: this.recSong, length: Math.max(0, t - this.recT0), blob });
+        if (this.takes.length > 1) blob = null;
+        else blob = this.takes[0].blob;
+      }
     }
     if (this.ac) this.ac.close().catch(() => {});
     this.length = this.music ? t : Math.min(t, this.song.duration);
@@ -3515,6 +3878,8 @@ class Generator {
     this.blob = blob;
     const url = blob ? URL.createObjectURL(blob) : null;
     this.blobUrl = url;
+    const takes = this.takes && this.takes.length > 1 ? this.takes : null;
+    if (takes) takes.forEach((tk) => (tk.url = URL.createObjectURL(tk.blob)));
     end.hidden = false;
     end.innerHTML = error
       ? `<div class="kb-pmvg-endcard"><h2>That didn't work</h2><p>${esc(error)}</p>
@@ -3524,13 +3889,15 @@ class Generator {
           <div class="kb-card-acts"><button class="kb-btn" data-end="close">Back</button></div></div>`
       : `<div class="kb-pmvg-endcard">
           <h2>${early ? "Stopped" : "Done!"}</h2>
-          <p>${fmtDuration(this.length || 0)} · ${this.cuts} cuts · ${Math.round(this.song.bpm)} BPM${blob ? ` · ${fmtBytes(blob.size)}` : ""}</p>
+          <p>${fmtDuration(this.length || 0)} · ${this.cuts} cuts · ${Math.round(this.song.bpm)} BPM${blob ? ` · ${fmtBytes(blob.size)}` : ""}${takes ? ` · ${takes.length} videos` : ""}</p>
           ${early && blob && this.song.duration > 0 && this.length < this.song.duration - 2 ? `<p class="kb-hint">Stopped early – the video ends at ${fmtDuration(this.length || 0)} of ${fmtDuration(this.song.duration)}. The recording runs in real time, so let the show play to the end for the whole track.</p>` : ""}
           ${this.failed && this.failed.length ? `<details class="kb-pmvg-skipped"><summary>${this.failed.length} ${this.failed.length === 1 ? "clip was" : "clips were"} skipped</summary>${this.failListHtml(this.failed.slice().reverse())}</details>` : ""}
           ${url ? `<video class="kb-pmvg-result" src="${url}" controls playsinline></video>` : ""}
+          ${takes ? `<div class="kb-pmvg-takes">${takes.map((tk, i) => `<div class="kb-pmvg-take"><span><b>${esc(tk.name)}</b><small>${fmtDuration(tk.length)} · ${fmtBytes(tk.blob.size)}</small></span><a class="kb-btn" data-end="tfile" href="${tk.url}" download="${String(i + 1).padStart(2, "0")} ${esc(fileName(tk.name))}.webm">${icon("download")}Download</a><button class="kb-btn is-primary" data-end="tstash" data-i="${i}">Save to Stash</button></div>`).join("")}</div>` : ""}
           <div class="kb-card-acts">
             ${blob ? `<button class="kb-btn is-primary" data-end="stash">${icon("download")}Save to Stash</button><a class="kb-btn" data-end="file" href="${url}" download="${esc(fileName(this.song.name))}.webm">Download</a>` : ""}
             ${this.rgUsed.size ? `<button class="kb-btn" data-end="rgall" title="Download them into your library, scanned and tagged “RedGifs”">${icon("download")}Save the ${this.rgUsed.size} RedGifs ${this.rgUsed.size === 1 ? "clip" : "clips"}</button>` : ""}
+            ${this.fs ? `<button class="kb-btn" data-end="fs" title="The funscript that played with this song">${icon("download")}Save funscript</button>` : ""}
             <button class="kb-btn" data-end="again">${icon("shuffle")}Again, reshuffled</button>
             <button class="kb-btn is-ghost" data-end="close">Close</button>
           </div>
@@ -3546,18 +3913,22 @@ class Generator {
         this.close();
         onClose(new Generator(song, S, onClose, tpl, music));
       }
+      if (a === "fs") this.saveFunscript();
       if (a === "stash") this.saveToStash(b);
+      if (a === "tstash") this.saveToStash(b, this.takes[Number(b.dataset.i)]);
       if (a === "rgall") this.saveAllUsed(b);
     };
   }
 
-  async saveToStash(btn) {
+  async saveToStash(btn, take) {
     const msg = this.el.querySelector("[data-end-msg]");
+    const blob = take ? take.blob : this.blob;
+    const song = take ? take.song : this.song;
     btn.disabled = true;
     try {
-      const out = await uploadRecording(this.blob, `PMV – ${this.song.name}`, (p) => (msg.textContent = `Uploading … ${Math.round(p * 100)} %`));
+      const out = await uploadRecording(blob, `PMV – ${song.name}`, (p) => (msg.textContent = `Uploading … ${Math.round(p * 100)} %`));
       msg.textContent = out.fixed ? "Saved – Stash is scanning it …" : "Saved (without ffmpeg post-processing) – Stash is scanning it …";
-      const id = await importScene(out, this.song);
+      const id = await importScene(out, song);
       msg.innerHTML = id ? `Saved to Stash as a scene. <a href="${esc(SCENE_LINK(id))}" data-end="close">View</a>` : "Saved – the scene appears after the scan.";
       btn.innerHTML = `${icon("check")}Saved`;
     } catch (err) {
@@ -3578,6 +3949,7 @@ class Generator {
     window.removeEventListener("resize", this.onResize);
     document.body.classList.remove("kb-noscroll");
     if (this.blobUrl) setTimeout(() => URL.revokeObjectURL(this.blobUrl), 60000);
+    (this.takes || []).forEach((tk) => tk.url && setTimeout(() => URL.revokeObjectURL(tk.url), 60000));
     this.el.remove();
     this.onClose(null);
   }

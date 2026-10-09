@@ -2,7 +2,7 @@
 
 import { esc, icon, plural, errorToast, folderMode } from "../ui.js";
 import { t } from "../i18n.js";
-import { loadFolders, findItems } from "../api.js";
+import { loadFolders, findItems, folderLevelCounts } from "../api.js";
 import { mediaBrowser } from "./media.js";
 
 // Up to three cover images for a room (images first, otherwise scene screenshots)
@@ -30,10 +30,41 @@ export function roomsHtml(nodes) {
       (n) => `<a class="kb-room" href="#/folder/${n.id}" data-room="${n.id}">
         <div class="kb-room-art"></div>
         <b>${esc(n.name)}</b>
-        <small>${[n.tvid ? plural(n.tvid, "video", "videos") : "", n.timg ? plural(n.timg, "image", "images") : "", n.kids.length ? plural(n.kids.length, "subfolder", "subfolders") : ""].filter(Boolean).join(t(", "))}</small>
+        <small data-rc>${[n.tvid ? plural(n.tvid, "video", "videos") : "", n.timg ? plural(n.timg, "image", "images") : "", n.kids.length ? plural(n.kids.length, "subfolder", "subfolders") : ""].filter(Boolean).join(t(", "))}</small>
       </a>`
     )
     .join("")}</div>`;
+}
+
+// Big library: the folders weren't counted up front – count the ones on screen now (per level, two cheap queries each),
+// and write the numbers in. Returns a cancel function.
+export function fillRoomCounts(root, tree, signal) {
+  if (!tree.unc) return () => {};
+  const rooms = [...root.querySelectorAll("[data-room]")];
+  const done = (id, c) => {
+    const n = tree.nodes.get(id);
+    if (!n) return;
+    n.tvid = c[0];
+    n.timg = c[1];
+    const el = root.querySelector(`[data-room="${id}"] [data-rc]`);
+    if (el) el.textContent = [c[0] ? plural(c[0], "video", "videos") : "", c[1] ? plural(c[1], "image", "images") : "", n.kids.length ? plural(n.kids.length, "subfolder", "subfolders") : ""].filter(Boolean).join(t(", "));
+  };
+  const ids = rooms.map((r) => r.dataset.room);
+  const ctl = new AbortController();
+  if (signal) signal.addEventListener("abort", () => ctl.abort());
+  // a few at a time, top to bottom, so the first numbers show up quickly
+  (async () => {
+    for (let i = 0; i < ids.length && !ctl.signal.aborted; i += 6) {
+      const part = ids.slice(i, i + 6);
+      try {
+        const m = await folderLevelCounts(part, { signal: ctl.signal });
+        part.forEach((id) => m.has(id) && done(id, m.get(id)));
+      } catch (e) {
+        return;
+      }
+    }
+  })();
+  return () => ctl.abort();
 }
 
 export function fillRoomCovers(root) {
@@ -91,7 +122,12 @@ export async function render(main, params, query) {
         <p class="kb-sub">${t("Your library by folder. Empty folders are hidden.")}</p>
       </div></header>
       ${roomsHtml(tree.roots.length === 1 && tree.roots[0].kids.length ? tree.roots[0].kids : tree.roots)}`;
-    return fillRoomCovers(main);
+    const stopCounts = fillRoomCounts(main, tree);
+    const stopCov = fillRoomCovers(main);
+    return () => {
+      stopCounts();
+      stopCov();
+    };
   }
 
   const node = tree.nodes.get(params.id);
@@ -104,8 +140,8 @@ export async function render(main, params, query) {
   for (let n = node; n; n = n.parent && tree.nodes.get(n.parent)) chain.unshift(n);
   const deep = query.deep === "1";
   const kinds = [];
-  if (node.tvid) kinds.push("scene");
-  if (node.timg) kinds.push("image");
+  if (node.tvid || tree.unc) kinds.push("scene"); // (a big library isn't counted: both kinds are offered)
+  if (node.timg || tree.unc) kinds.push("image");
   kinds.push("gallery");
   const initial = (deep ? node.tvid >= node.timg : node.vid >= node.img) && node.tvid ? "scene" : node.timg ? "image" : "scene";
 
@@ -127,11 +163,23 @@ export async function render(main, params, query) {
     <section data-browser></section>`;
 
   const stopCovers = fillRoomCovers(main);
+  const stopCounts = fillRoomCounts(main, tree);
+  if (tree.unc) {
+    // the folder's own numbers (not counted up front on a big library)
+    folderLevelCounts([node.id]).then((m) => {
+      const c = m.get(node.id);
+      const sub = main.querySelector(".kb-sub");
+      if (!c || !sub) return;
+      sub.textContent = [c[0] ? plural(c[0], "video", "videos") : "", c[1] ? plural(c[1], "image", "images") : ""].filter(Boolean).join(t(" and ")) + (node.kids.length ? t(", plus {what}", { what: plural(node.kids.length, "subfolder", "subfolders") }) : "");
+    }).catch(() => {});
+  }
   const depth = deep ? -1 : 0;
   const b = mediaBrowser(main.querySelector("[data-browser]"), {
     kinds,
     initialKind: initial,
     query,
+    page: "folder",
+    params: { id: node.id },
     defaults: { scene: { sort: "path", dir: "ASC" }, image: { sort: "path", dir: "ASC" }, gallery: { sort: "path", dir: "ASC" } },
     base: (k) => ({
       filter:
@@ -150,6 +198,7 @@ export async function render(main, params, query) {
     };
   return () => {
     stopCovers();
+    stopCounts();
     b.destroy();
   };
 }

@@ -263,7 +263,49 @@ export function attachHandy(video, scene, { apiKey, onState, loop, getVariant } 
   let alive = true;
   let variant = null; // the chosen variant's funscript (parsed), or null: the scene's own
   let busy = Promise.resolve();
-  const queue = (fn) => (busy = busy.then(() => alive && h && fn()).catch((e) => h && h.set("error", e.message)));
+  // A hiccup ("device timeout", "isn't online") must not end the show for the Handy: try again a few times – first the
+  // command, then connect again, load the script again and go on from where the video is
+  let recovering = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function recover(why) {
+    if (recovering || !alive || !h || h.off) return;
+    recovering = true;
+    try {
+      for (let i = 0; i < 12 && alive && !h.off; i++) {
+        h.set("connecting", "");
+        await sleep(Math.min(2500 + i * 1500, 9000));
+        try {
+          await h.connect();
+          await h.load(scene.paths.funscript, apiKey, variant);
+          if (loop && loop()) await h.loop(true);
+          if (!video.paused) await h.play(video.currentTime, true);
+          return;
+        } catch (e) {
+          h.error = e.message || why;
+        }
+      }
+      if (alive) h.set("error", h.error || why);
+    } finally {
+      recovering = false;
+    }
+  }
+  const queue = (fn) =>
+    (busy = busy
+      .then(async () => {
+        if (!alive || !h || recovering) return;
+        try {
+          await fn();
+        } catch (e) {
+          // once more right away (the request itself may just have been lost), then the full recovery
+          try {
+            await sleep(700);
+            if (alive && h && h.state === "ready") await fn();
+          } catch (e2) {
+            recover(e2.message || e.message);
+          }
+        }
+      })
+      .catch(() => {}));
   const tell = (x) => alive && onState && onState(x);
   (async () => {
     h = await getHandy();
@@ -279,14 +321,20 @@ export function attachHandy(video, scene, { apiKey, onState, loop, getVariant } 
       if (!video.paused) await h.play(video.currentTime);
     } catch (e) {
       h.set("error", e.message);
+      recover(e.message);
     }
   })();
-  const onPlay = () => queue(() => h.play(video.currentTime));
+  let waitT = 0;
+  const onPlay = () => (clearTimeout(waitT), queue(() => h.play(video.currentTime)));
   const onStop = () => queue(() => h.stop());
+  const onWait = () => {
+    clearTimeout(waitT);
+    waitT = setTimeout(onStop, 900); // a short stall of the picture doesn't stop the device
+  };
   const onSeeked = () => queue(() => (video.paused ? h.stop() : h.play(video.currentTime)));
   video.addEventListener("playing", onPlay);
   video.addEventListener("pause", onStop);
-  video.addEventListener("waiting", onStop);
+  video.addEventListener("waiting", onWait);
   video.addEventListener("seeking", onStop);
   video.addEventListener("seeked", onSeeked);
   video.addEventListener("ratechange", onSeeked); // (the Handy plays at 1×; it simply follows again)
@@ -335,7 +383,8 @@ export function attachHandy(video, scene, { apiKey, onState, loop, getVariant } 
       alive = false;
       video.removeEventListener("playing", onPlay);
       video.removeEventListener("pause", onStop);
-      video.removeEventListener("waiting", onStop);
+      clearTimeout(waitT);
+      video.removeEventListener("waiting", onWait);
       video.removeEventListener("seeking", onStop);
       video.removeEventListener("seeked", onSeeked);
       video.removeEventListener("ratechange", onSeeked);

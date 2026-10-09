@@ -4,11 +4,12 @@
 // Sources: add, edit and remove plugin sources.
 // Install, update and uninstall run as Stash jobs; Stash reloads its plugins when they're done.
 
-import { esc, icon, toast, errorToast, confirmDialog, fmtDate } from "../ui.js";
+import { esc, icon, toast, errorToast, confirmDialog, fmtDate, fmtAgo } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, setPluginConfig } from "../api.js";
 import { pokeJobs, onJobs } from "../jobs.js";
 import { setQuery } from "../main.js";
+import { diagnostics, offList, setOff } from "../ext.js";
 import { bootPluginHost, renderPluginSettings, unmountPluginHost } from "../plugin-host.js";
 
 const TABS = ["installed", "browse", "sources"];
@@ -108,7 +109,9 @@ export async function render(main, params, query) {
         <button class="kb-btn" data-check${busy ? " disabled" : ""}>${icon("repeat")}${t("Check for updates")}</button>
         ${state.updates ? (n ? `<button class="kb-btn is-primary" data-updateall${busy ? " disabled" : ""}>${icon("download")}${t("Update all ({n})", { n })}</button>` : `<span class="kb-hint">${t("Everything is up to date.")}</span>`) : ""}
       </div>`;
-    const cards = state.plugins.map((p) => pluginCard(p)).join("");
+    // Plugins with an update come first
+    const hasUp = (p) => { const pk = pkgOf(p); return Boolean(pk && state.updates && state.updates.some((u) => u.package_id === pk.package_id)); };
+    const cards = state.plugins.slice().sort((a, b) => Number(hasUp(b)) - Number(hasUp(a))).map((p) => pluginCard(p)).join("");
     // Packages that are installed but didn't load as a plugin (broken or incompatible)
     const loose = state.packages.filter((pk) => !state.plugins.some((p) => p.id === pk.package_id || p.name === pk.name));
     pane.innerHTML =
@@ -149,6 +152,31 @@ export async function render(main, params, query) {
     );
   }
 
+  // What the plugin's extension module (assets/stashui.js) added to Stash UI, its last errors, and a switch for it
+  function extBlock(p) {
+    const d = diagnostics().find((x) => x.id === p.id);
+    if (!d || !d.hasModule) return "";
+    const off = offList().includes(p.id);
+    const parts = [
+      d.sources.length ? t("{n} list sources", { n: d.sources.length }) : "",
+      d.routes.length ? t("{n} pages", { n: d.routes.length }) : "",
+      d.nav.length ? t("{n} menu entries", { n: d.nav.length }) : "",
+      d.slots.length ? t("{n} slots", { n: d.slots.length }) : "",
+    ].filter(Boolean);
+    const list = [
+      ...d.sources.map((x) => [t("List source"), x.id]),
+      ...d.routes.map((x) => [t("Page"), "#/p/" + p.id + "/" + x.path]),
+      ...d.nav.map((x) => [t("Menu entry"), x.label]),
+      ...d.slots.map((x) => [t("Slot"), x.name + (x.id !== x.name ? " · " + x.id : "")]),
+    ];
+    return `<details class="kb-xdiag" data-xdiag="${esc(p.id)}"${d.errors.length ? " open" : ""}><summary>${t("Stash UI extension")}${d.errors.length ? ` <span class="kb-xdiag-err">${d.errors.length}</span>` : ""}</summary>
+      <div class="kb-xdiag-body">
+        <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("Use this extension")}</b><small>${off ? t("Switched off – takes effect after reloading the page.") : t("It adds {what} to Stash UI.", { what: parts.join(t(", ")) || t("nothing yet") })}</small></span><span class="kb-switch"><input type="checkbox" data-xon="${esc(p.id)}"${off ? "" : " checked"}><i></i></span></label>
+        ${list.length ? `<ul class="kb-xdiag-list">${list.map(([k, v]) => `<li><b>${esc(k)}</b> ${esc(v)}</li>`).join("")}</ul>` : ""}
+        ${d.errors.length ? `<ul class="kb-xdiag-errors">${d.errors.map((e) => `<li><b>${esc(e.where)}</b> ${esc(e.message)} <small>${esc(fmtAgo(new Date(e.at).toISOString()))}</small></li>`).join("")}</ul>` : ""}
+      </div></details>`;
+  }
+
   function pluginCard(p) {
     const pk = pkgOf(p);
     const up = pk && state.updates && state.updates.find((u) => u.package_id === pk.package_id);
@@ -160,6 +188,7 @@ export async function render(main, params, query) {
       </header>
       ${up ? `<div class="kb-pupdate">${icon("download")}<span>${t("Update available: {v}", { v: up.source_package.version })}</span><button class="kb-btn is-primary" data-update="${esc(pk.package_id)}"${busy ? " disabled" : ""}>${t("Update")}</button></div>` : ""}
       ${p.description ? `<p>${esc(p.description)}</p>` : ""}
+      ${extBlock(p)}
       ${p.settings && p.settings.length ? `<details class="kb-plugin-set" data-ps-details open><summary>${t("Settings")}</summary><div class="kb-plugin-settings" data-ps-mount>${t("Loading …")}</div></details>` : ""}
       ${p.tasks && p.tasks.length && p.enabled ? `<details><summary>${t("Tasks")}</summary><div class="kb-ptasks">${p.tasks
         .map((x) => `<div class="kb-ptask"><div><b>${esc(x.name)}</b>${x.description ? `<small>${esc(x.description)}</small>` : ""}</div><button class="kb-btn" data-run="${esc(x.name)}">${icon("play")}${t("Run")}</button></div>`)
@@ -550,6 +579,31 @@ export async function render(main, params, query) {
     paintAvail();
   });
 
+  main.addEventListener("change", (e) => {
+    const x = e.target.closest("[data-xon]");
+    if (!x) return;
+    setOff(x.dataset.xon, !x.checked);
+    toast(x.checked ? t("The extension is on again after reloading the page.") : t("The extension is off after reloading the page."), "ok");
+    repaintExt();
+  });
+  // (the lists, pages and errors a module registered can arrive after the page was drawn)
+  function repaintExt() {
+    if (!alive) return;
+    main.querySelectorAll("[data-id]").forEach((card) => {
+      const p = state.plugins.find((x) => x.id === card.dataset.id);
+      const old = card.querySelector("[data-xdiag]");
+      if (!p) return;
+      const open = old ? old.open : false;
+      const tpl = document.createElement("template");
+      tpl.innerHTML = extBlock(p);
+      const fresh = tpl.content.firstElementChild;
+      if (fresh && open) fresh.open = true;
+      if (old && fresh) old.replaceWith(fresh);
+      else if (old && !fresh) old.remove();
+      else if (fresh) card.querySelector("header").insertAdjacentElement("afterend", fresh);
+    });
+  }
+  window.addEventListener("stash:ext-changed", repaintExt);
   main.addEventListener("click", async (e) => {
     const r = e.target.closest("[data-run]");
     if (!r) return;
@@ -580,5 +634,8 @@ export async function render(main, params, query) {
       setTimeout(() => card.classList.remove("is-found"), 2400);
     }
   }
-  return () => (alive = false);
+  return () => {
+    alive = false;
+    window.removeEventListener("stash:ext-changed", repaintExt);
+  };
 }

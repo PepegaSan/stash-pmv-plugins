@@ -4,6 +4,158 @@
 
 export const CHANGES = [
   {
+    v: "3.82.2",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Fixed: the list jumped back to the top. After you had changed the sorting, a filter or the search of a list, opening a scene or an image and coming back (Esc or Back) built the list again from the start – so you had to scroll down and find your place again. It now stays exactly where it was. The same after editing several selected items together: only their cards are refreshed instead of reloading the whole list.", "已修复：列表跳回顶部。更改了列表的排序、筛选或搜索后，打开某个场景或图片再返回（Esc 或后退），列表会从头重新构建——你得重新往下滚动找到原来的位置。现在它会停在原来的位置。同样适用于一起编辑多个选中项目之后：只刷新它们的卡片，而不是重新加载整个列表。"],
+    ],
+  },
+  {
+    v: "3.82.1",
+    date: "2026-10-09",
+    items: [
+      ["pmv", "PMV Generator 2.27.1: tag stages need your own song of known length. With Plex, a live app or a PMV template they used to apply no tags at all – so clips from everywhere came up although stages were set. Now the tags of all stages count together there, and a message says so.", "PMV 生成器 2.27.1：标签阶段需要你自己的、长度已知的歌曲。使用 Plex、实时应用或 PMV 模板时，它们过去完全不应用任何标签——因此尽管设置了阶段，仍会出现来自各处的片段。现在这些情况下所有阶段的标签一并生效，并会给出提示。"],
+    ],
+  },
+  {
+    v: "3.82.0",
+    date: "2026-10-09",
+    items: [
+      ["pmv", "PMV Generator 2.27.0: more control over the cuts, and for shows with several songs. Cutting → Timing → “Shortest clip” and “Longest clip” (in beats, off by default): a clip stays on screen at least / at most that many beats – no more clips that come and go on the next beat. New clips without stopping the music: the new button in the bar (or the R key). With several songs or Plex: “New clips for every song” (Clip order), “Again for every song” – intro and outro come again for each song (Output → Title cards) – and “One video per song” (Output → Recording), which cuts the recording into one video per song, each one to download or save to Stash on its own. Marker clips with an end now stay inside their marker instead of playing on into the rest of the scene, and the clip info (I) shows each clip's tags and, with tag stages, its stage. “Follow the scenes' timeline” is hidden for Markers and Images, where it did nothing.", "PMV 生成器 2.27.0：对剪辑和多首歌的演出有更多控制。剪辑 → 节奏 →“最短片段”和“最长片段”（以拍为单位，默认关闭）：一个片段在画面上至少/至多停留这么多拍——不再有下一拍就来了又走的片段。换新片段而不停止音乐：栏中的新按钮（或 R 键）。多首歌或 Plex 时：“每首歌换新片段”（片段顺序）、“每首歌重新片头片尾”——每首歌再次出现片头和片尾（输出 → 标题卡）——以及“每首歌一个视频”（输出 → 录制），把录制按歌曲切成多个视频，每个都可以单独下载或保存到 Stash。带结束时间的标记片段现在停留在标记之内，而不是继续播放场景的其余部分；片段信息（I）会显示每个片段的标签，使用标签阶段时还会显示其阶段。“跟随场景的时间线”在标记和图片模式下已隐藏（那里它不起作用）。"],
+      ["storm", "Media Storm 2.8.0: one tag filter for everything. Under Source & filters, “Tags apply to” chooses whether the tag box edits the tags for scenes and images or for marker clips (the other kind keeps its own, a note says so). Exclude tags, “All tags must match” and “Including sub-tags (recursive)” now count for scenes, images and marker clips alike. With the recursive switch on, parent tags show up in the marker tag suggestions even when only their sub-tags have markers (off: only tags with markers of their own are offered). Marker clips also honor “Exclude tags” now.", "Media Storm 2.8.0：一个标签筛选适用于所有类型。在“来源与筛选”中，“标签应用于”决定标签框编辑的是场景和图片的标签还是标记片段的标签（另一类型保留自己的，并有提示说明）。排除标签、“必须匹配所有标签”和“包含子标签（递归）”现在对场景、图片和标记片段都有效。打开递归开关后，即使只有子标签有标记，父标签也会出现在标记标签的建议中（关闭时：只提供自身有标记的标签）。标记片段现在也遵守“排除标签”。"],
+    ],
+  },
+  {
+    v: "3.81.0",
+    date: "2026-10-09",
+    items: [
+      ["ui", "Extension API: menu entries of plugins can say where they go (place: after / before a built-in entry, start or end) – without it, a plugin's entry now sits behind the last regular entry of its group instead of below the folder tree and saved filters. It only counts when the entry first appears; your own layout under Customize → Sidebar always wins. Inline SVG icons of plugins are sized like the others (menu and card buttons). Header slots can reload their page (ctx.reload()).", "扩展 API：插件的菜单项可以指定位置（place：放在某个内置项之前/之后，或最前/最后）——不指定时，插件的菜单项现在位于其分组最后一个常规项之后，而不再排在文件夹树和已保存筛选之下。它只在该菜单项首次出现时生效；你在 自定义 → 侧边栏 中的布局始终优先。插件的内联 SVG 图标与其他图标大小一致（菜单项和卡片按钮）。页头插槽可以重新加载其页面（ctx.reload()）。"],
+    ],
+  },
+  {
+    v: "3.80.0",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Extension API v2 for plugin authors (GitHub issue #3): plugins can now bring their own pages (#/p/<plugin>/…, also as full-screen overlays), menu entries (which Customize → Sidebar can move and hide), and slots – the list bar and toolbar, the selection bar, a section and a menu entry in the player, headers of performer, studio, tag and gallery pages, home page sections and settings screens. List cards got buttons drawn by Stash UI, a “not in the library” look, late results without rebuilding the list (invalidate) and stay on an empty list; sources can see when tier / detailed-rating filters limit a list. Shared helpers (ui, t, gql, store, on) make plugins look and behave like Stash UI. The Plugins page lists what each extension registered and its errors, with a switch to turn it off. Nothing changes for people without such a plugin. See the README, “For plugin authors”.", "面向插件作者的扩展 API v2（GitHub issue #3）：插件现在可以带来自己的页面（#/p/<插件>/…，也可作为全屏覆盖层）、菜单项（可在 自定义 → 侧边栏 中移动和隐藏）以及插槽——列表栏和工具栏、选择栏、播放器中的一个区块和一个菜单项、演员/工作室/标签/图库页面的页头、主页区块和设置页面。列表卡片新增由 Stash UI 绘制的按钮、“不在库中”的外观、无需重建列表的延迟结果（invalidate），并且在列表为空时仍会保留；来源可以得知等级/详细评分筛选限制了列表。共享的辅助功能（ui、t、gql、store、on）让插件的外观和行为与 Stash UI 一致。插件页面会列出每个扩展注册的内容及其错误，并带有关闭开关。没有此类插件的用户不受任何影响。详见 README 的“For plugin authors”。"],
+    ],
+  },
+  {
+    v: "3.79.0",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Settings that don't get lost: (1) The settings of this browser are now copied to Stash a little after they change (Settings → General → “Automatic backup in Stash”, on by default). A browser that has forgotten them – site data cleared, another address like 127.0.0.1 / localhost / the Tailscale name, a new device – gets them back by itself at start. (2) Saving shared settings (ratings, playlists, Versus …) is safer: writes now run one after the other instead of overlapping, and a read that comes back empty by mistake is no longer written over everything.", "不再丢失的设置：（1）此浏览器的设置现在会在更改后不久复制到 Stash（设置 → 常规 →“在 Stash 中自动备份”，默认开启）。忘记了设置的浏览器——清除了网站数据、换了地址（如 127.0.0.1 / localhost / Tailscale 名称）、新设备——在启动时会自动取回。（2）保存共享设置（评分、播放列表、Versus 等）更安全：写入现在依次进行而不是互相重叠，错误地返回空内容的读取也不会再覆盖所有设置。"],
+    ],
+  },
+  {
+    v: "3.78.0",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Video folders (menu → Library, next to Galleries): the video counterpart of the Galleries page. Every folder that holds videos is a card with pictures from its scenes, its name, the number of videos and its parent folder; a click opens the folder at its videos. Search, sort (A–Z, Z–A, most / fewest videos, random) and “Include subfolders” (then folders that only hold subfolders with videos appear too). On a big library nothing is counted up front: the folders come in pieces, each piece is counted first (one cheap query per folder) and folders without videos drop out.", "视频文件夹（菜单 → 媒体库，位于“图库”旁边）：图库页面的视频版本。每个包含视频的文件夹都是一张卡片，显示来自其场景的图片、名称、视频数量和上级文件夹；点击后在其视频处打开该文件夹。支持搜索、排序（A–Z、Z–A、视频最多/最少、随机）和“包含子文件夹”（此时只包含带视频的子文件夹的文件夹也会显示）。大型媒体库不会预先统计：文件夹分批载入，每一批先统计数量（每个文件夹一次很轻的查询），没有视频的文件夹会被去掉。"],
+    ],
+  },
+  {
+    v: "3.77.0",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Performers: many more sort orders – youngest / oldest first, country, ethnicity, hair color and eye color (A–Z), tallest / shortest, heaviest / lightest, fewest scenes, most images, most tags, alphabetical Z–A, oldest additions and recently changed. Stash does most of the sorting itself (with the direction); text fields it can't sort by (country, ethnicity, hair and eye color) are read once and ordered in the browser, with empty values always last.", "演员：新增许多排序方式——年龄最小/最大优先、国家、种族、发色和眼睛颜色（A–Z）、最高/最矮、最重/最轻、场景最少、图片最多、标签最多、按字母倒序、最早添加和最近更改。大部分排序由 Stash 自己完成（带方向）；Stash 无法排序的文本字段（国家、种族、发色、眼睛颜色）会一次性读取并在浏览器中排序，空值始终排在最后。"],
+    ],
+  },
+  {
+    v: "3.76.1",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Fix: the Performers list (and Studios, Groups, Markers) stopped after the first 60 entries when the screen was tall or zoomed out – the first page already reached past the bottom of the window, so the “load more” trigger never fired again and there was nothing to scroll. After every page the list now checks whether its end is still in view and loads the next page right away.", "修复：当屏幕很高或页面缩小时，演员列表（以及工作室、分组、标记）在前 60 项之后停止加载——第一页已经超出窗口底部，“加载更多”的触发器不再触发，也就没有可滚动的内容。现在每加载一页后，列表都会检查末尾是否仍在视野内，并立即加载下一页。"],
+    ],
+  },
+  {
+    v: "3.76.0",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Performer tagger (menu → Manage): the performers that are missing something – no photo, not linked to StashDB, no country or birthdate, or everyone – one row each. Look each one up by name in a StashDB-style box or a performer scraper, check what was found field by field (photo, birthdate, country, looks, links, tags …) and save. “Look up this page” searches everybody on the page and takes a result right away when it is the only one or the only one with exactly that name (nothing is saved until you press Save). Also: a scrape that Stash answers with a 401 or “too many requests” now says what that means (check the source's API key) instead of showing raw JSON – in the tagger, the scene tagger and the performer editor.", "演员标记器（菜单 → 管理）：列出缺少信息的演员——没有照片、未关联 StashDB、没有国家或生日，或所有演员——每人一行。通过名称在 StashDB 类站点或演员抓取器中查找，逐项检查找到的内容（照片、生日、国家、外貌、链接、标签……）后保存。“查找本页”会搜索页面上的所有人，当结果只有一个或只有一个名称完全相同时直接选中（在你点击保存之前不会保存任何内容）。另外：Stash 以 401 或“请求过多”回应的抓取，现在会说明含义（请检查来源的 API 密钥），而不是显示原始 JSON——在标记器、场景标记器和演员编辑器中都适用。"],
+    ],
+  },
+  {
+    v: "3.75.1",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Fix: in fullscreen, the next scene (autoplay, Next, up next) no longer throws you out of fullscreen – the page's overlay layer goes fullscreen and stays, only the player inside it is replaced. Leaving the player any other way (back, closing, another page) still ends fullscreen.", "修复：全屏时，下一个场景（自动播放、下一个、接下来播放）不再把你踢出全屏——全屏的是页面的覆盖层，它会一直保留，只替换其中的播放器。以其他方式离开播放器（返回、关闭、其他页面）仍会退出全屏。"],
+    ],
+  },
+  {
+    v: "3.75.0",
+    date: "2026-10-08",
+    items: [
+      ["ui", "Parts of a scene with their own tags: in the player's marker list, “Add a part …” (or the edit button of a marker) opens an editor with a name, a start and an end (“Here” takes the spot you are watching), a main tag and more tags. The list shows the range and the tags of every part, and the part is a normal Stash scene marker (with end time and tags), so it also shows in Markers and in classic Stash.", "场景中带有自己标签的片段：在播放器的标记列表里点“添加片段 …”（或标记的编辑按钮），打开编辑器，可设置名称、开始和结束（“此处”取你正在观看的位置）、主标签和更多标签。列表会显示每个片段的时间范围和标签；片段本身就是普通的 Stash 场景标记（带结束时间和标签），所以也会出现在“标记”页和经典 Stash 中。"],
+      ["ui", "Big libraries: the folder numbers come back, counted per level – only the folders on screen are counted (two cheap count queries each, including their subfolders), so the Folders page, a folder page and the Start page show videos and images again without reading the whole library.", "大型媒体库：文件夹数量回来了，按层级统计——只统计屏幕上显示的文件夹（每个文件夹两个很轻的计数查询，包含其子文件夹），因此“文件夹”页、文件夹页面和起始页重新显示视频和图片数量，而无需读取整个媒体库。"],
+      ["pmv", "PMV Generator 2.26.0: two settings. Cutting → Timing → “Cut ahead of the beat” (0–80 ms, off by default): the picture changes a little before the beat (2 frames are about 33 ms) so it is already there when the beat hits – the zoom pulse still sits on the beat. Picture & frame → Seams and edges → “Divider width” (1–8 px at 1280 wide, 2 px as before; scales with the picture).", "PMV 生成器 2.26.0：两项新设置。剪辑 → 节奏 →“在节拍之前切换”（0–80 毫秒，默认关闭）：画面比节拍稍早一点切换（2 帧约 33 毫秒），节拍到来时画面已经就位——缩放脉冲仍然落在节拍上。画面与边框 → 接缝与边缘 →“分隔线宽度”（1280 宽时 1–8 像素，默认 2 像素与之前相同；随画面缩放）。"],
+      ["ui", "The new texts of the last releases (Cut clips, Funscript section, clip shape per layout, the regrouped PMV settings, parts of a scene) are now also in Japanese, Vietnamese, French, Spanish and Polish (and German where it was missing).", "最近几个版本的新文字（切割片段、Funscript 部分、按布局设置片段形状、重新分组的 PMV 设置、场景片段）现在也有日语、越南语、法语、西班牙语和波兰语版本（德语缺失的部分也已补齐）。"],
+    ],
+  },
+  {
+    v: "3.74.1",
+    date: "2026-10-07",
+    items: [
+      ["ui", "Big libraries: the folder tree is no longer counted (that read every scene and image and ran for minutes) – folders show without numbers and both Scenes and Images tabs are offered; the other queries that read everything (detailed ratings, tags of the week, performer tags, recalculating ratings) join the queue of at most two heavy queries.", "大型媒体库：文件夹树不再统计数量（那会读取每个场景和图片，要运行数分钟）——文件夹不显示数字，并同时提供“场景”和“图片”标签页；其他会读取全部内容的查询（详细评分、本周标签、演员标签、重新计算评分）也加入了最多同时两个的繁重查询队列。"],
+    ],
+  },
+  {
+    v: "3.74.0",
+    date: "2026-10-07",
+    items: [
+      ["ui", "Extension hook for plugin authors: a plugin with assets/stashui.js can add its own cards to the lists (scenes, performer, studio, tag, folder pages …) – shown with their own link, badges and controls, not selectable and not counted (see the README). Also: big libraries – heavy queries (everything with “all items”, the folder counting) now run at most two at a time and drop out when you leave the page.", "为插件作者提供的扩展接口：带有 assets/stashui.js 的插件可以向列表（场景、演员、工作室、标签、文件夹页面等）添加自己的卡片——带有自己的链接、角标和控件，不可选中，也不计入数量（见 README）。另外：大型媒体库——繁重的查询（所有“全部项目”的查询、文件夹统计）现在最多同时运行两个，离开页面时会自动退出队列。"],
+    ],
+  },
+  {
+    v: "3.73.2",
+    date: "2026-10-06",
+    items: [
+      ["ui", "The Handy no longer gives up after “device timeout” or “The Handy isn't online”: a failed command is tried once more right away, and if that fails too, Stash UI connects again by itself (every few seconds, up to about a minute), loads the script again and carries on from where the video is. A short stall of the picture (buffering) no longer stops the device right away. Also applies to the funscript of the PMV Generator.", "The Handy 在出现“设备超时”或“The Handy 不在线”后不再放弃：失败的命令会立即再试一次，若仍失败，Stash UI 会自动重新连接（每隔几秒，最多约一分钟），重新加载脚本并从视频当前位置继续。画面短暂卡顿（缓冲）不再立刻让设备停下。PMV 生成器的 funscript 同样适用。"],
+    ],
+  },
+  {
+    v: "3.73.1",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.24.0: new section “Funscript”. The PMV builds a funscript from your song – the beats become strokes, the energy decides how fast and how big – and plays it on The Handy together with the show (pause and resume follow, a playlist gets one script per song). Options: pace (follow the song, slow, normal, fast), stroke size (follow the song, small, medium, large, full), where on the stroke (low, middle, high), style (sharp or smooth), gentle strokes in calm parts, accents on the first beat of each bar and on drops, and a top speed that makes too-fast strokes smaller. When the show is over, “Save funscript” downloads the script. The connection key is the one from Stash UI → Settings → Interactive; it works with your own song files (not with Plex or a live app).", "PMV 生成器 2.24.0：新增“Funscript 脚本”部分。PMV 会根据你的歌曲生成 funscript——节拍变成冲程，能量决定快慢和大小——并与演出同步在 The Handy 上播放（暂停和继续会跟随，播放列表每首歌一个脚本）。选项：节奏（跟随歌曲、慢、正常、快）、冲程大小（跟随歌曲、小、中、大、全程）、冲程位置（低、中间、高）、风格（利落或平滑）、平静部分温和、每小节第一拍和高潮处加重音，以及最高速度（过快的冲程会变小）。演出结束后点“保存 funscript”即可下载脚本。连接密钥使用 Stash UI → 设置 → 互动里的那一个；适用于你自己的歌曲文件（不适用于 Plex 或实时应用）。"],
+    ],
+  },
+  {
+    v: "3.73.0",
+    date: "2026-10-06",
+    items: [
+      ["ui", "New: “Cut clips” in the player. Mark the parts you want while watching (“Here” takes the current position for start and end), collect any number of clips in a list and save them as new videos – each one on its own or all joined into one. Choose Exact (re-encoded, frame-accurate) or Fast (no re-encoding, the start snaps to the nearest keyframe), optionally into a “Clips” subfolder. The new videos are scanned into Stash right away and get the original's performers, tags and studio plus the tag “Clip”. The original is never touched.", "新功能：播放器里的“剪辑片段”。边看边标记想要的部分（“此处”取当前位置作为开始和结束），把任意数量的片段放进列表，保存为新视频——每个单独保存或全部合并成一个。可选“精确”（重新编码，精确到帧）或“快速”（不重新编码，起点对齐到最近的关键帧），也可放进“Clips”子文件夹。新视频会立即扫描进 Stash，并沿用原视频的演员、标签和工作室，再加上标签“Clip”。原视频不会被改动。"],
+    ],
+  },
+  {
+    v: "3.72.3",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.23.3: “Clip shape per layout” is now strict. A layout with a rule (e.g. 3-way = landscape only) only opens once enough clips of that shape are ready – until then the show stays in the current layout – so no wrong-shaped clip slips in when the layout changes.", "PMV 生成器 2.23.3：“每种布局的片段形状”现在是严格的。带规则的布局（例如三分屏仅横屏）只有在有足够该形状的片段就绪后才会打开，在此之前保持当前布局，因此切换布局时不会再混入形状不对的片段。"],
+    ],
+  },
+  {
+    v: "3.72.2",
+    date: "2026-10-06",
+    items: [
+      ["pmv", "PMV Generator 2.23.2: “Clip shape per layout” now really sticks to the rule. The generator keeps clips of each wanted shape ready (landscape for full screen, portrait for 3-way …), picks them from your selection even if they were shown recently, and a single field that is re-cut never takes a clip of the wrong shape. Only when a layout opens and none of the right shape is ready yet, the old clip keeps running for a moment.", "PMV 生成器 2.23.2：“每种布局的片段形状”现在真正遵守规则。生成器会为每种所需形状（全屏用横屏、三分屏用竖屏……）预备足够的片段，即使近期播放过也会从你的选择中挑选；单个画面重新切换时不会再取到形状不对的片段。仅当某个布局刚打开而还没有合适形状的片段就绪时，旧片段会再播放片刻。"],
+    ],
+  },
+  {
+    v: "3.72.1",
+    date: "2026-10-06",
+    items: [
+      ["ui", "The language list now shows the English name behind each language, e.g. “Deutsch (German)”.", "语言列表中每种语言后面现在带有英文名称，例如“Deutsch (German)”。"],
+    ],
+  },
+  {
+    v: "3.72.0",
+    date: "2026-10-06",
+    items: [
+      ["ui", "Plugins page: plugins that have an update are listed first (press “Check for updates”), and the buttons on every plugin card are now aligned to the left instead of jumping between left, centre and right.", "插件页面：有更新的插件排在最前面（点击“检查更新”），每张插件卡片上的按钮现在统一左对齐，不再忽左忽右。"],
+      ["pmv", "PMV Generator 2.23.0: new “Clip shape per layout” (Show → Layouts): choose for every layout whether it uses all clips, only landscape or only portrait – e.g. landscape in full screen, portrait in 3-way, both in 2-way. Set “Clip shape” in What to “All” so both kinds are loaded; if no clip of the wanted shape is ready, another one is used so the show never stalls.", "PMV 生成器 2.23.0：新增“每种布局的片段形状”（显示 → 布局）：可为每种布局选择使用全部片段、仅横屏或仅竖屏——例如全屏用横屏、三分屏用竖屏、双分屏两种都用。请把“内容”里的“片段形状”设为“全部”以加载两种片段；如果没有符合形状的片段就绪，会改用其他片段，不会卡住。"],
+    ],
+  },
+  {
     v: "3.71.0",
     date: "2026-10-06",
     items: [

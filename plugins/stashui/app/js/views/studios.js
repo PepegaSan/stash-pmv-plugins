@@ -82,10 +82,19 @@ async function renderList(main, query) {
     } catch (e) {
       if (my === run) $("[data-list]").innerHTML = `<div class="kb-empty"><b>${t("Couldn't load the studios")}</b><p>${esc(e.message)}</p></div>`;
     } finally {
-      if (my === run) loading = false;
+      if (my === run) {
+        loading = false;
+        requestAnimationFrame(fillMore); // the end of the list may still be in view (big screen, small cards) – the observer only reports changes
+      }
     }
   }
   const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && loaded < total && load(false), { rootMargin: "800px" });
+  // Still more and the end of the list already in view after a page came in? Then the next page right away (the observer
+  // above only fires when the end comes into view – with a tall screen the first page may never push it out again)
+  function fillMore() {
+    const el = $("[data-more]");
+    if (el && el.isConnected && !loading && loaded < total && el.getBoundingClientRect().top < innerHeight + 800) load(false);
+  }
   io.observe($("[data-more]"));
   const reload = () => {
     setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === "name" ? "" : $("[data-sort]").value });
@@ -100,6 +109,8 @@ async function renderList(main, query) {
     io.disconnect();
   };
 }
+
+import { mountSlots } from "../ext.js";
 
 async function renderOne(main, id, query) {
   let s;
@@ -141,10 +152,12 @@ async function renderOne(main, id, query) {
         <div class="kb-plc-acts">${s.rating100 ? starsHtml(s.rating100) : ""}<button class="kb-plc-btn" data-edit>${icon("edit")}${t("Edit")}</button><button class="kb-plc-btn" data-scrape>${icon("search")}${t("Fill in from the internet")}</button></div>
         ${facts.length ? `<dl class="kb-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl>` : ""}
         ${(s.tags || []).length ? `<div class="kb-chips">${s.tags.map((tg) => `<a class="kb-chip" href="#/tag/${esc(tg.id)}">${esc(tg.name)}</a>`).join("")}</div>` : ""}
+        <div class="kb-xhead" data-xhead></div>
         ${s.details ? `<p class="kb-lead kb-perf-details">${esc(s.details)}</p>` : ""}
       </div>
     </header>
     <section data-browser></section>`;
+  const xhead = mountSlots("studio.header", main.querySelector("[data-xhead]"), { page: "studio", id, item: s }, { reload: () => go(location.hash.replace(/^#\/?/, ""), true) });
   const edit = (scrape) => openStudioEditor(id, { scrape, onSaved: () => go("studio/" + id, true), onDeleted: () => go("studios", true) });
   main.querySelector("[data-edit]").onclick = () => edit(false);
   main.querySelector("[data-scrape]").onclick = () => edit(true);
@@ -152,9 +165,14 @@ async function renderOne(main, id, query) {
   const b = mediaBrowser(main.querySelector("[data-browser]"), {
     kinds: kinds.length ? kinds : ["scene"],
     query,
+    page: "studio",
+    params: { id },
     // the studio and all studios below it
     base: () => ({ filter: { studios: { value: [id], modifier: "INCLUDES", depth: -1 } } }),
     playlist: false,
   });
-  return () => b && b.destroy && b.destroy();
+  return () => {
+    xhead.destroy();
+    b && b.destroy && b.destroy();
+  };
 }

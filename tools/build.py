@@ -40,6 +40,7 @@ SHARED = [
     "app/js/ui.js",
     "app/js/scale.js",
     "app/js/advfilter.js",
+    "app/js/interactive.js",
     "app/js/i18n.js",
     "app/js/locales/zh-CN.js",
     "app/js/locales/ja.js",

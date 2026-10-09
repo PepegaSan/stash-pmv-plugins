@@ -48,6 +48,8 @@ async function tagPerformers(box, tag) {
   });
 }
 
+import { mountSlots } from "../ext.js";
+
 export async function render(main, params, query) {
   const tag = await getTag(params.id);
   if (!tag) {
@@ -65,6 +67,7 @@ export async function render(main, params, query) {
         <h1 class="kb-h1">${esc(tag.name)}</h1>
         <p class="kb-sub">${[tag.scene_count ? plural(tag.scene_count, "scene", "scenes") : "", tag.image_count ? plural(tag.image_count, "image", "images") : "", tag.gallery_count ? plural(tag.gallery_count, "gallery", "galleries") : ""].filter(Boolean).join(t(", ")) || t("Nothing tagged yet")}</p>
         ${tag.description ? `<p class="kb-lead">${esc(tag.description)}</p>` : ""}
+        <div class="kb-xhead" data-xhead></div>
         ${tag.children.length ? `<div class="kb-chips kb-head-chips">${tag.children.map((c) => `<a class="kb-chip" href="#/tag/${c.id}">${esc(c.name)}</a>`).join("")}</div>` : ""}
       </div>
       <div class="kb-head-tools">
@@ -74,7 +77,8 @@ export async function render(main, params, query) {
     <section class="kb-tagperfs" data-tperfs hidden></section>
     <section data-browser></section>`;
   tagPerformers(main.querySelector("[data-tperfs]"), tag);
-  const b = mediaBrowser(main.querySelector("[data-browser]"), { kinds, initialKind, query, base: () => ({ tagId: tag.id }) });
+  const xhead = mountSlots("tag.header", main.querySelector("[data-xhead]"), { page: "tag", id: tag.id, item: tag }, { reload: () => go(location.hash.replace(/^#\/?/, ""), true) });
+  const b = mediaBrowser(main.querySelector("[data-browser]"), { kinds, initialKind, query, page: "tag", params: { id: tag.id }, base: () => ({ tagId: tag.id }) });
 
   main.querySelector("[data-edit]").onclick = () => {
     const d = openDrawer({
@@ -114,5 +118,8 @@ export async function render(main, params, query) {
       }
     };
   };
-  return () => b.destroy();
+  return () => {
+    xhead.destroy();
+    b.destroy();
+  };
 }

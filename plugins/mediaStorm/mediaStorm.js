@@ -69,7 +69,8 @@
     excludeTags: [],
     tagMatchAll: false,
     markerTags: [], // [{ id, name }] – only marker clips with one of these tags (primary or extra)
-    markerTagsDeep: false, // … and with any of their sub-tags (recursive)
+    tagTarget: "scene", // which list the tag box edits: scene (scenes and images) | marker (marker clips)
+    tagsDeep: false, // tags also count with their sub-tags (recursive) – for scenes, images and marker clips alike
     perfs: [], // [{ id, name }]
     perfMatchAll: false,
     minRating: 0,
@@ -118,6 +119,10 @@
     if (!Array.isArray(s.includeTags)) s.includeTags = [];
     if (!Array.isArray(s.excludeTags)) s.excludeTags = [];
     if (!Array.isArray(s.markerTags)) s.markerTags = [];
+    // 2.6.0 had the recursive switch for marker clips only; now one switch for everything
+    if (raw && raw.markerTagsDeep && raw.tagsDeep == null) s.tagsDeep = true;
+    delete s.markerTagsDeep;
+    if (s.tagTarget !== "scene" && s.tagTarget !== "marker") s.tagTarget = s.markerTags.length && !s.includeTags.length ? "marker" : "scene";
     if (!Array.isArray(s.perfs)) s.perfs = [];
     if (!Array.isArray(s.folders)) s.folders = [];
     // Carry old text fields (search terms/creator) over into the new picker
@@ -426,6 +431,7 @@
       else if (inc.length) crit = { value: inc, modifier: S.tagMatchAll ? "INCLUDES_ALL" : "INCLUDES" };
       else crit = { value: [], modifier: "INCLUDES_ALL" };
       if (exc.length) crit.excludes = exc;
+      if (S.tagsDeep) crit.depth = -1; // (sub-tags count too – also for the excluded ones)
       f.tags = crit;
     }
     if (S.minRating > 0) f.rating100 = { value: S.minRating * 20 - 1, modifier: "GREATER_THAN" };
@@ -550,7 +556,12 @@
       return [];
     }
     const m = {};
-    if (S.markerTags.length) m.tags = { value: S.markerTags.map((t) => t.id), modifier: "INCLUDES", depth: S.markerTagsDeep ? -1 : 0 };
+    // Tags on the marker itself (primary or extra); the exclude tags and both switches are the same as for scenes
+    if (S.markerTags.length || S.excludeTags.length) {
+      const own = S.markerTags.map((t) => t.id);
+      m.tags = { value: own, modifier: S.tagMatchAll && own.length > 1 ? "INCLUDES_ALL" : own.length ? "INCLUDES" : "INCLUDES_ALL", depth: S.tagsDeep ? -1 : 0 };
+      if (S.excludeTags.length) m.tags.excludes = S.excludeTags.map((t) => t.id);
+    }
     if (Object.keys(scene).length) m.scene_filter = scene;
     const session = run.session;
     let data;
@@ -620,7 +631,7 @@
   const LS_RG = "mediaStorm.redgifs.v1";
   const RG_PAGE = 80;
   const RG_MAX_PAGES = 50;
-  const rg = { pools: {}, seen: new Set(), tokenPromise: null };
+  const rg = { pools: {}, seen: new Set(), tokenPromise: null, viaBackend: false };
 
   function rgReset() {
     rg.pools = {};
@@ -645,7 +656,40 @@
     return rg.tokenPromise;
   }
 
+  // Detour through the Python backend: used when the browser can't reach the API itself
+  // (Stash opened via a network address/domain – the API only allows CORS from localhost –
+  // or an ad blocker/DNS filter in the way). Remembered for the rest of the page's life.
+  async function rgGetViaBackend(path) {
+    const d = await gql(`mutation($args: Map) { runPluginOperation(plugin_id: "mediaStorm", args: $args) }`, {
+      args: { mode: "api", path },
+    });
+    const out = d && d.runPluginOperation;
+    if (!out) throw new Error("no answer from the plugin backend (Reload plugins in Stash?)");
+    if (out.error && !out.status) throw new Error(out.error);
+    if (out.status) {
+      const err = new Error(out.error || "HTTP " + out.status);
+      err.status = out.status;
+      throw err;
+    }
+    return out.data;
+  }
+
   async function rgGet(path) {
+    if (rg.viaBackend) return rgGetViaBackend(path);
+    try {
+      return await rgGetDirect(path);
+    } catch (e) {
+      // fetch() itself failed ("Failed to fetch") – no HTTP status means no answer reached us
+      if (e && !e.status && (e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(e.message))) {
+        console.warn("[MediaStorm] RedGifs not reachable from the browser, using the backend", e);
+        rg.viaBackend = true;
+        return rgGetViaBackend(path);
+      }
+      throw e;
+    }
+  }
+
+  async function rgGetDirect(path) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const token = await rgToken(attempt > 0);
       const res = await fetch(RG_API + path, {
@@ -2803,7 +2847,7 @@
   }
 
   function clearFilters() {
-    Object.assign(S, { source: "library", includeTags: [], excludeTags: [], tagMatchAll: false, markerTags: [], markerTagsDeep: false, perfs: [], perfMatchAll: false, minRating: 0, favPerformers: false, maxRes: "any", minLen: 0, folders: [] });
+    Object.assign(S, { source: "library", includeTags: [], excludeTags: [], tagMatchAll: false, markerTags: [], tagsDeep: false, tagTarget: "scene", perfs: [], perfMatchAll: false, minRating: 0, favPerformers: false, maxRes: "any", minLen: 0, folders: [] });
     save();
     filtersChanged();
     syncPanel();
@@ -2910,10 +2954,13 @@
         }
         filtersChanged();
         break;
+      case "tagTarget":
+        syncPanel();
+        break;
       case "includeTags":
       case "excludeTags":
       case "markerTags":
-      case "markerTagsDeep":
+      case "tagsDeep":
       case "tagMatchAll":
       case "perfs":
       case "perfMatchAll":
@@ -3171,12 +3218,14 @@
         hint("Stash UI's smart playlists: set filters in Scenes or Images there and press “Save as playlist”. The playlist decides – the filters below don't apply.") + "</div>" +
         '<div class="ms-cond-src" data-src="filters">' +
         hint("“Current page” uses the performer, tag, studio, gallery or group page you start from. On tag pages, your own tags always all have to match.") +
-        tagBox("includeTags", "Only with tags") +
+        sel("tagTarget", "Tags apply to", [["scene", "Scenes and images"], ["marker", "Marker clips"]]) +
+        tagBox("includeTags", "Only with tags").replace('class="ms-tags"', 'class="ms-tags" data-tt="scene"') +
+        tagBox("markerTags", "Only with tags (marker clips)", "marker").replace('class="ms-tags"', 'class="ms-tags" data-tt="marker"') +
+        '<p class="ms-hint" data-tt-other hidden></p>' +
         chk("tagMatchAll", "All tags must match") +
         tagBox("excludeTags", "Exclude tags") +
-        tagBox("markerTags", "Only marker clips with tags", "marker") +
-        chk("markerTagsDeep", "Including sub-tags (recursive)") +
-        hint("Needs a share of marker clips under Media. Primary or extra tag of the marker; the filters above apply to the marker's scene.") +
+        chk("tagsDeep", "Including sub-tags (recursive)") +
+        hint("The tag box edits the kind chosen above; the other kind keeps its own tags. Marker clips need a share under Media – their tags are the marker's primary or extra tag, and the filters apply to the marker's scene too. Exclude tags and the two switches count for all kinds.") +
         tagBox("perfs", "Only with performers", "performer") +
         chk("perfMatchAll", "All performers must be in it") +
         sel("minRating", "Minimum rating", [[0, "any"], [1, "★"], [2, "★★"], [3, "★★★"], [4, "★★★★"], [5, "★★★★★"]], true) +
@@ -3279,7 +3328,7 @@
       const p = [S.source === "context" ? "Current page" : "Whole library"];
       if (S.includeTags.length) p.push(S.includeTags.length + (S.includeTags.length === 1 ? " tag" : " tags"));
       if (S.excludeTags.length) p.push("without " + S.excludeTags.length);
-      if (S.markerTags.length) p.push(S.markerTags.length + (S.markerTags.length === 1 ? " marker tag" : " marker tags") + (S.markerTagsDeep ? " +sub" : ""));
+      if (S.markerTags.length) p.push(S.markerTags.length + (S.markerTags.length === 1 ? " marker tag" : " marker tags") + (S.tagsDeep ? " +sub" : ""));
       if (S.perfs.length) p.push(S.perfs.length === 1 ? S.perfs[0].name : S.perfs.length + " performers");
       if (S.minRating) p.push("from " + "★".repeat(S.minRating));
       if (S.favPerformers) p.push("favorites");
@@ -3520,6 +3569,14 @@
     rb.textContent = document.getElementById("stash-background-style") || remoteActive() ? "" : "plugin not active";
     // Source: a playlist decides on its own – then the filters are hidden
     panel.el.querySelectorAll(".ms-cond-src").forEach((c) => (c.hidden = (c.dataset.src === "playlist") !== (S.source === "playlist")));
+    // Tags: one box at a time (scenes and images, or marker clips); a note says when the other one has tags too
+    panel.el.querySelectorAll(".ms-tags[data-tt]").forEach((b) => (b.hidden = b.dataset.tt !== S.tagTarget));
+    const other = panel.el.querySelector("[data-tt-other]");
+    if (other) {
+      const n = S.tagTarget === "marker" ? S.includeTags.length : S.markerTags.length;
+      other.hidden = !n;
+      other.textContent = n ? (S.tagTarget === "marker" ? `Also active: ${n} ${n === 1 ? "tag" : "tags"} for scenes and images` : `Also active: ${n} ${n === 1 ? "tag" : "tags"} for marker clips`) : "";
+    }
     updateOutputs();
   }
 
@@ -3569,11 +3626,13 @@
           const d = perf
             ? await gql(`query($f: FindFilterType) { findPerformers(filter: $f) { performers { id name image_count scene_count } } }`, { f: { q, per_page: 8 } })
             : mk
-              ? await gql(`query($f: FindFilterType) { findTags(filter: $f, tag_filter: { marker_count: { value: 0, modifier: GREATER_THAN } }) { tags { id name scene_marker_count } } }`, { f: { q, per_page: 8 } })
+              // (without the recursive switch only tags that have marker clips themselves; with it a parent tag – whose
+              // sub-tags have the markers – shows up too)
+              ? await gql(`query($f: FindFilterType, $t: TagFilterType) { findTags(filter: $f, tag_filter: $t) { tags { id name scene_marker_count children { id } } } }`, { f: { q, per_page: 8 }, t: S.tagsDeep ? {} : { marker_count: { value: 0, modifier: "GREATER_THAN" } } })
               : await gql(`query($f: FindFilterType) { findTags(filter: $f) { tags { id name image_count scene_count } } }`, { f: { q, per_page: 8 } });
           results = perf ? d.findPerformers.performers : d.findTags.tags;
           sugg.innerHTML = results.length
-            ? results.map((t, i) => `<div class="ms-sug" data-i="${i}">${esc(t.name)}<small>${mk ? (t.scene_marker_count || 0) + " M" : t.image_count + " I · " + t.scene_count + " V"}</small></div>`).join("")
+            ? results.map((t, i) => `<div class="ms-sug" data-i="${i}">${esc(t.name)}<small>${mk ? (t.scene_marker_count || 0) + " M" + (t.children && t.children.length ? " · " + t.children.length + " sub" : "") : t.image_count + " I · " + t.scene_count + " V"}</small></div>`).join("")
             : `<div class="ms-sug ms-none">${perf ? "No performers found" : "No tags found"}</div>`;
           sugg.hidden = false;
         } catch (e) {

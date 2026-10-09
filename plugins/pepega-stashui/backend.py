@@ -689,7 +689,152 @@ def phone_stop(stash, args):
     return phone_info(None, roots, False)
 
 
+
+# ---------- Cut clips (player → "Cut clips") ----------
+# {"mode": "clip_cut", "scene_id", "clips": [{"start", "end", "name"}], "precise": bool, "join": bool, "folder": "same"|"Clips"}
+#   → {"job"}: ffmpeg runs in its own process (the page may be closed); the page scans the new files into Stash itself.
+# {"mode": "clip_status", "job"} → {"state": "running"|"done"|"error", "i", "n", "files": [paths], "error"}
+
+CUT_DIR = tempfile.gettempdir()
+BAD_NAME = '<>:"/\|?*'
+
+
+def find_ffmpeg(stash):
+    import shutil
+    try:
+        p = stash.gql("query { configuration { general { ffmpegPath } } }")["configuration"]["general"].get("ffmpegPath")
+        if p and os.path.isfile(p):
+            return p
+    except Exception:
+        pass
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    for name in ("ffmpeg.exe", "ffmpeg"):
+        p = os.path.join(os.path.expanduser("~"), ".stash", name)
+        if os.path.isfile(p):
+            return p
+    raise RuntimeError("ffmpeg not found – Stash normally brings its own")
+
+
+def clean_name(s):
+    s = "".join("_" if c in BAD_NAME or ord(c) < 32 else c for c in str(s)).strip(" .")
+    return s[:80]
+
+
+def clip_cut(stash, args):
+    sid = str(args.get("scene_id") or "")
+    video = scene_video(stash, sid)
+    if not os.path.isfile(video):
+        raise ValueError(f"the video file can't be reached from here: {video}")
+    clips = []
+    for c in args.get("clips") or []:
+        a, b = float(c.get("start")), float(c.get("end"))
+        if not (a >= 0 and b > a):
+            raise ValueError("a clip ends before it starts")
+        clips.append({"start": a, "end": b, "name": clean_name(c.get("name") or "")})
+    if not clips or len(clips) > 100:
+        raise ValueError("no clips")
+    base, ext = os.path.splitext(os.path.basename(video))
+    folder = os.path.dirname(video)
+    if args.get("folder") == "Clips":
+        folder = os.path.join(folder, "Clips")
+        os.makedirs(folder, exist_ok=True)
+    job = secrets.token_hex(4)
+    spec = {"job": job, "video": video, "ffmpeg": find_ffmpeg(stash), "clips": clips, "precise": bool(args.get("precise")), "join": bool(args.get("join")),
+            "folder": folder, "base": base, "ext": ".mp4"}
+    path = os.path.join(CUT_DIR, f"stashui-cut-{job}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(spec, f)
+    flags = (0x08000000 | 0x00000200) if os.name == "nt" else 0
+    subprocess.Popen([sys.executable, os.path.abspath(__file__), "--cutjob", path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+    return {"job": job}
+
+
+def cut_status_path(job):
+    if not str(job).isalnum():
+        raise ValueError("bad job")
+    return os.path.join(CUT_DIR, f"stashui-cut-{job}.status.json")
+
+
+def clip_status(stash, args):
+    try:
+        with open(cut_status_path(args.get("job")), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {"state": "running", "i": 0, "n": 0, "files": []}
+
+
+def unique(path):
+    root, ext = os.path.splitext(path)
+    n, p = 2, path
+    while os.path.exists(p):
+        p = f"{root} ({n}){ext}"
+        n += 1
+    return p
+
+
+def cut_job(spec_path):
+    with open(spec_path, encoding="utf-8") as f:
+        spec = json.load(f)
+    st = {"state": "running", "i": 0, "n": len(spec["clips"]), "files": [], "error": ""}
+    sp = cut_status_path(spec["job"])
+
+    def save():
+        with open(sp + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(st, f)
+        os.replace(sp + ".tmp", sp)
+
+    save()
+    flags = 0x08000000 if os.name == "nt" else 0
+    parts = []
+    try:
+        for i, c in enumerate(spec["clips"]):
+            st["i"] = i
+            save()
+            if spec["join"]:
+                out = os.path.join(CUT_DIR, f"stashui-cut-{spec['job']}-{i}.mp4")
+            else:
+                label = c["name"] or f"clip {i + 1}"
+                out = unique(os.path.join(spec["folder"], f"{spec['base']} - {label}{spec['ext']}"))
+            cmd = [spec["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{c['start']:.3f}", "-i", spec["video"], "-t", f"{c['end'] - c['start']:.3f}", "-map", "0:v:0", "-map", "0:a?"]
+            if spec["precise"]:
+                cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"]
+            else:
+                cmd += ["-c", "copy", "-avoid_negative_ts", "make_zero"]
+            cmd += ["-movflags", "+faststart", out]
+            r = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags)
+            if r.returncode != 0 or not os.path.isfile(out):
+                raise RuntimeError((r.stderr or "ffmpeg failed").strip().splitlines()[-1])
+            parts.append(out)
+            if not spec["join"]:
+                st["files"].append(out)
+        if spec["join"]:
+            lst = os.path.join(CUT_DIR, f"stashui-cut-{spec['job']}.txt")
+            with open(lst, "w", encoding="utf-8") as f:
+                f.write("".join("file '" + p.replace("\\", "/").replace("'", "'\''") + "'\n" for p in parts))
+            out = unique(os.path.join(spec["folder"], f"{spec['base']} - clips{spec['ext']}"))
+            r = subprocess.run([spec["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", "-movflags", "+faststart", out],
+                               capture_output=True, text=True, creationflags=flags)
+            if r.returncode != 0 or not os.path.isfile(out):
+                raise RuntimeError((r.stderr or "ffmpeg failed").strip().splitlines()[-1])
+            st["files"].append(out)
+            for p in parts + [lst]:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+        st["state"] = "done"
+        st["i"] = st["n"]
+    except Exception as e:  # noqa: BLE001
+        st["state"] = "error"
+        st["error"] = str(e)
+    save()
+
+
 def main():
+    if len(sys.argv) > 2 and sys.argv[1] == "--cutjob":
+        return cut_job(sys.argv[2])
     data = json.loads(sys.stdin.read() or "{}")
     args = data.get("args") or {}
     mode = str(args.get("mode") or "")
@@ -716,6 +861,10 @@ def main():
             out = funscript_save(Stash(data.get("server_connection")), args)
         elif mode == "funscript_remove":
             out = funscript_remove(Stash(data.get("server_connection")), args)
+        elif mode == "clip_cut":
+            out = clip_cut(Stash(data.get("server_connection")), args)
+        elif mode == "clip_status":
+            out = clip_status(None, args)
         elif mode == "phone_status":
             out = phone_status(Stash(data.get("server_connection")), args)
         elif mode == "phone_start":

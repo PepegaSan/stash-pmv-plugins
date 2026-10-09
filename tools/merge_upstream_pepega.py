@@ -184,6 +184,10 @@ def patch_pepega_main(path):
         "    );",
     )
     s = s.replace(
+        'loadExtensions(plugins.filter((p) => p.enabled && norm(p.id) !== "stashui"))',
+        'loadExtensions(plugins.filter((p) => p.enabled && norm(p.id) !== "stashui" && norm(p.id) !== "pepegastashui"))',
+    )
+    s = s.replace(
         'const OWN = new Set(["stashui", "mediastorm", "pmvgenerator"]);',
         'const OWN = new Set(["pepega-stashui", "mediastorm", "pepegapmvgenerator"]);',
     )

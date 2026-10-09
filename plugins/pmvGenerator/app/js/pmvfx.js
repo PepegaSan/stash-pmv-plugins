@@ -86,6 +86,7 @@ export class Compositor {
     this.pulseAmt = Math.max(0, Math.min(1.5, (S.pulseAmt ?? 100) / 100));
     this.title = ""; // intro/outro – set by the generator
     this.duration = 0;
+    this.songStart = 0; // show time at which the current song began (intro / outro per song)
     this.credits = () => "";
     const off = (w, h) => {
       const c = document.createElement("canvas");
@@ -154,7 +155,8 @@ export class Compositor {
   // st: { t, slots, groups (media per group), cutT (per group), energy, beatT, beatAmt, stutterT }
 
   draw(st) {
-    const { g, W, H, fx } = this;
+    let { g } = this; // (let: a field with soft seams is drawn into its own buffer first)
+    const { W, H, fx } = this;
     const t = st.t;
     const e = st.energy;
     g.save();
@@ -175,9 +177,13 @@ export class Compositor {
     let pulse = 0;
     if (fx.zoom && this.pulseAmt > 0) {
       const after = (st.beatAmt || 0) * Math.exp(-Math.max(0, t - st.beatT) * 5.5);
-      const d = st.nextT != null ? st.nextT - t : 9;
-      const x = d >= 0 && d < 0.11 ? 1 - d / 0.11 : 0;
-      const before = (st.nextAmt || 0) * x * x * (3 - 2 * x);
+      const ease = (T, amt) => {
+        const d = T != null ? T - t : 9;
+        const x = d >= 0 && d < 0.11 ? 1 - d / 0.11 : 0;
+        return (amt || 0) * x * x * (3 - 2 * x);
+      };
+      // (with "cut ahead of the beat" the current beat can still lie ahead: ease towards that one as well)
+      const before = Math.max(ease(st.nextT, st.nextAmt), st.beatT > t ? ease(st.beatT, st.beatAmt) : 0);
       pulse = Math.max(after, before) * this.pulseAmt;
     }
 
@@ -219,8 +225,10 @@ export class Compositor {
       this.rvAsp = null;
     }
     const fitM = reveal ? "cover" : this.S.fit;
+    // Soft seams: the fields of a split screen blend into each other (no sharp line between them)
+    const softOn = !!this.S.soft && !reveal && slots.length > 1;
 
-    slots.forEach((s, i) => {
+    const drawField = (s, i) => {
       const m = st.groups[s.g];
       if (!m || !m.w || !m.h) return;
       const since = t - (st.cutT[s.g] || 0);
@@ -277,7 +285,9 @@ export class Compositor {
       }
       if (fitHere === "contain") this.backdrop(i, m, s);
       drawIn(g, m, s, fitHere, zoom, ox, oy, filter.trim(), fx.kenburns);
-    });
+    };
+    slots.forEach((s, i) => drawField(s, i));
+    if (softOn) this.softSeams(slots); // the sharp lines between the fields become soft
     if (this.revealWin) {
       g.restore(); // (the rounded window's clip)
       g.save();
@@ -306,9 +316,9 @@ export class Compositor {
     // Only the rim of the picture is softened / smeared / bent – the middle stays sharp
     if (this.S.edge && this.S.edge !== "off") this.edgeSoft(this.S.edge, Math.max(0, Math.min(1, (this.S.edgeAmt ?? 50) / 100)));
 
-    // Dividers between fields, glowing to the beat – thin (2 px at 720p, 3 px at 1080p)
-    if (st.slots.length > 1) {
-      const dw = Math.max(2, Math.round(W / 640));
+    // Dividers between fields, glowing to the beat – width from the setting (2 px at 720p, 3 px at 1080p by default); none with soft seams
+    if (st.slots.length > 1 && !softOn) {
+      const dw = Math.max(1, Math.round((this.S.divW || 2) * W / 1280));
       const h2 = dw / 2;
       const glow = Math.exp(-(t - st.beatT) * 7);
       g.fillStyle = "#0a0309";
@@ -411,14 +421,74 @@ export class Compositor {
     g.restore();
 
     // Intro and outro lie on top of everything
-    if (this.S.intro && t < INTRO) this.drawIntro(t);
-    if (this.S.outro && this.duration > 12 && t > this.duration - OUTRO) this.drawOutro(t - (this.duration - OUTRO));
+    // (with "Again for every song" they count from the start of the song that plays)
+    const rt = t - (this.songStart || 0);
+    if (this.S.intro && rt >= 0 && rt < INTRO) this.drawIntro(rt);
+    if (this.S.outro && this.duration > 12 && rt > this.duration - OUTRO) this.drawOutro(rt - (this.duration - OUTRO));
 
     if (fx.echo) {
       const p = this.prev.getContext("2d");
       p.clearRect(0, 0, W, H);
       p.drawImage(this.c, 0, 0);
     }
+  }
+
+  // Soft seams: the line between two fields is not sharp but smeared softly. Nothing overlaps – each clip stays in its own
+  // field –, a band across the seam is smeared (the picture shrunk across the seam and scaled back up, cheap) and
+  // blended back in: strongest right at the seam, nothing at the ends of the band.
+  softSeams(slots) {
+    const { W, H } = this;
+    const a = Math.max(0, Math.min(1, (this.S.softAmt == null ? 50 : this.S.softAmt) / 100));
+    const k = 0.004 + 0.026 * a; // half the band as a share of the picture: ~0.4 % … 3 %
+    const minW = Math.min(...slots.map((x) => x.w));
+    const minH = Math.min(...slots.map((x) => x.h));
+    const fH = Math.round(Math.min(k * W, 0.08 * minW)); // half the width of the band across a vertical seam
+    const fV = Math.round(Math.min(k * H, 0.08 * minH));
+    const done = new Set();
+    for (const s of slots) {
+      if (s.x > 1 && fH >= 2 && !done.has("v" + s.x + ":" + s.y)) {
+        done.add("v" + s.x + ":" + s.y);
+        this.smear({ x: s.x - fH, y: s.y, w: 2 * fH, h: s.h }, "x");
+      }
+      if (s.y > 1 && fV >= 2 && !done.has("h" + s.y + ":" + s.x)) {
+        done.add("h" + s.y + ":" + s.x);
+        this.smear({ x: s.x, y: s.y - fV, w: s.w, h: 2 * fV }, "y");
+      }
+    }
+  }
+  smear(r, axis) {
+    const { g } = this;
+    const along = axis === "x" ? r.w : r.h; // the length across the seam
+    const texel = Math.max(2, Math.round(along / 6));
+    const sw = axis === "x" ? Math.max(2, Math.ceil(r.w / texel)) : r.w;
+    const sh = axis === "y" ? Math.max(2, Math.ceil(r.h / texel)) : r.h;
+    const small = this.smallBuf || (this.smallBuf = document.createElement("canvas"));
+    const big = this.bigBuf || (this.bigBuf = document.createElement("canvas"));
+    small.width = sw;
+    small.height = sh;
+    big.width = r.w;
+    big.height = r.h;
+    const sx = small.getContext("2d");
+    const bx = big.getContext("2d");
+    sx.imageSmoothingEnabled = bx.imageSmoothingEnabled = true;
+    sx.imageSmoothingQuality = bx.imageSmoothingQuality = "high";
+    sx.clearRect(0, 0, sw, sh);
+    sx.drawImage(g.canvas, r.x, r.y, r.w, r.h, 0, 0, sw, sh); // shrunk across the seam
+    bx.globalCompositeOperation = "source-over";
+    bx.clearRect(0, 0, r.w, r.h);
+    bx.drawImage(small, 0, 0, sw, sh, 0, 0, r.w, r.h); // …and back: smeared
+    // the smear counts fully in the middle (the seam) and not at all at the ends of the band
+    const gr = axis === "x" ? bx.createLinearGradient(0, 0, r.w, 0) : bx.createLinearGradient(0, 0, 0, r.h);
+    for (let n = 0; n <= 8; n++) {
+      const p = n / 8;
+      const v = Math.sin(Math.PI * p); // 0 → 1 → 0
+      gr.addColorStop(p, `rgba(0,0,0,${(v * v).toFixed(3)})`);
+    }
+    bx.globalCompositeOperation = "destination-in";
+    bx.fillStyle = gr;
+    bx.fillRect(0, 0, r.w, r.h);
+    bx.globalCompositeOperation = "source-over";
+    g.drawImage(big, r.x, r.y);
   }
 
   // Rim effect on the finished picture: a blurred copy (cheap: the picture shrunk and scaled back up) that only shows

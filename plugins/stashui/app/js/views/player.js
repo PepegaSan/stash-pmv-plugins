@@ -16,7 +16,9 @@ import { logEvent } from "../eventlog.js";
 import { tierNow, ensureTiers } from "../tiers.js";
 import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
+import { openMarkerEdit } from "../markeredit.js";
 import { videoGlow } from "../theme.js";
+import { mountSlots } from "../ext.js";
 import { BINS, watchRecorder, watchBins, motionBins, combine, peaks } from "../heat.js";
 
 // Read Stash's sprite VTT: time ranges → region in the sprite image
@@ -179,7 +181,7 @@ export async function render(host, params, query = {}) {
           </div>
         </div>
       </div>
-      <aside class="kb-side" data-side>${placardHtml("scene", x)}<div class="kb-upnext kb-markers" data-markers></div><div class="kb-upnext kb-queuebox" data-queuebox></div><div class="kb-upnext" data-upnext></div><div class="kb-upnext kb-similar" data-similar></div></aside>
+      <aside class="kb-side" data-side>${placardHtml("scene", x)}<div class="kb-upnext kb-markers" data-markers></div><div class="kb-upnext kb-queuebox" data-queuebox></div><div class="kb-upnext" data-upnext></div><div class="kb-upnext kb-similar" data-similar></div><div class="kb-upnext kb-xinfo" data-xinfo></div></aside>
     </div>`;
 
   const stage = host.querySelector(".kb-stage");
@@ -275,8 +277,18 @@ export async function render(host, params, query = {}) {
     }, 280);
   });
   wrap.addEventListener("pointerenter", () => clearTimeout(leaveTimer));
+  let menuSlots = null;
+  // The menu's own part is repainted after every choice; the part of extension plugins stays as it is
+  function paintMenu() {
+    if (!menu.querySelector("[data-mmain]")) {
+      menu.innerHTML = '<div data-mmain></div><div class="kb-pmenu-sec kb-xmenu-sec" data-xmenu></div>';
+      menuSlots = mountSlots("scene.menu", menu.querySelector("[data-xmenu]"), slotCtx());
+    }
+    menu.querySelector("[data-mmain]").innerHTML = menuHtml();
+  }
   menu.addEventListener("click", (e) => {
     e.stopPropagation();
+    if (e.target.closest("[data-xmenu]")) return;
     const b = e.target.closest("button");
     if (!b) return;
     menuPicked = true;
@@ -303,7 +315,7 @@ export async function render(host, params, query = {}) {
       closeMenu();
       return addMarker();
     } else if (b.dataset.rate) v.playbackRate = v.defaultPlaybackRate = Number(b.dataset.rate); // default: survives a quality switch
-    menu.innerHTML = menuHtml();
+    paintMenu();
   });
   v.addEventListener("error", () => {
     if (srcIdx < sources.length - 1) {
@@ -569,7 +581,7 @@ export async function render(host, params, query = {}) {
     if (el.closest("[data-mini]")) return toMini();
     if (el.closest("[data-menubtn]")) {
       if (menu.hidden) {
-        menu.innerHTML = menuHtml();
+        paintMenu();
         menuPicked = false;
       }
       menu.hidden = !menu.hidden;
@@ -644,9 +656,12 @@ export async function render(host, params, query = {}) {
   // turns the screen to landscape. iPhones only allow fullscreen for the video itself → native player.
   async function fullscreen() {
     if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
-    if (stage.requestFullscreen) {
+    // The page's overlay root goes fullscreen, not the stage: the stage is replaced when the next scene opens (autoplay),
+    // and a removed fullscreen element would leave fullscreen – the root stays, so the next scene continues in fullscreen
+    const fsEl = stage.closest("#overlay-root") || stage;
+    if (fsEl.requestFullscreen) {
       try {
-        await stage.requestFullscreen({ navigationUI: "hide" });
+        await fsEl.requestFullscreen({ navigationUI: "hide" });
         if (v.videoWidth > v.videoHeight && screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(() => {});
         return;
       } catch (e) { /* not allowed – try the video element below */ }
@@ -660,7 +675,7 @@ export async function render(host, params, query = {}) {
   }
   // Fullscreen: mouse at the right edge slides the info panel in (can be switched off in the settings)
   stage.addEventListener("pointermove", (e) => {
-    if (document.fullscreenElement !== stage || e.pointerType !== "mouse" || prefs.fsPanel === false || !menu.hidden) return;
+    if (!document.fullscreenElement || e.pointerType !== "mouse" || prefs.fsPanel === false || !menu.hidden) return;
     const side = $("[data-side]");
     // Not over the control bar or the top bar – their buttons (fullscreen, info …) sit in that corner too
     const bars = e.target.closest(".kb-controls, .kb-topbar") || e.clientY >= $(".kb-controls").getBoundingClientRect().top - 8 || e.clientY <= 64;
@@ -672,6 +687,7 @@ export async function render(host, params, query = {}) {
   });
   const onFsChange = () => {
     stage.classList.remove("is-peek");
+    stage.classList.toggle("is-full", !!document.fullscreenElement);
     if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) {
       try {
         screen.orientation.unlock();
@@ -679,6 +695,7 @@ export async function render(host, params, query = {}) {
     }
   };
   document.addEventListener("fullscreenchange", onFsChange);
+  stage.classList.toggle("is-full", !!document.fullscreenElement); // (opened while the previous scene was fullscreen)
 
   // ---------- Next / previous ----------
   // Order: queue > list it was opened from > random from the library
@@ -820,6 +837,13 @@ export async function render(host, params, query = {}) {
   }
   // the best moments arrive a moment later (standings from Stash) – then the marks again
   if ((x.scene_markers || []).length && !bestMarkersNow()) bestMarkers().then(() => host.isConnected && paintMarkers()).catch(() => {});
+  // the tags of a part (besides the main tag) as small chips under its name
+  const partTags = (m) => {
+    const extra = (m.tags || []).filter((x) => !m.primary_tag || x.id !== m.primary_tag.id);
+    const main = m.title && m.primary_tag ? [m.primary_tag] : [];
+    const all = main.concat(extra);
+    return all.length ? `<em class="kb-mktags">${all.map((x) => `<i>${esc(x.name)}</i>`).join("")}</em>` : "";
+  };
   function paintMarkers() {
     const box = $("[data-markers]");
     if (!box) return;
@@ -829,9 +853,9 @@ export async function render(host, params, query = {}) {
       `${t("Markers")}<small class="kb-upsec-n">${list.length || ""}</small>`,
       list
         .map(
-          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${fmtDuration(m.seconds)}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Rename")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
+          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${fmtDuration(m.seconds)}${m.end_seconds > m.seconds ? "–" + fmtDuration(m.end_seconds) : ""}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}${partTags(m)}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Edit the part (name, start, end, tags)")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
         )
-        .join("") + `<button type="button" class="kb-btn is-ghost kb-mkadd" data-mkadd>${icon("plus")}${t("Add a marker here (B)")}</button>`
+        .join("") + `<div class="kb-mkadds"><button type="button" class="kb-btn is-ghost kb-mkadd" data-mkadd>${icon("plus")}${t("Add a marker here (B)")}</button><button type="button" class="kb-btn is-ghost kb-mkadd" data-mkpart title="${t("A part of the video with a start, an end and its own tags")}">${icon("tag")}${t("Add a part …")}</button></div>`
     );
     paintMarks();
   }
@@ -855,19 +879,17 @@ export async function render(host, params, query = {}) {
       return v.paused && v.play().catch(() => {});
     }
     if (e.target.closest("[data-mkadd]")) return addMarker();
+    const edited = (m, isNew, goneId) => {
+      if (goneId) x.scene_markers = x.scene_markers.filter((q) => q.id !== goneId);
+      else if (isNew) x.scene_markers = [...(x.scene_markers || []), m];
+      else x.scene_markers = x.scene_markers.map((q) => (q.id === m.id ? m : q));
+      paintMarkers();
+    };
+    if (e.target.closest("[data-mkpart]")) return openMarkerEdit({ scene: x, marker: null, video: v, defaultTag: markerTag, done: edited });
     const ren = e.target.closest("[data-mkren]");
     if (ren) {
       const m = x.scene_markers.find((q) => q.id === ren.dataset.mkren);
-      const title = await promptDialog({ title: t("Name of the marker"), label: t("Name"), value: m.title || "", ok: t("Save") });
-      if (title == null) return;
-      try {
-        await gql(`mutation($i: SceneMarkerUpdateInput!) { sceneMarkerUpdate(input: $i) { id } }`, { i: { id: m.id, title: title.trim(), scene_id: x.id, seconds: m.seconds, primary_tag_id: (m.primary_tag || {}).id || (await markerTag()) } });
-        m.title = title.trim();
-        paintMarkers();
-      } catch (err) {
-        errorToast(err, "Marker");
-      }
-      return;
+      return openMarkerEdit({ scene: x, marker: m, video: v, defaultTag: markerTag, done: edited });
     }
     const del = e.target.closest("[data-mkdel]");
     if (del) {
@@ -989,10 +1011,20 @@ export async function render(host, params, query = {}) {
     prefs.closed = Object.assign({}, prefs.closed, { [d.dataset.sec]: !d.open });
     savePrefs();
   }, true); // "toggle" doesn't bubble – caught on the way down
+  // Sections of extension plugins in the info bar (slot scene.info) and entries in the menu (scene.menu)
+  const slotCtx = () => ({ page: "scene", kind: "scene", id: x.id, item: x, video: v, time: () => v.currentTime });
+  let infoSlots = null;
+  function mountInfo() {
+    if (infoSlots) infoSlots.destroy();
+    infoSlots = mountSlots("scene.info", side.querySelector("[data-xinfo]"), slotCtx(), { wrap: true, reload: () => plc && plc.refresh && plc.refresh() });
+  }
+  mountInfo();
   const plc = bindPlacard(side, "scene", () => x, {
     refresh: async () => {
       x = await getScene(x.id);
-      side.innerHTML = placardHtml("scene", x) + '<div class="kb-upnext kb-markers" data-markers></div><div class="kb-upnext kb-queuebox" data-queuebox></div><div class="kb-upnext" data-upnext></div><div class="kb-upnext kb-similar" data-similar></div>';
+      side.innerHTML = placardHtml("scene", x) + '<div class="kb-upnext kb-markers" data-markers></div><div class="kb-upnext kb-queuebox" data-queuebox></div><div class="kb-upnext" data-upnext></div><div class="kb-upnext kb-similar" data-similar></div><div class="kb-upnext kb-xinfo" data-xinfo></div>';
+      mountInfo();
+      menuSlots && menuSlots.set({ item: x });
       paintMarkers();
       paintQueue();
       paintUpnext();
@@ -1016,6 +1048,7 @@ export async function render(host, params, query = {}) {
     position: () => v.currentTime,
     goFolder: () => goToFolder(f.path),
     music: () => import("./music.js").then((m) => m.openMusic(x, v)),
+    cut: () => import("./clipcut.js").then((m) => m.openClipCut(x, v)),
     cover: () => frameAsCover(),
     funscript: () => addFunscript(),
   });
@@ -1532,6 +1565,8 @@ export async function render(host, params, query = {}) {
       cv.open = false;
       saveCover(x.id);
     }
+    if (infoSlots) infoSlots.destroy();
+    if (menuSlots) menuSlots.destroy();
     document.removeEventListener("keydown", onKey);
     window.removeEventListener("stash:queue-changed", onQueue);
     document.removeEventListener("fullscreenchange", onFsChange);
@@ -1547,7 +1582,8 @@ export async function render(host, params, query = {}) {
       v.load();
     }
     savePrefs();
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    // Fullscreen stays when the next scene opens (autoplay, Next, up next …) – any other way out leaves it
+    if (document.fullscreenElement && !/^#\/scene\//.test(location.hash)) document.exitFullscreen().catch(() => {});
     // Update progress in the grid
     if (ctx.hang) {
       const p = ctx.hang.pieces.find((q) => q.kind === "scene" && q.id === x.id);

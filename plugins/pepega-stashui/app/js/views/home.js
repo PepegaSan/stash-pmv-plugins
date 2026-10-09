@@ -7,11 +7,12 @@ import { t } from "../i18n.js";
 import { gql, stats, findItems, loadFolders } from "../api.js";
 import { toPiece, Hang } from "../pieces.js";
 import { app, go } from "../main.js";
-import { roomsHtml, fillRoomCovers } from "./folder.js";
+import { roomsHtml, fillRoomCovers, fillRoomCounts } from "./folder.js";
 import { tagPicker } from "./tagpicker.js";
 import { perfPicker, hasPerformers } from "./perfpicker.js";
 import { mountRailEditor } from "./homerail.js";
 import { track, forget, closeBar } from "../bulkbar.js";
+import { mountSlots, extensionsReady } from "../ext.js";
 
 function greeting() {
   const h = new Date().getHours();
@@ -114,7 +115,7 @@ async function topTagsOfWeek() {
   const d = await gql(`query($f: FindFilterType, $s: SceneFilterType) { findScenes(filter: $f, scene_filter: $s) { scenes { play_history tags { id name } } } }`, {
     f: { per_page: -1 },
     s: { last_played_at: { value: new Date(since).toISOString(), modifier: "GREATER_THAN" } },
-  });
+  }, { heavy: true });
   const m = new Map();
   for (const sc of d.findScenes.scenes) {
     const n = (sc.play_history || []).filter((x) => Date.parse(x) >= since).length || 1;
@@ -158,7 +159,10 @@ export async function render(main) {
   let editTab = "home"; // Customize: the home page or the menu on the left
   let hangs = [];
   let stopCovers = () => {};
+  let xhome = null;
   const cleanup = () => {
+    if (xhome) xhome.destroy();
+    xhome = null;
     hangs.forEach((h) => h.destroy());
     hangs = [];
     closeBar();
@@ -227,6 +231,14 @@ export async function render(main) {
       if (s.id === "folders") return paintFolders(sec);
       if (s.id === "random") return paintRandom(sec, el);
       hangs.push(wall(el, fetcherFor(s), undefined, s.id));
+    });
+    // Sections of extension plugins (slot home.section), behind the others; each one is filled when it is scrolled to
+    const xbox = document.createElement("div");
+    xbox.className = "kb-xhome";
+    box.appendChild(xbox);
+    extensionsReady().then(() => {
+      if (!xbox.isConnected) return;
+      xhome = mountSlots("home.section", xbox, { page: "home" }, { wrap: "section", lazy: whenVisible });
     });
   }
 
@@ -303,7 +315,12 @@ export async function render(main) {
         const top = (tree.roots.length === 1 && tree.roots[0].kids.length ? tree.roots[0].kids : tree.roots).slice().sort((a, b) => b.timg + b.tvid - (a.timg + a.tvid)).slice(0, 8);
         const el = sec.querySelector("[data-rooms]");
         el.innerHTML = roomsHtml(top);
-        stopCovers = fillRoomCovers(el);
+        const stopCov = fillRoomCovers(el);
+        const stopCnt = fillRoomCounts(el, tree);
+        stopCovers = () => {
+          stopCov();
+          stopCnt();
+        };
       })
       .catch(() => (sec.hidden = true));
   }

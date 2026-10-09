@@ -81,10 +81,19 @@ async function renderList(main, query) {
     } catch (e) {
       if (my === run) $("[data-list]").innerHTML = `<div class="kb-empty"><b>${t("Couldn't load the groups")}</b><p>${esc(e.message)}</p></div>`;
     } finally {
-      if (my === run) loading = false;
+      if (my === run) {
+        loading = false;
+        requestAnimationFrame(fillMore); // the end of the list may still be in view (big screen, small cards) – the observer only reports changes
+      }
     }
   }
   const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && loaded < total && load(false), { rootMargin: "800px" });
+  // Still more and the end of the list already in view after a page came in? Then the next page right away (the observer
+  // above only fires when the end comes into view – with a tall screen the first page may never push it out again)
+  function fillMore() {
+    const el = $("[data-more]");
+    if (el && el.isConnected && !loading && loaded < total && el.getBoundingClientRect().top < innerHeight + 800) load(false);
+  }
   io.observe($("[data-more]"));
   const reload = () => {
     setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === "name" ? "" : $("[data-sort]").value });
@@ -177,6 +186,8 @@ async function drawOne(main, id, query, redraw) {
   const b = mediaBrowser(main.querySelector("[data-browser]"), {
     kinds: ["scene"],
     query,
+    page: "group",
+    params: { id },
     base: () => ({ filter: { groups: { value: [id], modifier: "INCLUDES" } } }),
     defaults: { scene: { sort: "group_scene_number", dir: "ASC" } },
     extraSorts: { scene: [["group_scene_number", "Order in the group"]] },

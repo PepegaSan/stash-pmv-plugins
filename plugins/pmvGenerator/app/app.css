@@ -836,7 +836,7 @@ html.kb-glass .kb-amb { position: absolute; inset: -12%; z-index: 0; width: 124%
 html.kb-glass .kb-stage.kb-player { overflow: hidden; }
 html.kb-glass .kb-stage.kb-player > .kb-screen { z-index: 1; }
 html.kb-glass .kb-stage.kb-player > .kb-side { position: relative; z-index: 1; }
-html.kb-glass .kb-stage.kb-player:fullscreen > .kb-side { position: absolute; z-index: 6; }
+html.kb-glass .kb-stage.kb-player:fullscreen > .kb-side, html.kb-glass .kb-stage.kb-player.is-full > .kb-side { position: absolute; z-index: 6; }
 html.kb-glass .kb-player .kb-video { background: transparent; }
 html.kb-glass .kb-stage.kb-player .kb-side { background: var(--glass-shine), color-mix(in srgb, var(--base) 45%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; } /* the glow behind is already soft – no blur per frame */
 html.kb-glass .kb-amb { will-change: contents; transform: translateZ(0); }
@@ -1514,6 +1514,51 @@ html.kb-glass .kb-log-list li:hover, html.kb-glass .kb-log-btn:hover, html.kb-gl
 .kb-tierchips button[data-tier].is-on { color: var(--ink); background: var(--tc); }
 html.kb-glass .kb-tierpos .kb-tier { backdrop-filter: blur(6px); }
 
+/* Cards from extension plugins (ext.js): not part of the library - no selection, hearts or previews */
+.kb-xpiece { cursor: pointer; }
+.kb-xpiece.is-dim { opacity: .55; }
+.kb-xbadges { position: absolute; left: 8px; top: 8px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 70px); pointer-events: auto; }
+.kb-xbadge { padding: 2px 7px; border-radius: 3px; color: var(--paper); font: 600 11px/1.4 var(--f-label); background: color-mix(in srgb, var(--base) 82%, transparent); box-shadow: 0 2px 8px rgba(0, 0, 0, .35); }
+html.kb-glass .kb-xbadge { backdrop-filter: blur(6px); background: color-mix(in srgb, var(--base) 55%, transparent); border: 1px solid rgba(255, 255, 255, .16); }
+html.kb-glass .kb-xpiece { border: 1px solid rgba(255, 255, 255, .12); }
+
+/* Extension API v2 (ext.js): places for plugins, buttons on their cards, their menu and pages */
+.kb-dc { display: contents; }
+.kb-xbar:empty, .kb-xtool:empty, .kb-xhead:empty, .kb-xhome:empty, .kb-xbulk:empty { display: none; }
+.kb-xbar { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+.kb-xtool, .kb-xbulk { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.kb-xslot { min-width: 0; }
+.kb-xhead { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; }
+.kb-xhome { display: block; }
+.kb-xhomesec { margin: 0 0 var(--s-section, 36px); }
+.kb-xslot > .kb-xslot-body { min-width: 0; }
+.kb-empty.is-slim { padding: 14px 0 10px; text-align: left; }
+.kb-empty.is-slim b { font-size: 22px; }
+.kb-empty.is-slim p { margin-bottom: 10px; }
+.kb-pmenu.kb-xmenu { position: fixed; right: auto; bottom: auto; z-index: 400; width: auto; min-width: 200px; max-width: min(320px, calc(100vw - 16px)); }
+.kb-xmenu-detail { display: block; margin-top: 2px; color: var(--faint); font: 400 12px/1.3 var(--f-label); }
+.kb-xmenu-sec:empty { display: none; }
+.kb-xacts { position: absolute; right: 8px; top: 8px; z-index: 3; display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+.kb-xpiece:hover .kb-xacts, .kb-xpiece:focus-within .kb-xacts, .kb-xacts:focus-within { opacity: 1; }
+@media (hover: none) { .kb-xacts { opacity: 1; } }
+.kb-xact { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 4px; color: var(--paper); background: color-mix(in srgb, var(--base) 82%, transparent); box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer; }
+.kb-xact:hover { background: var(--pink); color: var(--base); }
+.kb-xact .kb-ic { width: 16px; height: 16px; }
+html.kb-glass .kb-xact { border-radius: 50%; backdrop-filter: blur(6px); background: color-mix(in srgb, var(--base) 55%, transparent); border: 1px solid rgba(255, 255, 255, .22); }
+html.kb-glass .kb-xact:hover { background: color-mix(in srgb, var(--pink) 70%, transparent); color: var(--paper); }
+.kb-xroute .kb-xroute-body { min-width: 0; }
+.kb-xroute.is-overlay { position: fixed; inset: 0; z-index: 60; overflow: auto; background: var(--base); }
+.kb-xroute-close { position: fixed; right: 14px; top: 14px; z-index: 61; font-size: 22px; line-height: 1; }
+html.kb-glass .kb-xroute.is-overlay { background: var(--base); }
+html.kb-glass .kb-xroute-close { border-radius: 50%; backdrop-filter: blur(8px); background: color-mix(in srgb, var(--base) 55%, transparent); border: 1px solid rgba(255, 255, 255, .22); }
+.kb-xdiag { margin: 10px 0 0; }
+.kb-xdiag summary .kb-xdiag-err { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; color: var(--paper); font: 700 11px/18px var(--f-label); text-align: center; background: var(--danger, #c0392b); }
+.kb-xdiag-body { display: grid; gap: 8px; padding: 8px 0 0; }
+.kb-xdiag-list, .kb-xdiag-errors { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font: 400 13px/1.4 var(--f-label); color: var(--text-2); word-break: break-word; }
+.kb-xdiag-list b { color: var(--faint); font-weight: 600; margin-right: 6px; }
+.kb-xdiag-errors li { padding: 6px 8px; border-left: 3px solid var(--danger, #c0392b); background: color-mix(in srgb, var(--danger, #c0392b) 10%, transparent); }
+html.kb-glass .kb-xdiag-errors li { border-radius: 10px; border-left-width: 0; border: 1px solid color-mix(in srgb, var(--danger, #c0392b) 50%, transparent); }
+
 /* Detailed rating in lists: bars on cards, chips in the panel, the filter */
 .kb-critbars { position: absolute; left: 8px; bottom: 44px; z-index: 2; display: flex; flex-direction: column; gap: 3px; width: 52px; opacity: 0; transition: opacity .18s; pointer-events: none; }
 .kb-piece:hover .kb-critbars { opacity: 1; }
@@ -1668,6 +1713,10 @@ html.kb-glass .kb-advf-row { border-bottom-color: var(--glass-edge); }
 .kb-tg-val s { color: var(--faint); }
 .kb-tg-act { display: flex; gap: 8px; margin-top: 4px; }
 .kb-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px 0; }
+.kb-ptg-thumb { width: 90px; height: 120px; }
+.kb-ptg-found { width: 56px; height: 72px; border-radius: 6px; object-fit: cover; vertical-align: middle; }
+html.kb-glass .kb-ptg-thumb { border: 1px solid var(--glass-edge); background: var(--glass-shine), var(--glass); }
+@media (max-width: 640px) { .kb-ptg-thumb { width: 90px; } }
 @media (max-width: 640px) { .kb-tg-row { flex-direction: column; } .kb-tg-thumb { width: 100%; height: 160px; } }
 html.kb-glass .kb-tg-row { border-color: var(--glass-edge); background: var(--glass); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); }
 html.kb-glass .kb-tg-review { background: color-mix(in srgb, var(--base) 45%, transparent); }

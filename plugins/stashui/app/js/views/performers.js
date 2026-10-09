@@ -2,22 +2,58 @@
 
 import { esc, icon, debounce, errorToast, toast, plural, promptDialog, starsHtml, pop, burst } from "../ui.js";
 import { t, locale } from "../i18n.js";
-import { findPerformers, updatePerformer, createPerformer, gql } from "../api.js";
+import { findPerformers, updatePerformer, createPerformer, gql, routeSignal } from "../api.js";
 import { go, setQuery } from "../main.js";
 import { ensureTiers, hasTiers, tierNow } from "../tiers.js";
 import { restrictIds, critInfo, parseCrit, critStr, critText, sortByCrit, openCritFilter } from "../ratingx.js";
 import { findIds } from "../api.js";
 import { TIERS, tierBadge } from "../versusx.js";
 
+// Value = "<Stash sort field>[:ASC|DESC]" (Stash does the sorting), or "local:<field>" for text fields Stash can't sort by:
+// those are fetched once and ordered here (empty values always last)
 const SORTS = [
   ["name", "Alphabetical"],
+  ["name:DESC", "Alphabetical (Z–A)"],
+  ["birthdate:DESC", "Youngest first"],
+  ["birthdate:ASC", "Oldest first"],
+  ["local:country", "Country (A–Z)"],
+  ["local:ethnicity", "Ethnicity (A–Z)"],
+  ["local:hair_color", "Hair color (A–Z)"],
+  ["local:eye_color", "Eye color (A–Z)"],
+  ["height:DESC", "Tallest first"],
+  ["height:ASC", "Shortest first"],
+  ["weight:DESC", "Heaviest first"],
+  ["weight:ASC", "Lightest first"],
   ["scenes_count", "Most scenes"],
+  ["scenes_count:ASC", "Fewest scenes"],
+  ["images_count", "Most images"],
+  ["tag_count", "Most tags"],
   ["o_counter", "O counter"],
   ["rating", "Rating"],
   ["play_count", "Most watched"],
   ["created_at", "Recently added"],
+  ["created_at:ASC", "Oldest additions"],
+  ["updated_at", "Recently changed"],
   ["random", "Random"],
 ];
+
+// Everything that matches, ordered by a text field here (Stash can't sort by it): ids in order
+async function localOrder(sortV, q, filter, ids) {
+  const [, field, dir = "ASC"] = sortV.split(":");
+  const d = await gql(`query PerfLocalSort($f: FindFilterType, $p: PerformerFilterType, $ids: [ID!]) { findPerformers(filter: $f, performer_filter: $p, ids: $ids) { performers { id name ${field} } } }`, { f: { q: q || undefined, per_page: -1 }, p: filter, ids: ids || null }, { signal: routeSignal(), heavy: true });
+  const val = (p) => String(field === "country" ? countryOf(p[field]) : p[field] || "").trim();
+  const col = new Intl.Collator(locale(), { numeric: true, sensitivity: "base" });
+  const sign = dir === "DESC" ? -1 : 1;
+  return d.findPerformers.performers
+    .slice()
+    .sort((a, b) => {
+      const x = val(a);
+      const y = val(b);
+      if (!x !== !y) return x ? -1 : 1; // nothing filled in: last, whichever way
+      return (x && y ? sign * col.compare(x, y) : 0) || col.compare(a.name, b.name);
+    })
+    .map((p) => p.id);
+}
 export const GENDERS = [
   ["FEMALE", "Female"],
   ["MALE", "Male"],
@@ -110,6 +146,7 @@ export async function render(main, params, query) {
   let tiers = (query.tier || "").split(",").filter(Boolean);
   let crit = query.crit || "";
   let critAll = null; // sorted by a criterion: everything that matches, fetched once and ordered here
+  let localAll = null; // the same for a text field (country …)
   // the criteria of the detailed rating: filter button, and a sort entry for each
   critInfo("performer")
     .then((info) => {
@@ -192,14 +229,23 @@ export async function render(main, params, query) {
       const sortV = $("[data-sort]").value;
       const ids = await restrictIds("performer", { tier: tiers, crit, sort: sortV });
       let r;
-      if (sortV.startsWith("crit:")) {
-        if (reset || !critAll) critAll = findIds("performer", { q: q || undefined, per_page: -1 }, filter(), ids).then((all) => sortByCrit("performer", sortV.slice(5), all.items, "DESC")).then((l) => l.map((x) => x.id));
-        const order = await critAll;
+      if (sortV.startsWith("crit:") || sortV.startsWith("local:")) {
+        let order;
+        if (sortV.startsWith("local:")) {
+          if (reset || !localAll) localAll = localOrder(sortV, q, filter(), ids);
+          order = await localAll;
+        } else {
+          if (reset || !critAll) critAll = findIds("performer", { q: q || undefined, per_page: -1 }, filter(), ids).then((all) => sortByCrit("performer", sortV.slice(5), all.items, "DESC")).then((l) => l.map((x) => x.id));
+          order = await critAll;
+        }
         const pageIds = order.slice((page - 1) * PAGE, page * PAGE);
         const got = pageIds.length ? await findPerformers({ perPage: pageIds.length, ids: pageIds }) : { performers: [] };
         const byId = new Map(got.performers.map((x) => [x.id, x]));
         r = { count: order.length, performers: pageIds.map((id) => byId.get(id)).filter(Boolean) };
-      } else r = await findPerformers({ q, page, perPage: PAGE, sort: sortV, filter: filter(), ids });
+      } else {
+        const [skey, sdir] = sortV.split(":");
+        r = await findPerformers({ q, page, perPage: PAGE, sort: skey, dir: sdir, filter: filter(), ids });
+      }
       if (my !== run) return;
       total = r.count;
       list = list.concat(r.performers);
@@ -215,12 +261,21 @@ export async function render(main, params, query) {
     } catch (e) {
       if (my === run) $("[data-list]").innerHTML = `<div class="kb-empty"><b>${t("Couldn't load the performers")}</b><p>${esc(e.message)}</p></div>`;
     } finally {
-      if (my === run) loading = false;
+      if (my === run) {
+        loading = false;
+        requestAnimationFrame(fillMore); // the end of the list may still be in view (big screen, small cards) – the observer only reports changes
+      }
     }
   }
 
   // More when the end of the grid comes into view
   const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && list.length < total && load(false), { rootMargin: "800px" });
+  // Still more and the end of the list already in view after a page came in? Then the next page right away (the observer
+  // above only fires when the end comes into view – with a tall screen the first page may never push it out again)
+  function fillMore() {
+    const el = $("[data-more]");
+    if (el && el.isConnected && !loading && list.length < total && el.getBoundingClientRect().top < innerHeight + 800) load(false);
+  }
   io.observe($("[data-more]"));
 
   const reload = () => {

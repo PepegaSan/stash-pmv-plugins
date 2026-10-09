@@ -13,6 +13,7 @@ import { exportBackup, importBackup } from "../backup.js";
 import { pokeJobs } from "../jobs.js";
 import { themeHtml, bindTheme } from "../theme.js";
 import { interactiveConfig, saveInteractiveConfig, testHandy } from "../interactive.js";
+import { mountSlots, slotList, extensionsReady } from "../ext.js";
 
 const AREAS = {
   general: { result: "ConfigGeneralResult", input: "ConfigGeneralInput", mutation: "configureGeneral" },
@@ -59,8 +60,20 @@ const CUSTOM_ENTRIES = {
 // Fields never edited here (own tools or read-only)
 const SKIP = new Set(["stashBoxes", "scraperPackageSources", "pluginPackageSources", "apiKey", "configFilePath"]);
 
+// Settings screens of extension plugins (slot settings.section) – under their own group "Plugins"
+const extSections = () =>
+  slotList("settings.section").map((s) => ({ id: "x:" + s.plugin + ":" + s.id, group: "Plugins", title: s.title || s.plugin, intro: "", custom: "ext", slot: s }));
+const allSections = () => {
+  const x = extSections();
+  if (!x.length) return SECTIONS;
+  const i = SECTIONS.findIndex((s) => s.group === "More");
+  return SECTIONS.slice(0, i < 0 ? SECTIONS.length : i).concat(x, i < 0 ? [] : SECTIONS.slice(i));
+};
+
 export async function render(main, params, query = {}) {
-  const sec = SECTIONS.find((s) => s.id === params.section) || SECTIONS.find((s) => s.id === "library");
+  if (String(params.section || "").startsWith("x:")) await Promise.race([extensionsReady(), new Promise((r) => setTimeout(r, 1500))]);
+  const ALL = allSections();
+  const sec = ALL.find((s) => s.id === params.section) || ALL.find((s) => s.id === "library");
   let group = "";
   main.innerHTML = `
     <header class="kb-head"><div class="kb-head-title">
@@ -72,22 +85,28 @@ export async function render(main, params, query = {}) {
       <nav class="kb-set-nav" aria-label="${t("Sections")}">
         <label class="kb-search kb-set-search">${icon("search")}<input class="kb-field" type="search" data-setq placeholder="${t("Search settings")}" autocomplete="off"></label>
         <div class="kb-set-results" data-setres hidden></div>
-        ${SECTIONS.map((s) => (s.group !== group ? `<div class="kb-set-navgroup">${t((group = s.group))}</div>` : "") + `<a href="#/settings/${s.id}" class="${s === sec ? "is-active" : ""}">${esc(t(s.title))}</a>`).join("")}
+        ${ALL.map((s) => (s.group !== group ? `<div class="kb-set-navgroup">${t((group = s.group))}</div>` : "") + `<a href="#/settings/${s.id}" class="${s === sec ? "is-active" : ""}">${esc(t(s.title))}</a>`).join("")}
         <a href="#/extern/classic-settings">${t("Open in classic Stash")}</a></nav>
       <div class="kb-set-body" data-body><div class="kb-loading">${t("Loading …")}</div></div>
     </div>`;
   const body = main.querySelector("[data-body]");
+  let extHandle = null;
   bindSearch(main);
   try {
     if (sec.custom === "system") await renderSystem(body);
     else if (sec.custom === "app") await renderApp(body);
     else if (sec.custom === "look") renderLook(body);
     else if (sec.custom === "player") renderPlayerUi(body);
+    else if (sec.custom === "ext") {
+      body.innerHTML = "";
+      extHandle = mountSlots("settings.section", body, { page: "settings" }, { only: (s) => s === sec.slot });
+    }
     else await renderArea(body, sec);
     if (query.find) showFound(body, query.find);
   } catch (e) {
     body.innerHTML = `<div class="kb-empty"><b>${t("Couldn't load settings")}</b><p>${esc(e.message)}</p></div>`;
   }
+  return () => extHandle && extHandle.destroy();
 }
 
 // ---------- Search across all sections ----------
@@ -96,7 +115,7 @@ let searchIndex = null;
 async function buildIndex() {
   const out = [];
   const add = (sec, label, hint) => out.push({ sec, label, hay: (label + " " + (hint || "")).toLowerCase() });
-  for (const sec of SECTIONS) {
+  for (const sec of allSections()) {
     add(sec, t(sec.title), t(sec.intro)); // the section itself
     (CUSTOM_ENTRIES[sec.id] || []).forEach((l) => add(sec, t(l)));
     if (!sec.area) continue;
@@ -479,6 +498,7 @@ async function renderApp(body) {
       <label class="kb-set"><span class="kb-set-label"><b>${t("Thumbnail size")}</b><small>${t("How tall a row in the lists is.")}</small></span>
         <input type="range" min="130" max="480" step="10" data-rowh value="${store.get("rowHeight", 250)}"></label>
       <div class="kb-set"><div class="kb-set-label"><b>${t("Favorites")}</b><small>${t("The heart is the Stash tag “Favorite”. You'll find it in classic Stash too.")}</small></div></div>
+      <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("Automatic backup in Stash")}</b><small>${t("Copies the settings of this browser to Stash a little after they change. A browser that forgot them (site data cleared, another address, a new device) gets them back by itself.")}</small></span><span class="kb-switch"><input type="checkbox" data-autobk${store.get("autoBackup", true) !== false ? " checked" : ""}><i></i></span></label>
       <div class="kb-set"><div class="kb-set-label"><b>${t("Backup and restore")}</b><small>${t("Saves everything this interface remembers – settings of this browser, home page and menu, ratings, playlists, Versus, funscript variants – in one file, and puts it back (also in another browser). It may contain your Handy connection key, so keep the file private.")}</small></div>
         <span class="kb-set-btns"><button type="button" class="kb-btn" data-bkexport>${t("Save backup")}</button><button type="button" class="kb-btn" data-bkimport>${t("Restore backup")}</button><input type="file" accept=".json,application/json" data-bkfile hidden></span></div>
       <div class="kb-set"><div class="kb-set-label"><b>${t("Reset interface settings")}</b><small>${t("Everything this interface remembers in this browser – player and viewer settings, thumbnail size, expanded folders, the home page and more. Not the queue, the colors or the glass look.")}</small></div>
@@ -593,6 +613,7 @@ async function renderApp(body) {
     sessionStorage.removeItem("stashui.foldersOnce");
     location.reload(); // the navigation is built once – rebuild it with or without folders
   };
+  body.querySelector("[data-autobk]").onchange = (e) => store.set("autoBackup", e.target.checked);
   body.querySelector("[data-bkexport]").onclick = () => exportBackup().catch((e) => errorToast(e, "Backup"));
   body.querySelector("[data-bkimport]").onclick = () => body.querySelector("[data-bkfile]").click();
   body.querySelector("[data-bkfile]").onchange = (e) => {

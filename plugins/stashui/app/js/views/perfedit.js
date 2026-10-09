@@ -3,12 +3,13 @@
 // Which fields exist depends on the Stash version, so the form asks Stash first.
 
 import { esc, icon, errorToast, toast, confirmDialog, promptDialog, openDrawer } from "../ui.js";
+import { scrapeErr } from "./scenescrape.js";
 import { t } from "../i18n.js";
 import { gql, updatePerformer } from "../api.js";
 import { tagPicker } from "./tagpicker.js";
 import { GENDERS } from "./performers.js";
 
-const FIELDS = [
+export const FIELDS = [
   { k: "name", label: "Name", group: 1, wide: true },
   { k: "disambiguation", label: "Disambiguation", group: 1 },
   { k: "alias_list", label: "Aliases (comma separated)", group: 1, type: "list", from: "aliases" },
@@ -42,7 +43,7 @@ const GROUPS = [
 
 // What this Stash knows: fields of the performer, of the update, of a scraped performer
 let schema = null;
-async function loadSchema() {
+export async function loadSchema() {
   if (schema) return schema;
   const d = await gql(`query PerfSchema {
     u: __type(name: "PerformerUpdateInput") { inputFields { name } }
@@ -55,7 +56,7 @@ async function loadSchema() {
   return schema;
 }
 
-async function loadSources() {
+export async function loadSources() {
   const d = await gql(`query PerfSources {
     listScrapers(types: [PERFORMER]) { id name performer { supported_scrapes } }
     configuration { general { stashBoxes { endpoint name } } }
@@ -68,7 +69,7 @@ async function loadSources() {
 
 // Scraped values are plain text – turn them into what the form wants
 const GENDER_WORDS = { female: "FEMALE", woman: "FEMALE", male: "MALE", man: "MALE", "transgender female": "TRANSGENDER_FEMALE", "trans female": "TRANSGENDER_FEMALE", "trans woman": "TRANSGENDER_FEMALE", "transgender male": "TRANSGENDER_MALE", "trans male": "TRANSGENDER_MALE", "trans man": "TRANSGENDER_MALE", "non-binary": "NON_BINARY", nonbinary: "NON_BINARY", "non binary": "NON_BINARY", intersex: "INTERSEX" };
-function convert(f, v) {
+export function convert(f, v) {
   if (v == null || v === "") return "";
   if (Array.isArray(v)) v = f.type === "lines" ? v.join("\n") : v.join(", ");
   v = String(v).trim();
@@ -111,7 +112,7 @@ function fieldHtml(f, val) {
   return `<label class="kb-form-row${f.wide ? " is-wide" : ""}"><span>${t(f.label)}</span>${ctl}</label>`;
 }
 
-function valueOf(p, f) {
+export function valueOf(p, f) {
   const v = p[f.k];
   if (v == null) return "";
   if (f.type === "list") return v.join(", ");
@@ -268,7 +269,7 @@ export async function openPerformerEditor(id, opts = {}) {
             .join("")
         : `<p class="kb-hint">${t("Nothing found. Try another spelling or another source.")}</p>`;
     } catch (e) {
-      out.innerHTML = `<p class="kb-hint kb-pe-err">${esc(e.message)}</p>`;
+      out.innerHTML = `<p class="kb-hint kb-pe-err">${esc(scrapeErr(e))}</p>`;
     }
   }
   $("[data-sgo]") && ($("[data-sgo]").onclick = search);

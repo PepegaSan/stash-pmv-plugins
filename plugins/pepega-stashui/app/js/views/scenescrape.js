@@ -36,6 +36,13 @@ export async function loadSources() {
 export const sourceLabel = (s) => s.name + (s.box || (s.byName && s.byFragment) ? "" : s.byFragment ? " (" + t("file only") + ")" : " (" + t("name only") + ")");
 export const canByName = (s) => !!s && (!!s.box || !!s.byName);
 export const canByFile = (s) => !!s && (!!s.box || !!s.byFragment);
+// Stash hands the answer of a remote scrape on as raw JSON ({"networkErrors":{"code":401 …}}) – say what it means
+export function scrapeErr(e) {
+  const m = String((e && e.message) || e || "");
+  if (/"code"\s*:\s*40[13]|\b40[13]\b|unauthori[sz]ed|forbidden/i.test(m)) return t("The source refused the request (401 – not allowed). Check its API key or login in classic Stash → Settings → Metadata Providers.");
+  if (/"code"\s*:\s*429|\b429\b|too many requests/i.test(m)) return t("The source says too many requests – wait a moment and try again.");
+  return m;
+}
 export const day = (v) => (/^\d{4}-\d{2}-\d{2}/.test(String(v || "")) ? String(v).slice(0, 10) : "");
 export const linksOf = (x) => [...new Set([...(x.urls || []), x.url].filter(Boolean))];
 // the fields asked of a scraped scene (which exist depends on the Stash version)

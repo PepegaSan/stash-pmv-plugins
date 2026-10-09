@@ -49,7 +49,7 @@ export function render(main, params, query) {
       errorToast(e, "Search");
     }
     if (!alive) return;
-    b = mediaBrowser($("[data-browser]"), { kinds: ["scene", "image", "gallery"], query: Object.assign({}, query, { q }), search: false });
+    b = mediaBrowser($("[data-browser]"), { kinds: ["scene", "image", "gallery"], query: Object.assign({}, query, { q }), search: false, page: "search" });
   }
   const input = $("[data-q]");
   input.addEventListener("input", debounce(run, 350));

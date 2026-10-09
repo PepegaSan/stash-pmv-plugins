@@ -5,7 +5,7 @@
 import { esc, icon, toast, errorToast, store, plural } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, createPerformer, createTag, updateItem, libraryChanged } from "../api.js";
-import { loadSchema, loadSources, scrapedFields, linksOf, day, sourceLabel, canByName, canByFile } from "./scenescrape.js";
+import { loadSchema, loadSources, scrapedFields, linksOf, day, sourceLabel, canByName, canByFile, scrapeErr } from "./scenescrape.js";
 import { studiosCache } from "./studiopicker.js";
 import { createStudio } from "./studioedit.js";
 
@@ -129,7 +129,7 @@ export async function render(main) {
       }
       rows.set(id, { results: list.slice(0, 12), hit: null, by });
     } catch (e) {
-      rows.set(id, { error: e.message || String(e), results: [] });
+      rows.set(id, { error: scrapeErr(e), results: [] });
     }
     paintResults(id);
   }

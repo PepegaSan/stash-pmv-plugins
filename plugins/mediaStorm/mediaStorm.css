@@ -1291,3 +1291,4 @@ html.ms-glass .ms-hud-sep { background: var(--ms-glass-edge); }
 html.ms-glass .ms-tools button.ms-dl-done { color: var(--ms-ink); background: #5ee39a; }
 html.ms-glass .ms-tools button.ms-dl-error { color: var(--ms-paper); background: #e0433f; }
 .ms-cond-src[hidden] { display: none !important; }
+.ms-tags[hidden], .ms-hint[hidden] { display: none !important; }

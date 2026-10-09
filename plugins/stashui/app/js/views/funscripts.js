@@ -68,6 +68,7 @@ export function render(main, params, query) {
     browser = mediaBrowser(body, {
       kinds: ["scene"],
       query,
+      page: "funscripts",
       base: () => ({ filter: { interactive: true } }),
       onCount: (k, n) => (main.querySelector('[data-n="scenes"]').textContent = n),
     });

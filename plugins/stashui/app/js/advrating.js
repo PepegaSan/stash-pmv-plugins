@@ -344,8 +344,8 @@ export async function recalcAll(kind, cfg) {
   const tagsArg = `{ value: ["${parent}"], modifier: INCLUDES, depth: -1 }`;
   const d =
     kind === "performer"
-      ? await gql(`query AdvItems { r: findPerformers(performer_filter: { tags: ${tagsArg} }, filter: { per_page: -1 }) { items: performers { id rating100 tags { id name } } } }`)
-      : await gql(`query AdvItems { r: findScenes(scene_filter: { tags: ${tagsArg} }, filter: { per_page: -1 }) { items: scenes { id rating100 tags { id name } } } }`);
+      ? await gql(`query AdvItems { r: findPerformers(performer_filter: { tags: ${tagsArg} }, filter: { per_page: -1 }) { items: performers { id rating100 tags { id name } } } }`, undefined, { heavy: true })
+      : await gql(`query AdvItems { r: findScenes(scene_filter: { tags: ${tagsArg} }, filter: { per_page: -1 }) { items: scenes { id rating100 tags { id name } } } }`, undefined, { heavy: true });
   let n = 0;
   for (const it of d.r.items) {
     const res = compute(cfg, scoresOf(it));

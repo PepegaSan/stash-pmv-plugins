@@ -184,7 +184,8 @@
 .kb-plugin-link { display: inline-block; margin-top: 10px; color: var(--faint); font: 400 13px/1 var(--f-label); text-decoration: underline; }
 .kb-plugin-link:hover { color: var(--pink); }
 .kb-pfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
-.kb-pfoot .kb-plugin-link { margin-top: 0; }
+.kb-pfoot .kb-plugin-link { margin-top: 0; flex-basis: 100%; }
+.kb-pfoot .kb-spacer { display: none; }
 .kb-pdanger:hover { color: var(--danger); }
 .kb-ptabs { margin: 0 0 16px; }
 .kb-ptools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; }
@@ -429,3 +430,15 @@ body.kb-embedded .kb-main { padding: 0; }
 @media (max-width: 700px) { .kb-srcpkgs { margin-left: 0; } .kb-srcpkg { grid-template-columns: 22px minmax(0, 1fr); } .kb-srcpkg > :last-child { grid-column: 2; justify-self: start; } }
 html.kb-glass .kb-srcpkgs { border: 1px solid var(--glass-edge); border-radius: 16px; background: var(--glass-shine), color-mix(in srgb, var(--bg-3) 30%, transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
 html.kb-glass .kb-srccaret:hover { background: color-mix(in srgb, var(--bg-3) 45%, transparent); }
+.kb-cut-add { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.kb-cut-list { margin: 8px 0 12px; }
+.kb-cut-row { display: grid; grid-template-columns: 22px auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.kb-cut-row b { color: var(--pink); font: 700 15px/1 var(--f-display); }
+.kb-cut-time { font: 600 13.5px/1.2 var(--f-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kb-cut-time small { color: var(--faint); font-weight: 400; margin-left: 4px; }
+.kb-cut-opts { display: grid; gap: 8px; margin-top: 12px; }
+.kb-cut-opt { display: flex; align-items: flex-start; gap: 10px; font: 400 13.5px/1.4 var(--f-text); color: var(--text-2); cursor: pointer; }
+.kb-cut-opt input { margin-top: 3px; accent-color: var(--pink); }
+.kb-cut-opt b { color: var(--text); }
+html.kb-glass .kb-cut-row { border-bottom-color: rgba(255, 255, 255, .16); }
+html.kb-glass .kb-cut .kb-drawer-foot { background: rgba(255, 255, 255, .06); }

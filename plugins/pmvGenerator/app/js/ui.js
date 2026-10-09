@@ -68,6 +68,7 @@ const ICONS = {
   info: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/></g>',
   logs: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h4"/></g>',
   heart: '<path d="M12 20s-7-4.3-8.9-8.7C1.7 8.1 3.7 4.6 7.1 4.6c2 0 3.6 1.2 4.9 3 1.3-1.8 2.9-3 4.9-3 3.4 0 5.4 3.5 4 6.7C19 15.7 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
+  scissors: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6.5" r="2.6"/><circle cx="6" cy="17.5" r="2.6"/><path d="M8.2 8 20 18.5M8.2 16 20 5.5"/></g>',
   music: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5V5.5l10-2v12"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></g>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>',
   chart: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></g>',
@@ -77,6 +78,16 @@ const ICONS = {
   person: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c.6-3.9 3.5-6.2 7.2-6.2s6.6 2.3 7.2 6.2"/></g>',
   phone: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2" stroke-linecap="round"/></g>',
 };
+// An inline <svg> from an extension plugin: scripts removed, and the standard icon class added (without a size an
+// <svg> fills the whole row), so plugins don't have to know about "kb-ic"
+export function inlineSvg(v) {
+  return String(v || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<svg\b([^>]*)>/i, (m, a) => {
+      if (/\bclass\s*=\s*["']/.test(a)) return /\bkb-ic\b/.test(a) ? m : `<svg${a.replace(/(\bclass\s*=\s*["'])/, "$1kb-ic ")}>`;
+      return `<svg class="kb-ic" aria-hidden="true"${a}>`;
+    });
+}
 export const icon = (name) => `<svg class="kb-ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
 
 // ---------- Formatting ----------
@@ -156,6 +167,47 @@ export const store = {
     } catch (e) { /* full or blocked */ }
   },
 };
+
+// A small popup menu under an element: items = [{ label, detail, run }] – a click runs the item and closes the menu,
+// Esc or a click elsewhere closes it too. Returns close(). (Also offered to extension modules as stashui.ui.menu.)
+export function menu(anchor, items, opts = {}) {
+  document.querySelectorAll(".kb-xmenu").forEach((m) => m.remove());
+  const el = document.createElement("div");
+  el.className = "kb-pmenu kb-xmenu";
+  el.setAttribute("role", "menu");
+  el.innerHTML = (items || [])
+    .map((it, i) => `<button type="button" role="menuitem" class="kb-pmenu-opt" data-xi="${i}"${it.disabled ? " disabled" : ""}><span>${esc(it.label)}${it.detail ? `<small class="kb-xmenu-detail">${esc(it.detail)}</small>` : ""}</span></button>`)
+    .join("");
+  document.body.appendChild(el);
+  const r = anchor.getBoundingClientRect();
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  el.style.left = Math.max(8, Math.min(innerWidth - w - 8, opts.align === "right" ? r.right - w : r.left)) + "px";
+  el.style.top = (r.bottom + h + 12 > innerHeight && r.top > h + 12 ? r.top - h - 6 : r.bottom + 6) + "px";
+  const close = () => {
+    el.remove();
+    document.removeEventListener("pointerdown", away, true);
+    document.removeEventListener("keydown", key, true);
+  };
+  const away = (e) => !el.contains(e.target) && close();
+  const key = (e) => e.key === "Escape" && (e.stopPropagation(), close());
+  setTimeout(() => {
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", key, true);
+  });
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-xi]");
+    if (!b) return;
+    const it = items[Number(b.dataset.xi)];
+    close();
+    try {
+      it && it.run && it.run();
+    } catch (err) {
+      errorToast(err, "Menu");
+    }
+  });
+  return close;
+}
 
 // ---------- Messages ----------
 

@@ -39,7 +39,7 @@ def keys():
         for p in PATTERNS:
             for m in re.finditer(p, src):
                 found.update(g for g in m.groups() if g is not None)
-        if name in ("media.js", "embed.js"):
+        if name in ("media.js", "embed.js", "performers.js", "videofolders.js"):
             for m in re.finditer(TABLE_PAIRS, src):
                 found.add(m.group(1))
         if name == "forms.js":

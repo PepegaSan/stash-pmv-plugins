@@ -336,10 +336,12 @@ html.kb-glass .kb-plc-btn.is-danger:hover { background: rgba(210, 44, 74, .22); 
 .kb-seekflash:empty { display: none; }
 @media (max-width: 460px) { .kb-player .kb-skip-start, .kb-player .kb-ctrl-row [data-mini] { display: none; } }
 /* Fullscreen: only the picture – the info bar steps aside */
-.kb-stage:fullscreen, .kb-stage.has-panel:fullscreen { display: grid; overflow: hidden; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-.kb-stage.kb-player.has-panel:fullscreen .kb-screen, .kb-stage.has-panel:fullscreen .kb-screen { height: auto; }
-.kb-stage:fullscreen .kb-side { position: absolute; top: 0; right: 0; bottom: var(--ctrl-h, 0); z-index: 6; display: flex; width: min(400px, 90vw); border-left: 1px solid var(--bg-3); box-shadow: -24px 0 48px rgba(0, 0, 0, .5); transform: translateX(105%); transition: transform .28s var(--ease); }
-.kb-stage.is-peek:fullscreen .kb-side { transform: none; }
+/* Fullscreen is the page's overlay root (it stays when the next scene opens), the stage carries .is-full and fills the screen */
+.kb-stage.is-full { position: fixed; inset: 0; z-index: 5; width: 100vw; height: 100vh; background: #000; }
+.kb-stage:fullscreen, .kb-stage.has-panel:fullscreen, .kb-stage.is-full { display: grid; overflow: hidden; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.kb-stage.kb-player.has-panel:fullscreen .kb-screen, .kb-stage.has-panel:fullscreen .kb-screen, .kb-stage.kb-player.has-panel.is-full .kb-screen { height: auto; }
+.kb-stage:fullscreen .kb-side, .kb-stage.is-full .kb-side { position: absolute; top: 0; right: 0; bottom: var(--ctrl-h, 0); z-index: 6; display: flex; width: min(400px, 90vw); border-left: 1px solid var(--bg-3); box-shadow: -24px 0 48px rgba(0, 0, 0, .5); transform: translateX(105%); transition: transform .28s var(--ease); }
+.kb-stage.is-peek:fullscreen .kb-side, .kb-stage.is-peek.is-full .kb-side { transform: none; }
 .kb-vr { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .kb-vr:active { cursor: grabbing; }
 
@@ -713,6 +715,10 @@ html.kb-glass .kb-pmvg-fromvid { border-color: var(--glass-edge); background: va
 .kb-mkgo span { overflow: hidden; font: 500 13.5px/1.2 var(--f-label); white-space: nowrap; text-overflow: ellipsis; }
 .kb-mkrow .kb-btn.is-icon { width: 28px; height: 28px; }
 .kb-mkadd { margin-top: 4px; }
+.kb-mkadds { display: flex; flex-wrap: wrap; gap: 4px; }
+.kb-mktags { display: inline-flex; gap: 4px; margin-left: 8px; font-style: normal; vertical-align: 1px; }
+.kb-mktags i { padding: 2px 7px; border-radius: 999px; font: 600 10.5px/1.1 var(--f-label); font-style: normal; color: var(--text-2); background: var(--bg-3); }
+html.kb-glass .kb-mktags i { border: 1px solid var(--glass-edge); background: var(--glass-shine), color-mix(in srgb, var(--pink) 18%, transparent); color: var(--text); }
 .kb-stage.is-flash::after { content: ""; position: absolute; inset: 0; z-index: 20; background: #fff; pointer-events: none; animation: kb-cover-flash .4s ease-out forwards; }
 @keyframes kb-cover-flash { from { opacity: .8; } to { opacity: 0; } }
 .kb-hp-var { grid-column: 1 / -1; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
@@ -727,3 +733,15 @@ html.kb-glass .kb-fpick-row.is-on.is-own .kb-fpick-box { background-color: var(-
 .kb-pmvg-faillist small { color: var(--faint); }
 .kb-pmvg-skipped { margin: 0 0 12px; color: var(--text-2); }
 .kb-pmvg-skipped summary { cursor: pointer; }
+/* One video per song: the list of videos at the end */
+.kb-pmvg-takes { display: grid; gap: 8px; margin: 0 0 12px; max-height: 38vh; overflow-y: auto; }
+.kb-pmvg-take { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border: 1px solid var(--bg-3); border-radius: 6px; background: var(--bg-2); }
+.kb-pmvg-take > span { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.kb-pmvg-take > span small { color: var(--faint); }
+html.kb-glass .kb-pmvg-take { border-color: var(--glass-edge); border-radius: 14px; background: var(--glass-shine), var(--glass); }
+.kb-pmvg-lshape { display: grid; gap: 6px; margin-top: 6px; }
+.kb-pmvg-lsrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.kb-pmvg-lsrow[hidden] { display: none; }
+.kb-pmvg-lsrow > span { display: inline-flex; align-items: center; gap: 8px; }
+.kb-pmvg-lsrow select { width: auto; min-width: 150px; }
+html.kb-glass .kb-pmvg-lsrow select { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .25); }

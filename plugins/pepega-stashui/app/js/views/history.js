@@ -15,6 +15,7 @@ export function render(main, params, query) {
   const b = mediaBrowser(main.querySelector("[data-browser]"), {
     kinds: ["scene"],
     query,
+    page: "history",
     defaults: { scene: { sort: "last_played_at", dir: "DESC" } },
     base: () => ({ filter: { play_count: { value: 0, modifier: "GREATER_THAN" } } }),
   });

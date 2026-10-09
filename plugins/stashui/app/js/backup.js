@@ -12,9 +12,9 @@ const FORMAT = "stashui-backup";
 const PLUGINS = ["stashui", "pmvGenerator", "mediaStorm"]; // whose settings in Stash are backed up
 // What is only remembered to be quick (rebuilt by itself) is not worth keeping
 const SKIP = /^stashui\.(statsCache|folderTree|extFound|extPlugins\d*|large|eventLog|foldersOnce)$/;
-const mine = (k) => (k.startsWith("stashui.") || k.startsWith("mediaStorm.")) && !SKIP.test(k);
+export const mine = (k) => (k.startsWith("stashui.") || k.startsWith("mediaStorm.")) && !SKIP.test(k);
 
-const localEntries = () => {
+export const localEntries = () => {
   const out = {};
   try {
     for (const k of Object.keys(localStorage)) if (mine(k)) out[k] = localStorage.getItem(k);
