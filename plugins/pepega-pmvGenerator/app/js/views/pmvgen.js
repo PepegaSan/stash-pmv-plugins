@@ -42,6 +42,7 @@ const DEFAULTS = {
   source: "scene", // scene | image | both | marker (short moments you marked)
   folders: [], // [{ id, path }] – empty = all folders
   xfolders: [], // [{ id, path }] – folders (with their subfolders) left out
+  mainTags: [], // must be on every clip (e.g. a model) – the other tags only count together with them
   tags: [],
   xtags: [],
   tagMode: "all", // several tags: all of them | any of them
@@ -344,6 +345,8 @@ export function render(main) {
             <div class="kb-seg" data-seg="source"><button type="button" data-v="scene">Scenes</button><button type="button" data-v="image">Images</button><button type="button" data-v="both">Both</button><button type="button" data-v="marker" title="Short moments you marked in your scenes – each clip starts at a marker">Markers</button></div>
             <span class="kb-lab-t">Clip shape</span>
             <div class="kb-seg" data-seg="shape"><button type="button" data-v="all">All</button><button type="button" data-v="portrait">Portrait only</button><button type="button" data-v="landscape">Landscape only</button></div>
+            <span class="kb-lab-t" title="Every clip has all of these (e.g. a model) – the tags below only count together with them">Main tags</span>
+            <div class="kb-pmvg-tags" data-maintags></div>
             <span class="kb-lab-t">Tags</span>
             <div class="kb-pmvg-tags" data-tags></div>
             <div class="kb-seg kb-pmvg-small" data-seg="tagMode" title="With several tags"><button type="button" data-v="all">All of the tags</button><button type="button" data-v="any">Any of the tags</button></div>
@@ -707,7 +710,7 @@ export function render(main) {
     const plName = S.clipFrom === "playlist" ? (pls.find((p) => p.id === S.clipList) || {}).name : null;
     const fromName = { versus: "Your Versus top scenes", watched: "Your most watched scenes" }[S.clipFrom];
     $("[data-sum]").innerHTML = [
-      `<li><b>Clips</b>${S.rgPct >= 100 ? "RedGifs only" : fromName ? fromName : plName ? `Playlist “${esc(plName)}”` : `${esc(src)} ${esc(where)}${S.stagesOn ? ` · ${S.stages.length} tag stages` : S.tags.length ? ` · ${S.tags.length} Tags${S.tags.length > 1 && S.tagMode === "any" ? " (any)" : ""}` : ""}${S.perfs.length ? ` · ${S.perfs.length} ${S.perfs.length === 1 ? "performer" : "performers"}` : ""}${S.fav ? " · favorites only" : ""}${+S.minRating ? ` · ★${S.minRating / 20}+` : ""}${+S.minLen ? ` · ≥ ${S.minLen / 60} min` : ""}${S.maxRes !== "any" ? ` · ≤ ${S.maxRes}p` : ""}`}${S.rgPct > 0 && S.rgPct < 100 ? ` · RedGifs ${S.rgPct} %` : ""}${S.rgPct > 0 ? ` (${esc(S.rgPicks.length ? S.rgPicks.map(rg.pickLabel).join(", ") : "trending")})` : ""}</li>`,
+      `<li><b>Clips</b>${S.rgPct >= 100 ? "RedGifs only" : fromName ? fromName : plName ? `Playlist “${esc(plName)}”` : `${esc(src)} ${esc(where)}${S.stagesOn ? ` · ${S.stages.length} tag stages` : S.tags.length ? ` · ${S.tags.length} Tags${S.tags.length > 1 && S.tagMode === "any" ? " (any)" : ""}` : ""}${S.mainTags.length ? ` · ${S.mainTags.length} main ${S.mainTags.length === 1 ? "tag" : "tags"}` : ""}${S.perfs.length ? ` · ${S.perfs.length} ${S.perfs.length === 1 ? "performer" : "performers"}` : ""}${S.fav ? " · favorites only" : ""}${+S.minRating ? ` · ★${S.minRating / 20}+` : ""}${+S.minLen ? ` · ≥ ${S.minLen / 60} min` : ""}${S.maxRes !== "any" ? ` · ≤ ${S.maxRes}p` : ""}`}${S.rgPct > 0 && S.rgPct < 100 ? ` · RedGifs ${S.rgPct} %` : ""}${S.rgPct > 0 ? ` (${esc(S.rgPicks.length ? S.rgPicks.map(rg.pickLabel).join(", ") : "trending")})` : ""}</li>`,
       `<li><b>Selection</b>${clipOpts.length ? esc(clipOpts.join(", ")) : "random"}</li>`,
       `<li><b>Cutting</b>${esc(tabSum.cut)}</li>`,
       `<li><b>Effects</b>${fxOn} on${S.look !== "none" ? " · look " + esc(look) : ""}</li>`,
@@ -844,6 +847,16 @@ export function render(main) {
       updateCount();
     },
   });
+  const mountMainTags = () => tagPicker(fresh("[data-maintags]"), {
+    include: S.mainTags,
+    placeholder: "Main tag (optional) – e.g. a model",
+    onChange: (inc) => {
+      S.mainTags = inc;
+      save();
+      paintSummary();
+      updateCount();
+    },
+  });
   const mountFolders = () => folderPicker(fresh("[data-folders]"), {
     selected: S.folders,
     excluded: S.xfolders,
@@ -910,6 +923,7 @@ export function render(main) {
     st.xtags = st.xtags || [];
   });
   mountTags();
+  mountMainTags();
   paintStages();
   mountFolders();
   mountPerfs();
@@ -1005,7 +1019,7 @@ export function render(main) {
     const el = $("[data-count]");
     try {
       const count = async (spec) =>
-        spec.ids ? [spec.ids.length] : Promise.all(spec.kinds.map((k) => (k === "marker" ? countMarkers(spec.filter(k)) : countItems(k, spec.filter(k)))));
+        spec.ids ? [spec.ids.length] : spec.idsBy ? spec.kinds.map((k) => spec.idsBy[k].length) : Promise.all(spec.kinds.map((k) => (k === "marker" ? countMarkers(spec.filter(k)) : countItems(k, spec.filter(k)))));
       const word = (k) => (k === "scene" ? "scenes" : k === "marker" ? "markers" : "images");
       if (stagesActive(S)) {
         const per = await Promise.all(S.stages.map(async (_, i) => (await count(await clipSpec(stageSettings(S, i)))).reduce((a, b) => a + b, 0)));
@@ -1378,13 +1392,14 @@ export function render(main) {
     if (!CUTS.some(([v]) => v === S.cut)) S.cut = DEFAULTS.cut;
     if (!LOOKS.some(([v]) => v === S.look)) S.look = DEFAULTS.look;
     if (!Object.values(S.layouts).some(Boolean)) S.layouts = Object.assign({}, DEFAULTS.layouts);
-    ["tags", "xtags", "folders", "xfolders", "rgPicks", "perfs"].forEach((k) => Array.isArray(S[k]) || (S[k] = []));
+    ["mainTags", "tags", "xtags", "folders", "xfolders", "rgPicks", "perfs"].forEach((k) => Array.isArray(S[k]) || (S[k] = []));
     save();
     // Everything on the page from S again
     const words = $("[data-words]");
     if (words) words.value = S.words || "";
     $("[data-rgdir]").value = S.rgDlDir || "";
     mountTags();
+  mountMainTags();
     mountFolders();
     mountPerfs();
     paintRgChips();
@@ -2015,7 +2030,49 @@ async function clipSpec(S) {
     }
     return { kinds: ["marker"], filter: () => m };
   }
-  return { kinds: S.source === "both" ? ["scene", "image"] : [S.source], filter: (k) => buildFilter(k, S, favId) };
+  const kinds = S.source === "both" ? ["scene", "image"] : [S.source];
+  if (mustTags(S, favId).length && anyTags(S).length > 1) {
+    // Stash can't ask "all of these and any of those" in one filter (a second tag condition is ignored or empties
+    // the result) – so the items with the main tags are listed with their tags and picked here, then asked by id
+    const idsBy = {};
+    for (const k of kinds) idsBy[k] = await pickByTags(k, S, favId);
+    return { kinds, filter: () => ({}), idsBy };
+  }
+  return { kinds, filter: (k) => buildFilter(k, S, favId) };
+}
+
+// Main tags (e.g. a model) are on every clip – the other tags only count together with them
+const mustTags = (S, favId) => [...new Set([...(S.mainTags || []), ...(S.fav && favId ? [favId] : [])])];
+const anyTags = (S) => (S.tagMode === "any" ? S.tags.filter((id) => !(S.mainTags || []).includes(id)) : []);
+
+function seededShuffle(list, seed) {
+  const a = [...list];
+  let x = seed >>> 0 || 1;
+  for (let i = a.length - 1; i > 0; i--) {
+    x = (Math.imul(x ^ (x >>> 15), 2246822507) + 0x6d2b79f5) >>> 0; // (a small seeded generator: same seed, same order)
+    const j = x % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const pickCache = new Map(); // filter → { at, ids } (the clips are fetched page by page – don't list everything each time)
+async function pickByTags(kind, S, favId) {
+  const f = buildFilter(kind, Object.assign({}, S, { tags: [], xtags: [], tagMode: "all" }), favId);
+  const any = new Set(anyTags(S));
+  const not = new Set(S.xtags || []);
+  const key = kind + JSON.stringify(f) + [...any].join() + "|" + [...not].join();
+  const hit = pickCache.get(key);
+  if (hit && Date.now() - hit.at < 60000) return hit.ids;
+  const q = kind === "image"
+    ? `query($x: ImageFilterType) { r: findImages(image_filter: $x, filter: { per_page: -1 }) { items: images { id tags { id } } } }`
+    : `query($x: SceneFilterType) { r: findScenes(scene_filter: $x, filter: { per_page: -1 }) { items: scenes { id tags { id } } } }`;
+  const d = await gql(q, { x: f });
+  const ids = d.r.items
+    .filter((x) => x.tags.some((tg) => any.has(tg.id)) && !x.tags.some((tg) => not.has(tg.id)))
+    .map((x) => x.id);
+  pickCache.set(key, { at: Date.now(), ids });
+  return ids;
 }
 
 // The settings of one tag stage: its own tags instead of the general ones
@@ -2031,13 +2088,13 @@ const MAX_RES = { 720: "FULL_HD", 1080: "QUAD_HD", 1440: "VR_HD" }; // "up to �
 function buildFilter(kind, S, favId) {
   const f = {};
   const fav = S.fav && favId ? favId : null;
-  if (S.tagMode === "any" && S.tags.length > 1) {
-    // Any of the tags – the favorite tag (if wanted) still has to be there
+  const main = S.mainTags || [];
+  if (S.tagMode === "any" && S.tags.length > 1 && !main.length && !fav) {
+    // Any of the tags (with main tags or the favorite tag clipSpec picks the items itself)
     f.tags = { value: [...S.tags], modifier: "INCLUDES", depth: 0 };
     if (S.xtags.length) f.tags.excludes = S.xtags;
-    if (fav) f.AND = { tags: { value: [fav], modifier: "INCLUDES", depth: 0 } };
   } else {
-    const inc = [...S.tags];
+    const inc = [...main, ...S.tags];
     if (fav) inc.push(fav);
     if (inc.length || S.xtags.length) {
       f.tags = { value: [...new Set(inc)], modifier: "INCLUDES_ALL", depth: 0 };
@@ -2491,8 +2548,12 @@ class Generator {
           ? `query($f: FindFilterType, $x: SceneMarkerFilterType) { r: findSceneMarkers(filter: $f, scene_marker_filter: $x) { count scene_markers { id title seconds${Generator.noEnd ? "" : " end_seconds"} primary_tag { id name } tags { id name } scene { id title paths { stream sprite vtt } files { duration width height basename } performers { id } } } } }`
           : k === "scene"
           ? `query($f: FindFilterType, $x: SceneFilterType, $ids: [ID!]) { r: findScenes(filter: $f, scene_filter: $x, ids: $ids) { count scenes { id title paths { stream sprite vtt } files { duration width height basename } scene_markers { id seconds } performers { id } } } }`
-          : `query($f: FindFilterType, $x: ImageFilterType) { r: findImages(filter: $f, image_filter: $x) { count images { id title paths { image } visual_files { __typename ... on ImageFile { width height basename } } performers { id } } } }`;
-        const vars = Object.assign({ f: { per_page: 60, page: P.page[k], sort: "random_" + P.seed }, x: spec.filter(k) }, spec.ids && k === "scene" ? { ids: spec.ids } : {});
+          : `query($f: FindFilterType, $x: ImageFilterType, $ids: [ID!]) { r: findImages(filter: $f, image_filter: $x, ids: $ids) { count images { id title paths { image } visual_files { __typename ... on ImageFile { width height basename } } performers { id } } } }`;
+        if (spec.idsBy && !spec.idsBy[k].length) return [];
+        // Picked ids: Stash ignores page and order when asked by id – shuffle (same seed) and page here
+        const picked = spec.idsBy ? seededShuffle(spec.idsBy[k], P.seed) : null;
+        const ids = picked ? picked.slice((P.page[k] - 1) * 60, P.page[k] * 60) : spec.ids && k === "scene" ? spec.ids : null;
+        const vars = Object.assign({ f: { per_page: 60, page: P.page[k], sort: "random_" + P.seed }, x: spec.filter(k) }, ids ? { ids } : {});
         let d;
         try {
           d = await gql(q, vars);
@@ -2504,7 +2565,7 @@ class Generator {
         }
         const items = k === "marker" ? d.r.scene_markers : k === "scene" ? d.r.scenes : d.r.images;
         // Reached the end → start over with a new random order
-        P.page[k] = P.page[k] * 60 >= d.r.count ? 1 : P.page[k] + 1;
+        P.page[k] = P.page[k] * 60 >= (picked ? picked.length : d.r.count) ? 1 : P.page[k] + 1;
         if (k === "marker") {
           // A marker clip: its scene, starting at the marker
           return items
