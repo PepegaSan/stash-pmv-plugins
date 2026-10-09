@@ -469,6 +469,19 @@ export function mediaBrowser(host, opts) {
     bulkEl.querySelector("[data-bm2]").innerHTML = `<span class="kb-spacer"></span><button class="kb-btn" data-b="none">${t("Done")}</button>`;
     if (bulkSlots) bulkSlots.set({ kind, count: set.size });
   }
+  // After editing several items: only their cards are drawn again – the list stays where it is (a full reload would start
+  // again at the top with the first page)
+  async function refreshItems(ids) {
+    const h = hang;
+    try {
+      const r = await findItems(kind, { per_page: Math.max(1, ids.length) }, {}, ids);
+      if (h !== hang) return;
+      r.items.forEach((x) => h.update(toPiece(kind, x, app.favId)));
+      exitSelect();
+    } catch (err) {
+      load();
+    }
+  }
   async function onBulk(e) {
     const b = e.target.closest("[data-b]");
     if (!b || !hang) return;
@@ -510,7 +523,7 @@ export function mediaBrowser(host, opts) {
         }
         case "edit":
           return openEditor(kind, pieces, {
-            onSaved: () => load(),
+            onSaved: () => refreshItems(ids),
           });
         case "delete": {
           const r = await confirmDialog({

@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.82.2",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Fixed: the list jumped back to the top. After you had changed the sorting, a filter or the search of a list, opening a scene or an image and coming back (Esc or Back) built the list again from the start – so you had to scroll down and find your place again. It now stays exactly where it was. The same after editing several selected items together: only their cards are refreshed instead of reloading the whole list.", "已修复：列表跳回顶部。更改了列表的排序、筛选或搜索后，打开某个场景或图片再返回（Esc 或后退），列表会从头重新构建——你得重新往下滚动找到原来的位置。现在它会停在原来的位置。同样适用于一起编辑多个选中项目之后：只刷新它们的卡片，而不是重新加载整个列表。"],
+    ],
+  },
+  {
     v: "3.82.1",
     date: "2026-10-09",
     items: [

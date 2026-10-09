@@ -111,6 +111,9 @@ export function setQuery(patch) {
   Object.keys(q).forEach((k) => (q[k] === "" || q[k] == null || q[k] === false) && delete q[k]);
   const qs = new URLSearchParams(q).toString();
   history.replaceState(null, "", "#/" + r.path + (qs ? "?" + qs : ""));
+  // The page that is open now has this address (otherwise closing a scene or an image opened from it would think the
+  // page was left and build it again – at the top, with only the first page of the list)
+  if (app.base && !app.overlay) app.base.hash = hashNow();
 }
 
 // Close an overlay: go back if it was opened over a page, otherwise to the home page
