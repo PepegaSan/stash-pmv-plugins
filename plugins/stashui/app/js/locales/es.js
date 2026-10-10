@@ -1897,4 +1897,7 @@ export default {
   "Hover previews on or off": "Vistas previas al pasar el ratón activadas o desactivadas",
   "Previews on": "Vistas previas activadas",
   "Previews off": "Vistas previas desactivadas",
+  "Mouse wheel on the video": "Rueda del ratón sobre el vídeo",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Gira la rueda sobre la imagen para cambiar el volumen o saltar (5 s por paso); con Mayús, la otra función.",
+  "Jump forward / back": "Saltar adelante / atrás",
 };

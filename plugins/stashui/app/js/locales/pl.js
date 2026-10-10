@@ -1920,4 +1920,7 @@ export default {
   "Hover previews on or off": "Podgląd po najechaniu włączony lub wyłączony",
   "Previews on": "Podgląd włączony",
   "Previews off": "Podgląd wyłączony",
+  "Mouse wheel on the video": "Kółko myszy nad filmem",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Obracaj kółko nad obrazem, aby zmieniać głośność lub przeskakiwać (5 s na ząbek); z Shift działa druga funkcja.",
+  "Jump forward / back": "Przeskok do przodu / do tyłu",
 };

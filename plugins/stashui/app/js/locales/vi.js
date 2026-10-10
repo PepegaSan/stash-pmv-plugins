@@ -1915,4 +1915,7 @@ export default {
   "Hover previews on or off": "Bật hoặc tắt xem trước khi rê chuột",
   "Previews on": "Xem trước: bật",
   "Previews off": "Xem trước: tắt",
+  "Mouse wheel on the video": "Con lăn chuột trên video",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Cuộn con lăn trên hình để đổi âm lượng hoặc tua (5 giây mỗi nấc); giữ Shift để dùng chức năng còn lại.",
+  "Jump forward / back": "Tua tới / lui",
 };

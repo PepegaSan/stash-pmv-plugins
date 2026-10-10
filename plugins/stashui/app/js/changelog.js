@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.86.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Mouse wheel in the player: turning the wheel over the picture changes the volume (5 % per notch); with Shift it jumps 5 s instead. Settings → Player and previews → “Mouse wheel on the video” switches between volume, jumping and off. (Asked for by a user who relied on the VideoScrollWheel plugin of classic Stash, which can't reach the new player.)", "播放器中的鼠标滚轮：在画面上滚动滚轮可调节音量（每格 5%）；按住 Shift 则改为跳转 5 秒。在“设置 → 播放器和预览 → 视频上的鼠标滚轮”中可切换为音量、跳转或关闭。（应一位依赖经典 Stash 的 VideoScrollWheel 插件的用户的请求而加入，该插件无法作用于新播放器。）"],
+    ],
+  },
+  {
     v: "3.85.0",
     date: "2026-10-10",
     items: [

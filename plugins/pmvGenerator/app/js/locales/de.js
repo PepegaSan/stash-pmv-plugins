@@ -1875,4 +1875,7 @@ export default {
   "Hover previews on or off": "Hover-Vorschauen an oder aus",
   "Previews on": "Vorschau an",
   "Previews off": "Vorschau aus",
+  "Mouse wheel on the video": "Mausrad auf dem Video",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Mit dem Mausrad über dem Bild Lautstärke ändern oder springen (5 s pro Raste); mit Umschalt die jeweils andere Funktion.",
+  "Jump forward / back": "Vor- / zurückspringen",
 };

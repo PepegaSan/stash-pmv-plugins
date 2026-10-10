@@ -1860,4 +1860,7 @@ export default {
   "Hover previews on or off": "Aperçus au survol activés ou désactivés",
   "Previews on": "Aperçus activés",
   "Previews off": "Aperçus désactivés",
+  "Mouse wheel on the video": "Molette de la souris sur la vidéo",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Tournez la molette sur l'image pour changer le volume ou sauter dans la vidéo (5 s par cran) ; maintenez Maj pour l'autre fonction.",
+  "Jump forward / back": "Sauter en avant / en arrière",
 };

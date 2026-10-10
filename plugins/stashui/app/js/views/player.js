@@ -1524,6 +1524,29 @@ export async function render(host, params, query = {}) {
   }
   const skipBy = (s) => seekTo(v.currentTime + s, s < 0 ? `−${-s} s` : `+${s} s`);
 
+  // Mouse wheel on the picture: volume or seeking (Settings → Player and previews); Shift swaps the two
+  let wheelAt = 0;
+  stage.addEventListener(
+    "wheel",
+    (e) => {
+      const how = store.get("player", {}).wheel || "volume";
+      if (how === "off" || e.ctrlKey || !e.deltaY || (e.target.closest && e.target.closest("[data-side], input, button, select, textarea, canvas"))) return;
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1 : -1;
+      if ((how === "volume") !== e.shiftKey) {
+        v.muted = false;
+        v.volume = Math.max(0, Math.min(1, Math.round((v.volume + dir * 0.05) * 100) / 100));
+        prefs.volume = v.volume;
+        syncVol();
+        flash(`♪ ${Math.round(v.volume * 100)} %`);
+      } else if (Date.now() - wheelAt > 90) {
+        wheelAt = Date.now();
+        skipBy(dir * 5);
+      }
+    },
+    { passive: false }
+  );
+
   const onKey = (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return; // (the browser's own keys: Ctrl+R reloads, Ctrl+F searches …)
     if (e.target.closest && e.target.closest("input, textarea, select, .kb-drawer, .kb-dialog")) return;

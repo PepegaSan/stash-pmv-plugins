@@ -1979,4 +1979,7 @@ export default {
   "Hover previews on or off": "悬停预览开或关",
   "Previews on": "预览开",
   "Previews off": "预览关",
+  "Mouse wheel on the video": "视频上的鼠标滚轮",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "在画面上滚动滚轮可调节音量或跳转（每格 5 秒）；按住 Shift 使用另一种。",
+  "Jump forward / back": "向前/向后跳转",
 };

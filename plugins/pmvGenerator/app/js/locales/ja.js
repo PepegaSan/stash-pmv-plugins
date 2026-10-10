@@ -1922,4 +1922,7 @@ export default {
   "Hover previews on or off": "ホバープレビューのオン/オフ",
   "Previews on": "プレビュー オン",
   "Previews off": "プレビュー オフ",
+  "Mouse wheel on the video": "動画上のマウスホイール",
+  "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "映像の上でホイールを回すと音量の変更またはジャンプ（1目盛り5秒）ができます。Shift を押すともう一方になります。",
+  "Jump forward / back": "前後にジャンプ",
 };
