@@ -1857,4 +1857,13 @@ export default {
   "{n} menu entries": "{n} Menüeinträge",
   "{n} pages": "{n} Seiten",
   "{n} slots": "{n} Slots",
+  "Age at death": "Alter beim Tod",
+  "Age at scene date": "Alter am Szenendatum",
+  "Age now": "Alter heute",
+  "No birthdate": "Kein Geburtsdatum",
+  "One frame earlier": "Ein Bild früher",
+  "One frame later": "Ein Bild später",
+  "Recently used": "Zuletzt verwendet",
+  "Scene has no date": "Die Szene hat kein Datum",
+  "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Bildgenau: ↑ ↓ in einem Feld (oder die Schaltflächen – gedrückt halten wiederholt) ändern die Zeit um ein Bild, mit Umschalt um eine Sekunde, mit Alt um eine Zehntelsekunde. Das Video folgt, so sehen Sie das Bild. Die Tasten , und . schalten das Video selbst Bild für Bild weiter.",
 };

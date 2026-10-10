@@ -1902,4 +1902,13 @@ export default {
   "{n} menu entries": "{n} pozycji menu",
   "{n} pages": "{n} stron",
   "{n} slots": "{n} slotów",
+  "Age at death": "Wiek w chwili śmierci",
+  "Age at scene date": "Wiek w dniu sceny",
+  "Age now": "Obecny wiek",
+  "No birthdate": "Brak daty urodzenia",
+  "One frame earlier": "Jedna klatka wcześniej",
+  "One frame later": "Jedna klatka później",
+  "Recently used": "Ostatnio użyte",
+  "Scene has no date": "Scena nie ma daty",
+  "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Dokładnie co do klatki: ↑ ↓ w polu (lub przyciski – przytrzymaj, by powtarzać) zmieniają czas o jedną klatkę, z Shift o sekundę, z Alt o jedną dziesiątą sekundy. Wideo podąża za zmianą, więc widzisz tę klatkę. Klawisze , i . przesuwają samo wideo klatka po klatce.",
 };

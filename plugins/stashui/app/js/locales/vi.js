@@ -1897,4 +1897,13 @@ export default {
   "{n} menu entries": "{n} mục menu",
   "{n} pages": "{n} trang",
   "{n} slots": "{n} vị trí chèn",
+  "Age at death": "Tuổi khi mất",
+  "Age at scene date": "Tuổi vào ngày quay",
+  "Age now": "Tuổi hiện nay",
+  "No birthdate": "Chưa có ngày sinh",
+  "One frame earlier": "Lùi một khung hình",
+  "One frame later": "Tiến một khung hình",
+  "Recently used": "Dùng gần đây",
+  "Scene has no date": "Cảnh không có ngày",
+  "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Chính xác đến từng khung hình: ↑ ↓ trong ô nhập (hoặc các nút – giữ để lặp lại) đổi thời gian một khung hình, kèm Shift là một giây, kèm Alt là một phần mười giây. Video đi theo nên bạn thấy đúng khung hình. Phím , và . chuyển chính video từng khung hình.",
 };

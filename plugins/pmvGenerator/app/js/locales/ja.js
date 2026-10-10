@@ -1904,4 +1904,13 @@ export default {
   "{n} menu entries": "メニュー項目 {n} 件",
   "{n} pages": "ページ {n} 件",
   "{n} slots": "スロット {n} 件",
+  "Age at death": "死亡時の年齢",
+  "Age at scene date": "撮影日の年齢",
+  "Age now": "現在の年齢",
+  "No birthdate": "生年月日なし",
+  "One frame earlier": "1フレーム前",
+  "One frame later": "1フレーム後",
+  "Recently used": "最近使用",
+  "Scene has no date": "シーンに日付がありません",
+  "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "フレーム単位で調整：入力欄で ↑ ↓（またはボタン。押し続けると連続）を押すと1フレームずつ、Shift で1秒、Alt で0.1秒ずつ時間が変わります。動画が追従するので、そのフレームが見えます。, と . のキーでは動画自体がコマ送りされます。",
 };

@@ -1879,4 +1879,13 @@ export default {
   "{n} menu entries": "{n} entradas de menú",
   "{n} pages": "{n} páginas",
   "{n} slots": "{n} ranuras",
+  "Age at death": "Edad al fallecer",
+  "Age at scene date": "Edad en la fecha de la escena",
+  "Age now": "Edad actual",
+  "No birthdate": "Sin fecha de nacimiento",
+  "One frame earlier": "Un fotograma antes",
+  "One frame later": "Un fotograma después",
+  "Recently used": "Usados recientemente",
+  "Scene has no date": "La escena no tiene fecha",
+  "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Exacto al fotograma: ↑ ↓ en un campo (o los botones – mantén pulsado para repetir) cambian el tiempo un fotograma, con Mayús un segundo, con Alt una décima de segundo. El vídeo lo sigue, así que ves el fotograma. Las teclas , y . avanzan el propio vídeo fotograma a fotograma.",
 };
