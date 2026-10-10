@@ -16,6 +16,7 @@ import { logEvent } from "../eventlog.js";
 import { tierNow, ensureTiers } from "../tiers.js";
 import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
+import { createSlowmo, slowmoSupported } from "../slowmo.js";
 import { openMarkerEdit } from "../markeredit.js";
 import { generatePreviews } from "../genprev.js";
 import { fpsOf, stepFrame, snap, fmtExact } from "../frames.js";
@@ -237,7 +238,8 @@ export async function render(host, params, query = {}) {
     return `<div class="kb-pmenu-sec"><b>${t("Quality")}</b>${q.map(([i, l]) => row("data-q", i, l, i === srcIdx)).join("")}</div>` +
       `<div class="kb-pmenu-sec"><b>${t("Subtitles")}</b>${caps.length ? row("data-sub", -1, t("Off"), on < 0) + [...v.textTracks].map((tt, k) => row("data-sub", k, tt.label, on === k)).join("") : `<span class="kb-pmenu-opt is-disabled"><i></i>${t("No subtitles for this video")}</span>`}</div>` +
       (vr ? `<div class="kb-pmenu-sec"><b>VR</b><div class="kb-pmenu-speeds">${[["", t("Off"), ""], ["180", "180°", ""], ["180sbs", "180° SBS", t("180° side by side")], ["360", "360°", ""], ["360tb", "360° TB", t("360° top/bottom")], ["360sbs", "360° SBS", t("360° side by side")]].map(([m, l, title]) => `<button type="button" class="kb-chip${vr.mode === m ? " is-on" : ""}" data-vr="${m}"${title ? ` title="${esc(title)}"` : ""}>${l}</button>`).join("")}</div></div>` : "") +
-      `<div class="kb-pmenu-sec"><b>${t("Speed")}</b><div class="kb-pmenu-speeds">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => `<button type="button" class="kb-chip${v.playbackRate === s ? " is-on" : ""}" data-rate="${s}">${s}×</button>`).join("")}</div></div>` +
+      `<div class="kb-pmenu-sec"><b>${t("Speed")}</b><div class="kb-pmenu-speeds">${[0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => `<button type="button" class="kb-chip${v.playbackRate === s ? " is-on" : ""}" data-rate="${s}">${s}×</button>`).join("")}</div>` +
+      (slowmoSupported() ? `<b title="${esc(t("Below 1× the missing pictures in between are made up on your graphics card – nothing to download"))}">${t("Smooth slow motion")}</b><div class="kb-pmenu-speeds">${[["off", "Off", ""], ["blend", "Blend", "Cross-fades the pictures – cheap, moving things leave a ghost"], ["motion", "Motion", "Follows the movement of the picture (uses the graphics card)"]].map(([m, l, h]) => `<button type="button" class="kb-chip${smoothMode() === m ? " is-on" : ""}" data-smooth="${m}"${h ? ` title="${esc(t(h))}"` : ""}>${t(l)}</button>`).join("")}</div>` : "") + `</div>` +
       `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${prefs.randomStart ? " is-on" : ""}" data-randstart title="${esc(t("Every scene starts somewhere in the middle – for browsing around. Your resume points in Stash stay as they are."))}">${prefs.randomStart ? icon("check") : "<i></i>"}${t("Start at a random spot")}</button>` +
       `<button type="button" class="kb-pmenu-opt" data-addmark>${icon("drop")}${t("Add a marker here (B)")}</button></div>` +
       (canCast ? `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${casting() ? " is-on" : ""}" data-cast>${icon("cast")}${casting() ? t("Casting – choose another device") : t("Cast to TV")}</button></div>` : "");
@@ -259,6 +261,9 @@ export async function render(host, params, query = {}) {
   }
   // VR: remembered choice for this scene, otherwise guessed from file name and tags
   const vr = createVR($(".kb-screen"), v);
+  // Smooth slow motion: below 1× the pictures in between are made up (slowmo.js)
+  const smoothMode = () => (["off", "blend", "motion"].includes(prefs.slowSmooth) ? prefs.slowSmooth : "motion");
+  const slow = createSlowmo(v, { mode: smoothMode, off: () => !!vr.mode });
   const stopGlow = videoGlow(stage, v);
   const vrSaved = store.get("vrScenes", {});
   if (vr) vr.setMode(x.id in vrSaved ? vrSaved[x.id] : guessVR(f.basename, x.tags));
@@ -317,6 +322,10 @@ export async function render(host, params, query = {}) {
     else if (b.dataset.addmark != null) {
       closeMenu();
       return addMarker();
+    } else if (b.dataset.smooth) {
+      prefs.slowSmooth = b.dataset.smooth;
+      savePrefs();
+      slow.update();
     } else if (b.dataset.rate) v.playbackRate = v.defaultPlaybackRate = Number(b.dataset.rate); // default: survives a quality switch
     paintMenu();
   });
@@ -1609,6 +1618,7 @@ export async function render(host, params, query = {}) {
     document.removeEventListener("fullscreenchange", onFsChange);
     document.removeEventListener("pointerdown", onDocDown, true);
     if (vr) vr.destroy();
+    slow.destroy();
     stopGlow();
     flushActivity(true);
     const tEnd = v.currentTime;

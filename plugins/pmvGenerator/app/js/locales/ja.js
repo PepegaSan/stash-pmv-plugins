@@ -1925,4 +1925,10 @@ export default {
   "Mouse wheel on the video": "動画上のマウスホイール",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "映像の上でホイールを回すと音量の変更またはジャンプ（1目盛り5秒）ができます。Shift を押すともう一方になります。",
   "Jump forward / back": "前後にジャンプ",
+  "Smooth slow motion": "なめらかなスロー再生",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "1×未満では、間のコマをグラフィックスカードで補います。ダウンロードは不要です",
+  "Blend": "ブレンド",
+  "Motion": "モーション",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "コマ同士をクロスフェードします。軽いですが、動くものに残像が出ます",
+  "Follows the movement of the picture (uses the graphics card)": "映像の動きを追跡します（グラフィックスカードを使用）",
 };

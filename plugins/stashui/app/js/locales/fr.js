@@ -1863,4 +1863,10 @@ export default {
   "Mouse wheel on the video": "Molette de la souris sur la vidéo",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Tournez la molette sur l'image pour changer le volume ou sauter dans la vidéo (5 s par cran) ; maintenez Maj pour l'autre fonction.",
   "Jump forward / back": "Sauter en avant / en arrière",
+  "Smooth slow motion": "Ralenti fluide",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "En dessous de 1×, les images manquantes sont calculées par votre carte graphique – rien à télécharger",
+  "Blend": "Fondu",
+  "Motion": "Mouvement",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "Fondu enchaîné entre les images – léger, mais les objets en mouvement laissent un fantôme",
+  "Follows the movement of the picture (uses the graphics card)": "Suit le mouvement de l'image (utilise la carte graphique)",
 };

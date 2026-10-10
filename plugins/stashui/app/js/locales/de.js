@@ -1878,4 +1878,10 @@ export default {
   "Mouse wheel on the video": "Mausrad auf dem Video",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Mit dem Mausrad über dem Bild Lautstärke ändern oder springen (5 s pro Raste); mit Umschalt die jeweils andere Funktion.",
   "Jump forward / back": "Vor- / zurückspringen",
+  "Smooth slow motion": "Flüssige Zeitlupe",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "Unter 1× werden die fehlenden Zwischenbilder von der Grafikkarte berechnet – nichts herunterzuladen",
+  "Blend": "Überblenden",
+  "Motion": "Bewegung",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "Blendet die Bilder ineinander – sparsam, aber Bewegtes zieht einen Geisterschatten",
+  "Follows the movement of the picture (uses the graphics card)": "Folgt der Bewegung im Bild (nutzt die Grafikkarte)",
 };

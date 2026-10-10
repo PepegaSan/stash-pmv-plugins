@@ -1918,4 +1918,10 @@ export default {
   "Mouse wheel on the video": "Con lăn chuột trên video",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Cuộn con lăn trên hình để đổi âm lượng hoặc tua (5 giây mỗi nấc); giữ Shift để dùng chức năng còn lại.",
   "Jump forward / back": "Tua tới / lui",
+  "Smooth slow motion": "Chuyển động chậm mượt",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "Dưới 1×, các khung hình còn thiếu ở giữa được card đồ họa tạo ra – không cần tải gì",
+  "Blend": "Pha trộn",
+  "Motion": "Theo chuyển động",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "Chuyển mờ giữa các khung hình – nhẹ, nhưng vật chuyển động để lại bóng mờ",
+  "Follows the movement of the picture (uses the graphics card)": "Bám theo chuyển động của hình ảnh (dùng card đồ họa)",
 };

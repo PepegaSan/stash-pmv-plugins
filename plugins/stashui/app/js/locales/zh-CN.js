@@ -1982,4 +1982,10 @@ export default {
   "Mouse wheel on the video": "视频上的鼠标滚轮",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "在画面上滚动滚轮可调节音量或跳转（每格 5 秒）；按住 Shift 使用另一种。",
   "Jump forward / back": "向前/向后跳转",
+  "Smooth slow motion": "流畅慢动作",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "低于 1× 时，中间缺失的画面由显卡补出——无需下载任何东西",
+  "Blend": "混合",
+  "Motion": "运动跟随",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "在画面之间交叉淡化——开销小，但移动的物体会留下重影",
+  "Follows the movement of the picture (uses the graphics card)": "跟随画面的运动（使用显卡）",
 };

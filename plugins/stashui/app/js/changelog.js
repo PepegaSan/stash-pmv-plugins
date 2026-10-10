@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.87.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Smooth slow motion in the player. The speed menu (gear) now goes down to 0.25× and 0.1×, and below 1× the pictures in between are made up so it stays fluid instead of stuttering: “Motion” follows the movement of the picture (block matching on the graphics card, WebGL – no model, nothing to download), “Blend” only cross-fades, “Off” plays the plain video. Where the motion doesn't fit (cuts, things appearing) it falls back to the blend. Not for VR videos; needs a browser with WebGL 2.", "播放器中的流畅慢动作。速度菜单（齿轮）现在可以降到 0.25× 和 0.1×；低于 1× 时会补出中间的画面，使画面保持流畅而不是卡顿：“运动跟随”会跟踪画面的运动（在显卡上做块匹配，WebGL——无需模型，无需下载任何东西），“混合”只做交叉淡化，“关”则播放原始视频。运动无法匹配的地方（切镜头、物体出现）会回退到混合。不适用于 VR 视频；需要支持 WebGL 2 的浏览器。"],
+    ],
+  },
+  {
     v: "3.86.0",
     date: "2026-10-10",
     items: [

@@ -1900,4 +1900,10 @@ export default {
   "Mouse wheel on the video": "Rueda del ratón sobre el vídeo",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Gira la rueda sobre la imagen para cambiar el volumen o saltar (5 s por paso); con Mayús, la otra función.",
   "Jump forward / back": "Saltar adelante / atrás",
+  "Smooth slow motion": "Cámara lenta fluida",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "Por debajo de 1× los fotogramas intermedios se calculan con tu tarjeta gráfica – nada que descargar",
+  "Blend": "Mezcla",
+  "Motion": "Movimiento",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "Fundido entre fotogramas – ligero, pero lo que se mueve deja un fantasma",
+  "Follows the movement of the picture (uses the graphics card)": "Sigue el movimiento de la imagen (usa la tarjeta gráfica)",
 };

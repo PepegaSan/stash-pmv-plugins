@@ -1923,4 +1923,10 @@ export default {
   "Mouse wheel on the video": "Kółko myszy nad filmem",
   "Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.": "Obracaj kółko nad obrazem, aby zmieniać głośność lub przeskakiwać (5 s na ząbek); z Shift działa druga funkcja.",
   "Jump forward / back": "Przeskok do przodu / do tyłu",
+  "Smooth slow motion": "Płynne zwolnione tempo",
+  "Below 1× the missing pictures in between are made up on your graphics card – nothing to download": "Poniżej 1× brakujące klatki pośrednie wylicza karta graficzna – nic nie trzeba pobierać",
+  "Blend": "Mieszanie",
+  "Motion": "Ruch",
+  "Cross-fades the pictures – cheap, moving things leave a ghost": "Płynne przenikanie klatek – lekkie, ale poruszające się obiekty zostawiają ducha",
+  "Follows the movement of the picture (uses the graphics card)": "Śledzi ruch w obrazie (używa karty graficznej)",
 };
