@@ -39,6 +39,8 @@ const ICONS = {
   pause: '<path d="M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z" fill="currentColor"/>',
   next: '<path d="M5 5v14l10-7zM16.5 5H19v14h-2.5z" fill="currentColor"/>',
   prev: '<path d="M19 5v14L9 12zM7.5 5H5v14h2.5z" fill="currentColor"/>',
+  framePrev: '<g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 5v14"/><path d="M17 6l-6 6 6 6"/></g>',
+  frameNext: '<g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 5v14"/><path d="M7 6l6 6-6 6"/></g>',
   // from the beginning: a turning arrow around a small play triangle
   replay: '<g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 12.5a7.5 7.5 0 1 0 2.3-6.1"/><path d="M5 3.8v3.9h3.9"/></g><path d="M10.4 9.3v5.6l4.4-2.8z" fill="currentColor"/>',
   // 10 seconds back / forward: a turning arrow with "10" in it

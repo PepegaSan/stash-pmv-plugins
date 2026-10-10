@@ -5,6 +5,7 @@
 import { icon, store, toast, errorToast, plural, confirmDialog } from "./ui.js";
 import { t } from "./i18n.js";
 import { setFavorite, destroyItems, favoriteTagId } from "./api.js";
+import { generatePreviews } from "./genprev.js";
 import { app, setQueueCount } from "./main.js";
 
 const UNIT = { scene: ["scene", "scenes"], image: ["image", "images"], gallery: ["gallery", "galleries"] };
@@ -56,6 +57,7 @@ export function refresh() {
     <button class="kb-btn" data-b="fav"><span class="kb-dotmini"></span>${t("Favorite")}</button>
     <button class="kb-btn" data-b="unfav">${t("Remove favorite")}</button>
     ${kinds.size === 1 ? `<button class="kb-btn" data-b="edit">${icon("edit")}${t("Edit")}</button>` : ""}
+    ${canQueue ? `<button class="kb-btn" data-b="genprev" title="${t("Makes the missing hover previews, timeline images and thumbnails of just these items")}">${t("Generate previews")}</button>` : ""}
     ${canQueue ? `<button class="kb-btn" data-b="queue">${icon("queue")}${t("Add to queue")}</button>` : ""}
     <button class="kb-btn is-danger" data-b="delete">${icon("trash")}${t("Delete")}</button>
     <span class="kb-spacer"></span>
@@ -87,6 +89,11 @@ async function onClick(e) {
         sel.forEach(({ h, p }) => h.update(Object.assign({}, p, { fav: on })));
         toast(on ? t("{what} marked as favorite", { what: plural(sel.length, "item", "items") }) : t("Favorites removed"), "ok");
         return;
+      }
+      case "genprev": {
+        const groups = byKind(sel);
+        for (const k of Object.keys(groups)) if (k !== "gallery") await generatePreviews(k, groups[k]);
+        return clearAll();
       }
       case "queue": {
         const q = store.get("queue", []);

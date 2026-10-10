@@ -16,7 +16,10 @@ import { logEvent } from "../eventlog.js";
 import { tierNow, ensureTiers } from "../tiers.js";
 import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
+import { createSlowmo, slowmoSupported } from "../slowmo.js";
 import { openMarkerEdit } from "../markeredit.js";
+import { generatePreviews } from "../genprev.js";
+import { fpsOf, stepFrame, snap, fmtExact } from "../frames.js";
 import { videoGlow } from "../theme.js";
 import { mountSlots } from "../ext.js";
 import { BINS, watchRecorder, watchBins, motionBins, combine, peaks } from "../heat.js";
@@ -130,6 +133,7 @@ export async function render(host, params, query = {}) {
     return;
   }
   const f = x.files[0] || {};
+  const fps = fpsOf(x); // for frame-exact stepping and markers
   const setShape = (w, h) => w && h && host.querySelector(".kb-stage") && host.querySelector(".kb-stage").style.setProperty("--ar", (w / h).toFixed(4));
   const prefs = Object.assign({ volume: 0.8, muted: false, auto: true, random: false, loop: false, panel: true, heat: true }, store.get("player", {}));
   // How it goes on – one button that cycles (was: three switches Random / Endless / Loop)
@@ -249,7 +253,8 @@ export async function render(host, params, query = {}) {
     return `<div class="kb-pmenu-sec"><b>${t("Quality")}</b>${q.map(([i, l]) => row("data-q", i, l, i === srcIdx)).join("")}</div>` +
       `<div class="kb-pmenu-sec"><b>${t("Subtitles")}</b>${caps.length ? row("data-sub", -1, t("Off"), on < 0) + [...v.textTracks].map((tt, k) => row("data-sub", k, tt.label, on === k)).join("") : `<span class="kb-pmenu-opt is-disabled"><i></i>${t("No subtitles for this video")}</span>`}</div>` +
       (vr ? `<div class="kb-pmenu-sec"><b>VR</b><div class="kb-pmenu-speeds">${[["", t("Off"), ""], ["180", "180°", ""], ["180sbs", "180° SBS", t("180° side by side")], ["360", "360°", ""], ["360tb", "360° TB", t("360° top/bottom")], ["360sbs", "360° SBS", t("360° side by side")]].map(([m, l, title]) => `<button type="button" class="kb-chip${vr.mode === m ? " is-on" : ""}" data-vr="${m}"${title ? ` title="${esc(title)}"` : ""}>${l}</button>`).join("")}</div></div>` : "") +
-      `<div class="kb-pmenu-sec"><b>${t("Speed")}</b><div class="kb-pmenu-speeds">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => `<button type="button" class="kb-chip${v.playbackRate === s ? " is-on" : ""}" data-rate="${s}">${s}×</button>`).join("")}</div></div>` +
+      `<div class="kb-pmenu-sec"><b>${t("Speed")}</b><div class="kb-pmenu-speeds">${[0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => `<button type="button" class="kb-chip${v.playbackRate === s ? " is-on" : ""}" data-rate="${s}">${s}×</button>`).join("")}</div>` +
+      (slowmoSupported() ? `<b title="${esc(t("Below 1× the missing pictures in between are made up on your graphics card – nothing to download"))}">${t("Smooth slow motion")}</b><div class="kb-pmenu-speeds">${[["off", "Off", ""], ["blend", "Blend", "Cross-fades the pictures – cheap, moving things leave a ghost"], ["motion", "Motion", "Follows the movement of the picture (uses the graphics card)"]].map(([m, l, h]) => `<button type="button" class="kb-chip${smoothMode() === m ? " is-on" : ""}" data-smooth="${m}"${h ? ` title="${esc(t(h))}"` : ""}>${t(l)}</button>`).join("")}</div>` : "") + `</div>` +
       `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${prefs.randomStart ? " is-on" : ""}" data-randstart title="${esc(t("Every scene starts somewhere in the middle – for browsing around. Your resume points in Stash stay as they are."))}">${prefs.randomStart ? icon("check") : "<i></i>"}${t("Start at a random spot")}</button>` +
       `<button type="button" class="kb-pmenu-opt" data-addmark>${icon("drop")}${t("Add a marker here (B)")}</button></div>` +
       (canCast ? `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${casting() ? " is-on" : ""}" data-cast>${icon("cast")}${casting() ? t("Casting – choose another device") : t("Cast to TV")}</button></div>` : "");
@@ -271,6 +276,9 @@ export async function render(host, params, query = {}) {
   }
   // VR: remembered choice for this scene, otherwise guessed from file name and tags
   const vr = createVR($(".kb-screen"), v);
+  // Smooth slow motion: below 1× the pictures in between are made up (slowmo.js)
+  const smoothMode = () => (["off", "blend", "motion"].includes(prefs.slowSmooth) ? prefs.slowSmooth : "motion");
+  const slow = createSlowmo(v, { mode: smoothMode, off: () => !!vr.mode });
   const stopGlow = videoGlow(stage, v);
   const vrSaved = store.get("vrScenes", {});
   if (vr) vr.setMode(x.id in vrSaved ? vrSaved[x.id] : guessVR(f.basename, x.tags));
@@ -329,6 +337,10 @@ export async function render(host, params, query = {}) {
     else if (b.dataset.addmark != null) {
       closeMenu();
       return addMarker();
+    } else if (b.dataset.smooth) {
+      prefs.slowSmooth = b.dataset.smooth;
+      savePrefs();
+      slow.update();
     } else if (b.dataset.rate) v.playbackRate = v.defaultPlaybackRate = Number(b.dataset.rate); // default: survives a quality switch
     paintMenu();
   });
@@ -917,11 +929,12 @@ export async function render(host, params, query = {}) {
       toast(t("Use Quick Markers: Shift+M instant, Shift+I then Shift+O for a range."), "info");
       return;
     }
-    const at = Math.round(v.currentTime * 10) / 10;
+    const at = snap(v.currentTime, fps);
     try {
       const tag = await markerTag();
       const d = await gql(`mutation($i: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $i) { id title seconds primary_tag { id name } } }`, { i: { scene_id: x.id, seconds: at, primary_tag_id: tag, title: "" } });
       x.scene_markers = [...(x.scene_markers || []), d.sceneMarkerCreate];
+      generatePreviews("marker", [d.sceneMarkerCreate.id], { quiet: true });
       paintMarkers();
       toast(t("Marker at {time}", { time: fmtDuration(at) }), "ok");
     } catch (e) {
@@ -1575,11 +1588,7 @@ export async function render(host, params, query = {}) {
 
   // Jumping: from the beginning, 10 s back / forward – with a short note on the picture
   let flashT = 0;
-  function seekTo(at, note) {
-    const end = (v.duration || dur || 0) - 0.5;
-    v.currentTime = Math.max(0, end > 0 ? Math.min(at, end) : at);
-    watch.seeked(v.currentTime);
-    if (v.paused && at === 0) v.play().catch(() => {});
+  function flash(note) {
     const f = $("[data-seekflash]");
     if (!f) return;
     f.textContent = note;
@@ -1589,7 +1598,43 @@ export async function render(host, params, query = {}) {
     clearTimeout(flashT);
     flashT = setTimeout(() => f.classList.remove("is-on"), 700);
   }
+  function seekTo(at, note) {
+    const end = (v.duration || dur || 0) - 0.5;
+    v.currentTime = Math.max(0, end > 0 ? Math.min(at, end) : at);
+    watch.seeked(v.currentTime);
+    if (v.paused && at === 0) v.play().catch(() => {});
+    flash(note);
+  }
+  // Frame by frame (the keys , and .): stops the video and shows the exact time, so "Here" in the marker editor can take it
+  function stepBy(n) {
+    stepFrame(v, fps, n);
+    watch.seeked(v.currentTime);
+    flash(`${n < 0 ? "◂" : "▸"} ${fmtExact(snap(v.currentTime, fps))}`);
+  }
   const skipBy = (s) => seekTo(v.currentTime + s, s < 0 ? `−${-s} s` : `+${s} s`);
+
+  // Mouse wheel on the picture: volume or seeking (Settings → Player and previews); Shift swaps the two
+  let wheelAt = 0;
+  stage.addEventListener(
+    "wheel",
+    (e) => {
+      const how = store.get("player", {}).wheel || "volume";
+      if (how === "off" || e.ctrlKey || !e.deltaY || (e.target.closest && e.target.closest("[data-side], input, button, select, textarea, canvas"))) return;
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1 : -1;
+      if ((how === "volume") !== e.shiftKey) {
+        v.muted = false;
+        v.volume = Math.max(0, Math.min(1, Math.round((v.volume + dir * 0.05) * 100) / 100));
+        prefs.volume = v.volume;
+        syncVol();
+        flash(`♪ ${Math.round(v.volume * 100)} %`);
+      } else if (Date.now() - wheelAt > 90) {
+        wheelAt = Date.now();
+        skipBy(dir * 5);
+      }
+    },
+    { passive: false }
+  );
 
   const onKey = (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return; // (the browser's own keys: Ctrl+R reloads, Ctrl+F searches …)
@@ -1603,6 +1648,7 @@ export async function render(host, params, query = {}) {
     else if (k === "arrowright") (v.currentTime += e.shiftKey ? 30 : 5), watch.seeked(v.currentTime);
     else if (k === "arrowleft") (v.currentTime -= e.shiftKey ? 30 : 5), watch.seeked(v.currentTime);
     else if (k === "j") nextHighlight();
+    else if (k === "," || k === ".") stepBy(k === "," ? -1 : 1);
     else if (k === "home") seekTo(0, "↺ 0:00");
     else if (k === "arrowup") (v.volume = Math.min(1, v.volume + 0.05)), (prefs.volume = v.volume), syncVol();
     else if (k === "arrowdown") (v.volume = Math.max(0, v.volume - 0.05)), (prefs.volume = v.volume), syncVol();
@@ -1661,6 +1707,7 @@ export async function render(host, params, query = {}) {
     document.removeEventListener("fullscreenchange", onFsChange);
     document.removeEventListener("pointerdown", onDocDown, true);
     if (vr) vr.destroy();
+    slow.destroy();
     stopGlow();
     flushActivity(true);
     const tEnd = v.currentTime;

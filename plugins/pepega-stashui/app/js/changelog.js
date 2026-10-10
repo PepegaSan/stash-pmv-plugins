@@ -4,6 +4,77 @@
 
 export const CHANGES = [
   {
+    v: "3.87.2",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Markers page: tiles now sit in rows like on the Scenes page – every row has one height and each tile is as wide as its video's shape needs (upright, wide or square), so there are no more gaps between wide and upright tiles. The size slider now sets the row height.", "“标记”页面：卡片现在像“场景”页面一样按行排列——每行高度一致，每张卡片的宽度由视频自身的形状决定（竖屏、横屏或方形），因此横屏和竖屏卡片之间不再有空隙。大小滑块现在调整的是行高。"],
+    ],
+  },
+  {
+    v: "3.87.1",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Fixed: upright videos on the Markers page. Their tiles were wide and zoomed into the middle of the picture, so you saw almost nothing – now a marker of an upright video gets an upright tile in the video's own shape (the size slider still sets the width).", "已修复：“标记”页面中的竖屏视频。它们的卡片是横向的，并放大到画面中间，几乎什么都看不到——现在竖屏视频的标记会使用与视频自身比例相同的竖向卡片（大小滑块仍可调整宽度）。"],
+    ],
+  },
+  {
+    v: "3.87.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Smooth slow motion in the player. The speed menu (gear) now goes down to 0.25× and 0.1×, and below 1× the pictures in between are made up so it stays fluid instead of stuttering: “Motion” follows the movement of the picture (block matching on the graphics card, WebGL – no model, nothing to download), “Blend” only cross-fades, “Off” plays the plain video. Where the motion doesn't fit (cuts, things appearing) it falls back to the blend. Not for VR videos; needs a browser with WebGL 2.", "播放器中的流畅慢动作。速度菜单（齿轮）现在可以降到 0.25× 和 0.1×；低于 1× 时会补出中间的画面，使画面保持流畅而不是卡顿：“运动跟随”会跟踪画面的运动（在显卡上做块匹配，WebGL——无需模型，无需下载任何东西），“混合”只做交叉淡化，“关”则播放原始视频。运动无法匹配的地方（切镜头、物体出现）会回退到混合。不适用于 VR 视频；需要支持 WebGL 2 的浏览器。"],
+    ],
+  },
+  {
+    v: "3.86.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Mouse wheel in the player: turning the wheel over the picture changes the volume (5 % per notch); with Shift it jumps 5 s instead. Settings → Player and previews → “Mouse wheel on the video” switches between volume, jumping and off. (Asked for by a user who relied on the VideoScrollWheel plugin of classic Stash, which can't reach the new player.)", "播放器中的鼠标滚轮：在画面上滚动滚轮可调节音量（每格 5%）；按住 Shift 则改为跳转 5 秒。在“设置 → 播放器和预览 → 视频上的鼠标滚轮”中可切换为音量、跳转或关闭。（应一位依赖经典 Stash 的 VideoScrollWheel 插件的用户的请求而加入，该插件无法作用于新播放器。）"],
+    ],
+  },
+  {
+    v: "3.85.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "The Markers page has the same bar as the Scenes page: search, sort order and its direction button, hover previews on / off, sound on / muted (the same switches as for scenes) and a size slider for the cards. Sort, direction and search stay in the address.", "“标记”页面现在拥有与“场景”页面相同的工具栏：搜索、排序及其方向按钮、悬停预览开/关、声音开/静音（与场景使用同一开关）以及卡片大小滑块。排序、方向和搜索会保留在地址中。"],
+    ],
+  },
+  {
+    v: "3.84.2",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Marker hover previews now play with sound (the same “Sound in previews” switch as for scenes). Stash only puts sound into a preview if Settings → Tasks → “Audio in previews” was on when it was made – previews made before stay silent; make them again with “Overwrite existing” in the Generate task.", "标记的悬停预览现在带声音（与场景使用同一个“预览声音”开关）。只有生成预览时“预览中的音频”已开启，Stash 才会把声音放进预览——之前生成的预览仍然没有声音；请在“生成”任务中勾选“覆盖现有”重新生成。"],
+    ],
+  },
+  {
+    v: "3.84.1",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Fixed: marker hover previews. The Markers page asked Stash for the animated picture (WebP) of a marker and tried to play it as a video, so nothing moved – now it plays the marker's video preview (MP4), which Stash makes with “Marker previews”.", "已修复：标记的悬停预览。“标记”页面向 Stash 请求的是标记的动画图片（WebP），却把它当作视频播放，所以没有任何动画——现在改为播放标记的视频预览（MP4），它由 Stash 的“标记预览”生成。"],
+    ],
+  },
+  {
+    v: "3.84.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Previews on demand. New markers (key B, “Add a part …”) and edited ones now get their hover preview and picture made by Stash right after saving. On the Markers page, “Generate missing previews” makes them for all markers that have none. In the selection bar of the Scenes and Images pages (and on the home page), “Generate previews” makes the missing hover previews, timeline images, covers and thumbnails of just the selected items – no need to run the whole library from Tasks. Progress shows under Tasks.", "按需生成预览。新建的标记（按 B、“添加片段 …”）和编辑过的标记，保存后会立即由 Stash 生成悬停预览和图片。在“标记”页面，“生成缺失的预览”会为所有没有预览的标记生成。在场景和图片页面（以及首页）的选择栏中，“生成预览”只为所选项目生成缺失的悬停预览、时间轴图片、封面和缩略图——无需在“任务”中处理整个库。进度显示在“任务”中。"],
+    ],
+  },
+  {
+    v: "3.83.1",
+    date: "2026-10-10",
+    items: [
+      ["pmv", "PMV Generator 2.28.0: main tags. Under What → Main tags you can name tags (e.g. a model) that every clip must have – the normal Tags below only count together with them, also with “Any of the tags”. Clips are drawn from the scenes or images that have the main tags and any of the other tags. (Contributed by PepegaSan.)", "PMV Generator 2.28.0：主标签。在“内容”→“主标签”中可以指定每个片段都必须带有的标签（例如某位模特）——下面普通的标签只在与它们同时满足时才生效，选择“任一标签”时也一样。片段取自同时带有主标签和其他任一标签的场景或图片。（由 PepegaSan 贡献。）"],
+    ],
+  },
+  {
+    v: "3.83.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Performer cards in the player's info bar: the performer's pill shows the age in this scene, and hovering a performer opens a card with photo, gender, country, number of scenes, age on the scene's date, age now and birth date. (Contributed by AffordObedienceUntamed.)", "播放器信息栏中的演员卡片：演员标签上显示其在该场景中的年龄；鼠标悬停在演员上会弹出卡片，显示照片、性别、国家、场景数、拍摄时年龄、现年和出生日期。（由 AffordObedienceUntamed 贡献。）"],
+      ["ui", "Frame-exact markers: the keys , and . step the video one frame back / forward; B sets a marker on the frame you see. The marker editor shows times to the millisecond, has −1 s / −0.1 / frame / +0.1 / +1 s buttons (hold to repeat) and ↑ ↓ in the fields (Shift = second, Alt = tenth); the video follows. The tag lists in the editor show the three tags you used last on top. (Contributed by AffordObedienceUntamed.)", "精确到帧的标记：按 , 和 . 让视频逐帧后退/前进；按 B 会在你看到的那一帧设置标记。标记编辑器显示精确到毫秒的时间，提供 −1 秒 / −0.1 / 帧 / +0.1 / +1 秒按钮（按住可连续），输入框中可用 ↑ ↓（Shift = 一秒，Alt = 十分之一秒），视频会跟随。编辑器中的标签列表会把你最近用过的三个标签放在最前面。（由 AffordObedienceUntamed 贡献。）"],
+    ],
+  },
+  {
     v: "3.82.2",
     date: "2026-10-10",
     items: [

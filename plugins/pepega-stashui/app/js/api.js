@@ -142,8 +142,12 @@ export async function countItems(kind, filter) {
   return d.r.count;
 }
 
+// What the performer cards in the player's info panel show (born, died, country, how many scenes …)
+const PERF_CARD = "id disambiguation gender birthdate death_date country favorite scene_count";
+
 export async function getScene(id) {
-  const d = await gql(`query($id: ID!) { findScene(id: $id) { ${F_SCENE} scene_markers { id title seconds end_seconds primary_tag { id name } tags { id name } } sceneStreams { url mime_type label } captions { language_code caption_type } paths { caption } } }`, { id });
+  // performers a second time: GraphQL merges the selections – only the player needs the details for the hover cards
+  const d = await gql(`query($id: ID!) { findScene(id: $id) { ${F_SCENE} performers { ${PERF_CARD} } scene_markers { id title seconds end_seconds primary_tag { id name } tags { id name } } sceneStreams { url mime_type label } captions { language_code caption_type } paths { caption } } }`, { id });
   return d.findScene;
 }
 export async function getImage(id) {

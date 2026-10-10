@@ -9,6 +9,7 @@ import { perfPicker } from "./perfpicker.js";
 import { tierNow } from "../tiers.js";
 import { tierBadge } from "../versusx.js";
 import { critOf } from "../ratingx.js";
+import { GENDERS, countryOf } from "./performers.js";
 
 function fileInfo(kind, x) {
   if (kind === "scene") {
@@ -25,6 +26,28 @@ function fileInfo(kind, x) {
   return {
     path: f.path,
     lines: [[f.width ? `${f.width} × ${f.height}` : "", f.duration ? fmtDuration(f.duration) : "", fmtBytes(f.size)].filter(Boolean).join(", ")],
+  };
+}
+
+// Age on a day, from the two dates as Stash keeps them ("YYYY-MM-DD", older entries may lack month and day); 0 = unknown
+function ageAt(birth, on) {
+  const re = /^(\d{4})(?:-(\d\d))?(?:-(\d\d))?/;
+  const b = re.exec(birth || "");
+  const d = re.exec(on || "");
+  if (!b || !d) return 0;
+  let a = d[1] - b[1];
+  if (+(d[2] || 1) < +(b[2] || 1) || (+(d[2] || 1) === +(b[2] || 1) && +(d[3] || 1) < +(b[3] || 1))) a--;
+  return a > 0 && a < 130 ? a : 0;
+}
+
+// The numbers of a performer in this scene (the player loads them with getScene; elsewhere there are none)
+function perfFacts(p, x) {
+  if (p.scene_count === undefined) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    scenes: p.scene_count || 0,
+    atScene: ageAt(p.birthdate, x.date),
+    now: ageAt(p.birthdate, p.death_date || today),
   };
 }
 
@@ -50,7 +73,10 @@ export function placardHtml(kind, x) {
       ${
         kind !== "gallery"
           ? `<div class="kb-plc-perfs">${(x.performers || [])
-              .map((p) => `<span class="kb-plc-perfwrap"><a class="kb-plc-perf" href="#/performer/${p.id}"><img alt="" loading="lazy" src="${esc(p.image_path || "")}"><span>${esc(p.name)}</span></a><button type="button" class="kb-plc-perfx" data-perfrm="${p.id}" title="${t("Remove from this {what}", { what: t(kind) })}" aria-label="${t("Remove")}">×</button></span>`)
+              .map((p) => {
+                const age = kind === "scene" && (perfFacts(p, x) || {}).atScene;
+                return `<span class="kb-plc-perfwrap"><a class="kb-plc-perf" href="#/performer/${p.id}" data-perfcard="${p.id}"><img alt="" loading="lazy" src="${esc(p.image_path || "")}"><span>${esc(p.name)}</span>${age ? `<em class="kb-plc-perfage">${age}</em>` : ""}</a><button type="button" class="kb-plc-perfx" data-perfrm="${p.id}" title="${t("Remove from this {what}", { what: t(kind) })}" aria-label="${t("Remove")}">×</button></span>`;
+              })
               .join("")}<button type="button" class="kb-plc-perf kb-plc-perfadd" data-perfadd title="${t("Add a performer")}">${icon("plus")}${(x.performers || []).length ? "" : `<span>${t("Performer")}</span>`}</button><div class="kb-tagpick kb-plc-perfpick" data-perfpick hidden></div></div>`
           : ""
       }
@@ -72,8 +98,92 @@ export function placardHtml(kind, x) {
     </div>`;
 }
 
+// ---------- Performer card: hovering (or focusing) a performer in the info panel ----------
+
+let cardEl = null;
+let cardTimer = 0;
+let cardAnchor = null;
+
+function cardHtml(p, x) {
+  const f = perfFacts(p, x);
+  const gender = (GENDERS.find((g) => g[0] === p.gender) || [])[1];
+  const sub = [gender && t(gender), countryOf(p.country)].filter(Boolean).join(" · ");
+  const stat = (n, label) => `<div class="kb-pcard-stat${n ? "" : " is-none"}"><b>${n || "–"}</b><span>${esc(label)}</span></div>`;
+  const died = !!p.death_date;
+  return `
+    <div class="kb-pcard-head">
+      <img alt="" src="${esc(p.image_path || "")}">
+      <div>
+        <p class="kb-pcard-name">${esc(p.name)}${p.favorite ? '<span class="kb-dotmini"></span>' : ""}</p>
+        ${p.disambiguation ? `<p class="kb-pcard-sub">${esc(p.disambiguation)}</p>` : ""}
+        ${sub ? `<p class="kb-pcard-sub">${esc(sub)}</p>` : ""}
+      </div>
+    </div>
+    <div class="kb-pcard-stats">
+      ${stat(f.scenes, t("Scenes"))}
+      ${stat(f.atScene, t("Age at scene date"))}
+      ${stat(f.now, died ? t("Age at death") : t("Age now"))}
+    </div>
+    <p class="kb-pcard-born">${p.birthdate ? `${t("Born")} ${esc(fmtDate(p.birthdate))}${died ? ` · ${t("Died")} ${esc(fmtDate(p.death_date))}` : ""}` : t("No birthdate")}</p>
+    ${p.birthdate && !x.date ? `<p class="kb-pcard-born">${t("Scene has no date")}</p>` : ""}`;
+}
+
+function hideCard() {
+  clearTimeout(cardTimer);
+  cardAnchor = null;
+  if (cardEl) cardEl.classList.remove("is-on");
+}
+
+function showCard(a, p, x) {
+  if (!cardEl) {
+    cardEl = document.createElement("div");
+    cardEl.className = "kb-pcard";
+    cardEl.setAttribute("role", "tooltip");
+    window.addEventListener("hashchange", hideCard);
+    document.addEventListener("fullscreenchange", hideCard);
+    window.addEventListener("scroll", hideCard, true);
+    window.addEventListener("pointerdown", hideCard, true);
+  }
+  cardAnchor = a;
+  const root = document.fullscreenElement || document.body; // in fullscreen only that element is visible
+  if (cardEl.parentNode !== root) root.appendChild(cardEl);
+  cardEl.innerHTML = cardHtml(p, x);
+  // Below the pill, left-aligned with it; above when the screen ends there; never outside the window
+  const r = a.getBoundingClientRect();
+  const w = cardEl.offsetWidth;
+  const h = cardEl.offsetHeight;
+  const left = Math.max(8, Math.min(r.left, innerWidth - w - 8));
+  const top = r.bottom + 8 + h <= innerHeight ? r.bottom + 8 : Math.max(8, r.top - 8 - h);
+  cardEl.style.left = left + "px";
+  cardEl.style.top = top + "px";
+  cardEl.classList.add("is-on");
+}
+
+function bindPerfCards(host, getItem) {
+  if (matchMedia("(hover: none)").matches) return; // touch: tapping opens the performer, no hover card
+  const anchorOf = (el) => (el && el.closest ? el.closest("[data-perfcard]") : null);
+  const enter = (e) => {
+    const a = anchorOf(e.target);
+    const x = getItem();
+    if (!a || a === cardAnchor || !x) return;
+    const p = (x.performers || []).find((q) => q.id === a.dataset.perfcard);
+    if (!p || !perfFacts(p, x)) return;
+    clearTimeout(cardTimer);
+    cardTimer = setTimeout(() => a.isConnected && showCard(a, p, x), 250);
+  };
+  const leave = (e) => {
+    const a = anchorOf(e.target);
+    if (a && anchorOf(e.relatedTarget) !== a) hideCard();
+  };
+  host.addEventListener("mouseover", enter);
+  host.addEventListener("focusin", enter);
+  host.addEventListener("mouseout", leave);
+  host.addEventListener("focusout", leave);
+}
+
 // Binds the buttons; refresh() reloads the details and redraws the placard.
 export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder, music, cover, funscript, position, cut }) {
+  bindPerfCards(host, getItem);
   host.addEventListener("click", async (e) => {
     const x = getItem();
     if (!x) return;

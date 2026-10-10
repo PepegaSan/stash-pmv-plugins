@@ -4,6 +4,7 @@
 import { esc, icon, store, debounce, seed, errorToast, toast, plural, fmtNum, confirmDialog, promptDialog, starsHtml, ratingFilterSteps } from "../ui.js";
 import { filterOf, QUERY_KEYS, loadPlaylists, savePlaylists, labelsFor, linkOf } from "../playlists.js";
 import { t } from "../i18n.js";
+import { generatePreviews } from "../genprev.js";
 import { findItems, findIds, favoriteTagId, setFavorite, bulkUpdate, destroyItems } from "../api.js";
 import { ensureTiers, hasTiers } from "../tiers.js";
 import { restrictIds, critInfo, critKinds, parseCrit, critStr, critText, sortByCrit, openCritFilter } from "../ratingx.js";
@@ -464,6 +465,7 @@ export function mediaBrowser(host, opts) {
       <button class="kb-btn" data-b="fav"><span class="kb-dotmini"></span>${t("Favorite")}</button>
       <button class="kb-btn" data-b="unfav">${t("Remove favorite")}</button>
       <button class="kb-btn" data-b="edit">${icon("edit")}${t("Edit")}</button>
+      ${kind !== "gallery" ? `<button class="kb-btn" data-b="genprev" title="${t("Makes the missing hover previews, timeline images and thumbnails of just these items")}">${t("Generate previews")}</button>` : ""}
       ${kind !== "gallery" ? `<button class="kb-btn" data-b="queue">${icon("queue")}${t("Add to queue")}</button>` : ""}
       <button class="kb-btn is-danger" data-b="delete">${icon("trash")}${t("Delete")}</button>`;
     bulkEl.querySelector("[data-bm2]").innerHTML = `<span class="kb-spacer"></span><button class="kb-btn" data-b="none">${t("Done")}</button>`;
@@ -513,6 +515,9 @@ export function mediaBrowser(host, opts) {
           toast(on ? t("{what} marked as favorite", { what: plural(ids.length, "item", "items") }) : t("Favorites removed"), "ok");
           return;
         }
+        case "genprev":
+          await generatePreviews(kind, ids);
+          return exitSelect();
         case "queue": {
           const q = store.get("queue", []);
           pieces.forEach((p) => q.push({ kind: p.kind, id: p.id, title: p.title, thumb: p.thumb }));
