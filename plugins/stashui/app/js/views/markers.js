@@ -18,7 +18,7 @@ const SORTS = [
 ];
 const PAGE = 48;
 const Q = `query($f: FindFilterType, $m: SceneMarkerFilterType) { findSceneMarkers(filter: $f, scene_marker_filter: $m) { count scene_markers {
-  id title seconds end_seconds screenshot preview primary_tag { id name } tags { id name }
+  id title seconds end_seconds screenshot stream preview primary_tag { id name } tags { id name }
   scene { id title files { basename } } } } }`;
 
 export async function render(main, params, query) {
@@ -53,7 +53,7 @@ export async function render(main, params, query) {
     const sc = m.scene || {};
     const title = m.title || (m.primary_tag && m.primary_tag.name) || t("Marker");
     const meta = [m.title && m.primary_tag ? m.primary_tag.name : "", sc.title || ((sc.files || [])[0] || {}).basename || ""].filter(Boolean).join(" · ");
-    return `<a class="kb-mk" href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.preview || "")}">
+    return `<a class="kb-mk" href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}">
       <span class="kb-mk-art">${m.screenshot ? `<img alt="" loading="lazy" src="${esc(m.screenshot)}">` : ""}<span class="kb-stamp">${fmtDuration(m.seconds || 0)}</span></span>
       <b>${esc(title)}</b><small>${esc(meta)}</small></a>`;
   };

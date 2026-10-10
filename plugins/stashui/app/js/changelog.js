@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.84.1",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Fixed: marker hover previews. The Markers page asked Stash for the animated picture (WebP) of a marker and tried to play it as a video, so nothing moved – now it plays the marker's video preview (MP4), which Stash makes with “Marker previews”.", "已修复：标记的悬停预览。“标记”页面向 Stash 请求的是标记的动画图片（WebP），却把它当作视频播放，所以没有任何动画——现在改为播放标记的视频预览（MP4），它由 Stash 的“标记预览”生成。"],
+    ],
+  },
+  {
     v: "3.84.0",
     date: "2026-10-10",
     items: [
