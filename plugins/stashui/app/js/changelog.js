@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.83.1",
+    date: "2026-10-10",
+    items: [
+      ["pmv", "PMV Generator 2.28.0: main tags. Under What → Main tags you can name tags (e.g. a model) that every clip must have – the normal Tags below only count together with them, also with “Any of the tags”. Clips are drawn from the scenes or images that have the main tags and any of the other tags. (Contributed by PepegaSan.)", "PMV Generator 2.28.0：主标签。在“内容”→“主标签”中可以指定每个片段都必须带有的标签（例如某位模特）——下面普通的标签只在与它们同时满足时才生效，选择“任一标签”时也一样。片段取自同时带有主标签和其他任一标签的场景或图片。（由 PepegaSan 贡献。）"],
+    ],
+  },
+  {
     v: "3.83.0",
     date: "2026-10-10",
     items: [
