@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.85.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "The Markers page has the same bar as the Scenes page: search, sort order and its direction button, hover previews on / off, sound on / muted (the same switches as for scenes) and a size slider for the cards. Sort, direction and search stay in the address.", "“标记”页面现在拥有与“场景”页面相同的工具栏：搜索、排序及其方向按钮、悬停预览开/关、声音开/静音（与场景使用同一开关）以及卡片大小滑块。排序、方向和搜索会保留在地址中。"],
+    ],
+  },
+  {
     v: "3.84.2",
     date: "2026-10-10",
     items: [

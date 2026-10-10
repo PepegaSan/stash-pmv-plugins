@@ -1894,4 +1894,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "Crea solo para estos elementos las vistas previas al pasar el ratón, imágenes de la línea de tiempo y miniaturas que faltan",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Crea las vistas previas de vídeo e imágenes de todos los marcadores que aún no las tienen (ver Tareas)",
   "This Stash can't generate previews for single items": "Este Stash no puede generar vistas previas de elementos sueltos",
+  "Hover previews on or off": "Vistas previas al pasar el ratón activadas o desactivadas",
+  "Previews on": "Vistas previas activadas",
+  "Previews off": "Vistas previas desactivadas",
 };

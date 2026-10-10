@@ -1,6 +1,6 @@
 name: PMV Generator
 description: Pick a song (or take the music from a video in your library) – on every beat it cuts to a clip from your library, with split-screen layouts, effects and beat-synced transitions. Runs live in the browser; optionally recorded and saved back to Stash as a scene. Also a live visualizer for Plex or Spotify, and rebuilds an existing PMV with your own clips. Optionally mixes in clips from RedGifs.
-version: 2.28.4
+version: 2.28.5
 url: https://github.com/anonym88312/stash-pmv-plugins
 # Small backend: saves recordings into the library; RedGifs (API detour, saving clips)
 exec:

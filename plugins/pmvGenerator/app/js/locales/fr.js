@@ -1857,4 +1857,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "Crée les aperçus au survol, images de la timeline et miniatures manquants, uniquement pour ces éléments",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Crée les aperçus vidéo et images de tous les marqueurs qui n'en ont pas encore (voir Tâches)",
   "This Stash can't generate previews for single items": "Ce Stash ne peut pas générer d'aperçus pour des éléments isolés",
+  "Hover previews on or off": "Aperçus au survol activés ou désactivés",
+  "Previews on": "Aperçus activés",
+  "Previews off": "Aperçus désactivés",
 };

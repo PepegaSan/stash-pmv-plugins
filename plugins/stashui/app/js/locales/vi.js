@@ -1912,4 +1912,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "Chỉ tạo bản xem trước khi rê chuột, ảnh dòng thời gian và ảnh thu nhỏ còn thiếu cho các mục này",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Tạo bản xem trước video và ảnh cho mọi điểm đánh dấu chưa có (xem Tác vụ)",
   "This Stash can't generate previews for single items": "Stash này không thể tạo bản xem trước cho từng mục",
+  "Hover previews on or off": "Bật hoặc tắt xem trước khi rê chuột",
+  "Previews on": "Xem trước: bật",
+  "Previews off": "Xem trước: tắt",
 };

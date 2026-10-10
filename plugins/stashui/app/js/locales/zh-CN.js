@@ -1976,4 +1976,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "仅为这些项目生成缺失的悬停预览、时间轴图片和缩略图",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "为所有还没有视频预览和图片的标记生成它们（见“任务”）",
   "This Stash can't generate previews for single items": "此 Stash 无法为单个项目生成预览",
+  "Hover previews on or off": "悬停预览开或关",
+  "Previews on": "预览开",
+  "Previews off": "预览关",
 };

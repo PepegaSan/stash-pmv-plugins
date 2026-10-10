@@ -1919,4 +1919,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "選択した項目だけ、不足しているホバープレビュー・タイムライン画像・サムネイルを作成します",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "まだ動画プレビューと画像のないすべてのマーカーに作成します（タスクを参照）",
   "This Stash can't generate previews for single items": "この Stash は個別の項目のプレビュー生成に対応していません",
+  "Hover previews on or off": "ホバープレビューのオン/オフ",
+  "Previews on": "プレビュー オン",
+  "Previews off": "プレビュー オフ",
 };

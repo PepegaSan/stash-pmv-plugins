@@ -1872,4 +1872,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "Erzeugt die fehlenden Hover-Vorschauen, Zeitleisten-Bilder und Vorschaubilder nur für diese Einträge",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Erzeugt Vorschauvideos und Bilder für alle Marker, die noch keine haben (siehe Aufgaben)",
   "This Stash can't generate previews for single items": "Dieses Stash kann keine Vorschauen für einzelne Einträge erzeugen",
+  "Hover previews on or off": "Hover-Vorschauen an oder aus",
+  "Previews on": "Vorschau an",
+  "Previews off": "Vorschau aus",
 };

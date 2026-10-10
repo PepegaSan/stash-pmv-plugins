@@ -1917,4 +1917,7 @@ export default {
   "Makes the missing hover previews, timeline images and thumbnails of just these items": "Tworzy brakujące podglądy po najechaniu, obrazy osi czasu i miniatury tylko dla tych elementów",
   "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Tworzy podglądy wideo i obrazy dla wszystkich znaczników, które ich jeszcze nie mają (zobacz Zadania)",
   "This Stash can't generate previews for single items": "Ten Stash nie potrafi generować podglądów dla pojedynczych elementów",
+  "Hover previews on or off": "Podgląd po najechaniu włączony lub wyłączony",
+  "Previews on": "Podgląd włączony",
+  "Previews off": "Podgląd wyłączony",
 };
