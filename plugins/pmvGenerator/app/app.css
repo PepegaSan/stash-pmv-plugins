@@ -1678,11 +1678,11 @@ html.kb-glass .kb-extmenu { border-color: var(--glass-edge); border-radius: 16px
 .kb-date-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* Markers page, groups */
-.kb-mkgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px 14px; margin-top: 8px; align-items: start; }
-.kb-mk { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: var(--text); text-decoration: none; }
-.kb-mk-art { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; background: #000; transition: box-shadow .15s; }
+.kb-mkgrid { --h: 200px; display: flex; flex-wrap: wrap; gap: 16px 14px; margin-top: 8px; align-items: flex-start; }
+.kb-mkgrid::after { content: ""; flex-grow: 1e6; }
+.kb-mk { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: calc(var(--ar, 1.7778) * 100) 1 calc(var(--h) * var(--ar, 1.7778)); color: var(--text); text-decoration: none; }
+.kb-mk-art { position: relative; display: block; aspect-ratio: var(--ar, 16 / 9); overflow: hidden; border-radius: 8px; background: #000; transition: box-shadow .15s; }
 .kb-mk-art img, .kb-mk-art video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.kb-mk.is-portrait .kb-mk-art { aspect-ratio: var(--ar, 9 / 16); }
 .kb-mk:hover .kb-mk-art { box-shadow: 0 0 0 2px var(--pink); }
 .kb-mk b { overflow: hidden; font: 600 14px/1.3 var(--f-text); white-space: nowrap; text-overflow: ellipsis; }
 .kb-mk small { overflow: hidden; color: var(--faint); font: 400 12.5px/1.3 var(--f-label); white-space: nowrap; text-overflow: ellipsis; }

@@ -9,7 +9,7 @@ import { tagPicker } from "./tagpicker.js";
 import { generatePreviews } from "../genprev.js";
 import { previewsOn } from "../display.js";
 
-const SIZE = "markerWidth"; // width of a card in px (the slider in the bar)
+const SIZE = "markerHeight"; // height of a row of tiles in px (the slider in the bar) – every tile is as wide as its video's shape needs
 
 const SORTS = [
   ["created_at", "Newest"],
@@ -39,7 +39,7 @@ export async function render(main, params, query) {
       <span class="kb-spacer"></span>
       <button type="button" class="kb-btn is-ghost" data-pvon title="${t("Hover previews on or off")}"></button>
       <button type="button" class="kb-btn is-ghost" data-mute title="${t("Sound in hover previews")}"></button>
-      <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="160" max="520" step="10" data-size value="${store.get(SIZE, 260)}" aria-label="${t("Size")}"></label>
+      <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="110" max="420" step="10" data-size value="${store.get(SIZE, 200)}" aria-label="${t("Size")}"></label>
       <button type="button" class="kb-btn" data-genprev title="${t("Makes the video previews and pictures of all markers that don't have them yet (see Tasks)")}">${t("Generate missing previews")}</button>
     </div>
     <div class="kb-tagpick kb-mk-tags" data-tp></div>
@@ -59,7 +59,7 @@ export async function render(main, params, query) {
     $("[data-mute]").innerHTML = `${icon(snd ? "volume" : "mute")}<span>${snd ? t("Sound on") : t("Muted")}</span>`;
     $("[data-mute]").setAttribute("aria-pressed", !snd);
     $("[data-mute]").hidden = !on;
-    $("[data-grid]").style.gridTemplateColumns = `repeat(auto-fill, minmax(${store.get(SIZE, 260)}px, 1fr))`;
+    $("[data-grid]").style.setProperty("--h", store.get(SIZE, 200) + "px");
   };
   paintBar();
 
@@ -75,9 +75,9 @@ export async function render(main, params, query) {
     const title = m.title || (m.primary_tag && m.primary_tag.name) || t("Marker");
     const meta = [m.title && m.primary_tag ? m.primary_tag.name : "", sc.title || ((sc.files || [])[0] || {}).basename || ""].filter(Boolean).join(" · ");
     const f0 = (sc.files || [])[0] || {};
-    const portrait = f0.width && f0.height && f0.height > f0.width * 1.05; // an upright video gets an upright tile
-    const ar = portrait ? Math.max(0.5, f0.width / f0.height).toFixed(4) : "";
-    return `<a class="kb-mk${portrait ? " is-portrait" : ""}"${ar ? ` style="--ar:${ar}"` : ""} href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}">
+    // every tile has the shape of its video (upright, wide, square) and the rows have one height – like the Scenes page
+    const ar = f0.width && f0.height ? Math.min(2.4, Math.max(0.5, f0.width / f0.height)) : 16 / 9;
+    return `<a class="kb-mk" style="--ar:${ar.toFixed(4)}" href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}">
       <span class="kb-mk-art">${m.screenshot ? `<img alt="" loading="lazy" src="${esc(m.screenshot)}">` : ""}<span class="kb-stamp">${fmtDuration(m.seconds || 0)}</span></span>
       <b>${esc(title)}</b><small>${esc(meta)}</small></a>`;
   };

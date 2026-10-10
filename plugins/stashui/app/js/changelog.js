@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.87.2",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Markers page: tiles now sit in rows like on the Scenes page – every row has one height and each tile is as wide as its video's shape needs (upright, wide or square), so there are no more gaps between wide and upright tiles. The size slider now sets the row height.", "“标记”页面：卡片现在像“场景”页面一样按行排列——每行高度一致，每张卡片的宽度由视频自身的形状决定（竖屏、横屏或方形），因此横屏和竖屏卡片之间不再有空隙。大小滑块现在调整的是行高。"],
+    ],
+  },
+  {
     v: "3.87.1",
     date: "2026-10-10",
     items: [
