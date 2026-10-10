@@ -1906,4 +1906,10 @@ export default {
   "Recently used": "Dùng gần đây",
   "Scene has no date": "Cảnh không có ngày",
   "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Chính xác đến từng khung hình: ↑ ↓ trong ô nhập (hoặc các nút – giữ để lặp lại) đổi thời gian một khung hình, kèm Shift là một giây, kèm Alt là một phần mười giây. Video đi theo nên bạn thấy đúng khung hình. Phím , và . chuyển chính video từng khung hình.",
+  "Generate missing previews": "Tạo bản xem trước còn thiếu",
+  "Generating previews for {what} – see Tasks": "Đang tạo bản xem trước cho {what} – xem Tác vụ",
+  "Generating the missing marker previews – see Tasks": "Đang tạo bản xem trước điểm đánh dấu còn thiếu – xem Tác vụ",
+  "Makes the missing hover previews, timeline images and thumbnails of just these items": "Chỉ tạo bản xem trước khi rê chuột, ảnh dòng thời gian và ảnh thu nhỏ còn thiếu cho các mục này",
+  "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Tạo bản xem trước video và ảnh cho mọi điểm đánh dấu chưa có (xem Tác vụ)",
+  "This Stash can't generate previews for single items": "Stash này không thể tạo bản xem trước cho từng mục",
 };

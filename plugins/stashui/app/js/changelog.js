@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.84.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Previews on demand. New markers (key B, “Add a part …”) and edited ones now get their hover preview and picture made by Stash right after saving. On the Markers page, “Generate missing previews” makes them for all markers that have none. In the selection bar of the Scenes and Images pages (and on the home page), “Generate previews” makes the missing hover previews, timeline images, covers and thumbnails of just the selected items – no need to run the whole library from Tasks. Progress shows under Tasks.", "按需生成预览。新建的标记（按 B、“添加片段 …”）和编辑过的标记，保存后会立即由 Stash 生成悬停预览和图片。在“标记”页面，“生成缺失的预览”会为所有没有预览的标记生成。在场景和图片页面（以及首页）的选择栏中，“生成预览”只为所选项目生成缺失的悬停预览、时间轴图片、封面和缩略图——无需在“任务”中处理整个库。进度显示在“任务”中。"],
+    ],
+  },
+  {
     v: "3.83.1",
     date: "2026-10-10",
     items: [

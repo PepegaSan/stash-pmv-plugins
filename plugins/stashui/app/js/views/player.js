@@ -17,6 +17,7 @@ import { tierNow, ensureTiers } from "../tiers.js";
 import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
 import { openMarkerEdit } from "../markeredit.js";
+import { generatePreviews } from "../genprev.js";
 import { fpsOf, stepFrame, snap, fmtExact } from "../frames.js";
 import { videoGlow } from "../theme.js";
 import { mountSlots } from "../ext.js";
@@ -867,6 +868,7 @@ export async function render(host, params, query = {}) {
       const tag = await markerTag();
       const d = await gql(`mutation($i: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $i) { id title seconds primary_tag { id name } } }`, { i: { scene_id: x.id, seconds: at, primary_tag_id: tag, title: "" } });
       x.scene_markers = [...(x.scene_markers || []), d.sceneMarkerCreate];
+      generatePreviews("marker", [d.sceneMarkerCreate.id], { quiet: true });
       paintMarkers();
       toast(t("Marker at {time}", { time: fmtDuration(at) }), "ok");
     } catch (e) {

@@ -1851,4 +1851,10 @@ export default {
   "Recently used": "Récemment utilisés",
   "Scene has no date": "La scène n'a pas de date",
   "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Précis à l'image près : ↑ ↓ dans un champ (ou les boutons – maintenir pour répéter) changent le temps d'une image, avec Maj d'une seconde, avec Alt d'un dixième de seconde. La vidéo suit, vous voyez donc l'image. Les touches , et . font avancer la vidéo elle-même image par image.",
+  "Generate missing previews": "Générer les aperçus manquants",
+  "Generating previews for {what} – see Tasks": "Génération des aperçus pour {what} – voir Tâches",
+  "Generating the missing marker previews – see Tasks": "Génération des aperçus de marqueurs manquants – voir Tâches",
+  "Makes the missing hover previews, timeline images and thumbnails of just these items": "Crée les aperçus au survol, images de la timeline et miniatures manquants, uniquement pour ces éléments",
+  "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Crée les aperçus vidéo et images de tous les marqueurs qui n'en ont pas encore (voir Tâches)",
+  "This Stash can't generate previews for single items": "Ce Stash ne peut pas générer d'aperçus pour des éléments isolés",
 };

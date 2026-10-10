@@ -6,6 +6,7 @@ import { t } from "./i18n.js";
 import { gql } from "./api.js";
 import { parseTime } from "./audiox.js";
 import { tagPicker } from "./views/tagpicker.js";
+import { generatePreviews } from "./genprev.js";
 import { fpsOf, frameAt, secOf, snap, showFrame, stepFrame, fmtExact } from "./frames.js";
 
 const FIELDS = "id title seconds end_seconds primary_tag { id name } tags { id name }";
@@ -184,6 +185,7 @@ export function openMarkerEdit({ scene, marker, video, defaultTag, done }) {
       } catch (err) {
         console.warn("last used tags", err); // a nicety – never a reason to fail after the marker is saved
       }
+      generatePreviews("marker", [m.id], { overwrite: !isNew, quiet: true }); // (its hover preview and picture, in the background)
       d.close();
       toast(t("Saved"), "ok");
       done(m, isNew);

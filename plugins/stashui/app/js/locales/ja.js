@@ -1913,4 +1913,10 @@ export default {
   "Recently used": "最近使用",
   "Scene has no date": "シーンに日付がありません",
   "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "フレーム単位で調整：入力欄で ↑ ↓（またはボタン。押し続けると連続）を押すと1フレームずつ、Shift で1秒、Alt で0.1秒ずつ時間が変わります。動画が追従するので、そのフレームが見えます。, と . のキーでは動画自体がコマ送りされます。",
+  "Generate missing previews": "不足しているプレビューを生成",
+  "Generating previews for {what} – see Tasks": "{what}のプレビューを生成中 – タスクを参照",
+  "Generating the missing marker previews – see Tasks": "不足しているマーカーのプレビューを生成中 – タスクを参照",
+  "Makes the missing hover previews, timeline images and thumbnails of just these items": "選択した項目だけ、不足しているホバープレビュー・タイムライン画像・サムネイルを作成します",
+  "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "まだ動画プレビューと画像のないすべてのマーカーに作成します（タスクを参照）",
+  "This Stash can't generate previews for single items": "この Stash は個別の項目のプレビュー生成に対応していません",
 };

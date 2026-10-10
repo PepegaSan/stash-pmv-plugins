@@ -1970,4 +1970,10 @@ export default {
   "One frame later": "延后一帧",
   "Recently used": "最近使用",
   "Scene has no date": "该场景没有日期",
+  "Generate missing previews": "生成缺失的预览",
+  "Generating previews for {what} – see Tasks": "正在为{what}生成预览——见“任务”",
+  "Generating the missing marker previews – see Tasks": "正在生成缺失的标记预览——见“任务”",
+  "Makes the missing hover previews, timeline images and thumbnails of just these items": "仅为这些项目生成缺失的悬停预览、时间轴图片和缩略图",
+  "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "为所有还没有视频预览和图片的标记生成它们（见“任务”）",
+  "This Stash can't generate previews for single items": "此 Stash 无法为单个项目生成预览",
 };

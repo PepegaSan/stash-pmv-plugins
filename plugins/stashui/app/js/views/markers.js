@@ -6,6 +6,7 @@ import { t } from "../i18n.js";
 import { gql, routeSignal } from "../api.js";
 import { setQuery } from "../main.js";
 import { tagPicker } from "./tagpicker.js";
+import { generatePreviews } from "../genprev.js";
 import { previewsOn } from "../display.js";
 
 const SORTS = [
@@ -30,6 +31,7 @@ export async function render(main, params, query) {
       </div>
       <div class="kb-head-tools">
         <label class="kb-search">${icon("search")}<input class="kb-field" type="search" data-q placeholder="${t("Search markers")}" value="${esc(S.q)}"></label>
+        <button type="button" class="kb-btn" data-genprev title="${t("Makes the video previews and pictures of all markers that don't have them yet (see Tasks)")}">${t("Generate missing previews")}</button>
         <select class="kb-field" data-sort aria-label="${t("Sort order")}">${SORTS.map(([v, l]) => `<option value="${v}">${t(l)}</option>`).join("")}</select>
       </div>
     </header>
@@ -100,6 +102,11 @@ export async function render(main, params, query) {
     load(true);
   };
   $("[data-q]").addEventListener("input", debounce(() => ((S.q = $("[data-q]").value.trim()), reload()), 300));
+  $("[data-genprev]").onclick = async (e) => {
+    e.currentTarget.disabled = true;
+    await generatePreviews("marker", null);
+    e.currentTarget.disabled = false;
+  };
   $("[data-sort]").onchange = () => {
     S.sort = $("[data-sort]").value;
     S.seed = Math.floor(Math.random() * 1e8);

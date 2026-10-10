@@ -1911,4 +1911,10 @@ export default {
   "Recently used": "Ostatnio użyte",
   "Scene has no date": "Scena nie ma daty",
   "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "Dokładnie co do klatki: ↑ ↓ w polu (lub przyciski – przytrzymaj, by powtarzać) zmieniają czas o jedną klatkę, z Shift o sekundę, z Alt o jedną dziesiątą sekundy. Wideo podąża za zmianą, więc widzisz tę klatkę. Klawisze , i . przesuwają samo wideo klatka po klatce.",
+  "Generate missing previews": "Wygeneruj brakujące podglądy",
+  "Generating previews for {what} – see Tasks": "Generowanie podglądów dla: {what} – zobacz Zadania",
+  "Generating the missing marker previews – see Tasks": "Generowanie brakujących podglądów znaczników – zobacz Zadania",
+  "Makes the missing hover previews, timeline images and thumbnails of just these items": "Tworzy brakujące podglądy po najechaniu, obrazy osi czasu i miniatury tylko dla tych elementów",
+  "Makes the video previews and pictures of all markers that don't have them yet (see Tasks)": "Tworzy podglądy wideo i obrazy dla wszystkich znaczników, które ich jeszcze nie mają (zobacz Zadania)",
+  "This Stash can't generate previews for single items": "Ten Stash nie potrafi generować podglądów dla pojedynczych elementów",
 };
