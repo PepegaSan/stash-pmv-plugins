@@ -1,7 +1,7 @@
 // Markers: every moment you marked in your scenes, as a grid – search, filter by tag, sort; a click opens the scene
 // at that moment, and on hover a short preview plays.
 
-import { esc, icon, debounce, errorToast, plural, fmtDuration } from "../ui.js";
+import { esc, icon, debounce, errorToast, plural, fmtDuration, store } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, routeSignal } from "../api.js";
 import { setQuery } from "../main.js";
@@ -138,7 +138,8 @@ export async function render(main, params, query) {
     stopPrev();
     const v = document.createElement("video");
     v.src = c.dataset.prev;
-    v.muted = true;
+    v.muted = !store.get("previewSound", true) || store.get("player", {}).muted === true; // (the same switch as on the other pages)
+    v.volume = store.get("player", {}).volume ?? 0.8;
     v.loop = true;
     v.autoplay = true;
     v.playsInline = true;

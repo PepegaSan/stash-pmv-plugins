@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.84.2",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Marker hover previews now play with sound (the same “Sound in previews” switch as for scenes). Stash only puts sound into a preview if Settings → Tasks → “Audio in previews” was on when it was made – previews made before stay silent; make them again with “Overwrite existing” in the Generate task.", "标记的悬停预览现在带声音（与场景使用同一个“预览声音”开关）。只有生成预览时“预览中的音频”已开启，Stash 才会把声音放进预览——之前生成的预览仍然没有声音；请在“生成”任务中勾选“覆盖现有”重新生成。"],
+    ],
+  },
+  {
     v: "3.84.1",
     date: "2026-10-10",
     items: [
