@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.87.1",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Fixed: upright videos on the Markers page. Their tiles were wide and zoomed into the middle of the picture, so you saw almost nothing – now a marker of an upright video gets an upright tile in the video's own shape (the size slider still sets the width).", "已修复：“标记”页面中的竖屏视频。它们的卡片是横向的，并放大到画面中间，几乎什么都看不到——现在竖屏视频的标记会使用与视频自身比例相同的竖向卡片（大小滑块仍可调整宽度）。"],
+    ],
+  },
+  {
     v: "3.87.0",
     date: "2026-10-10",
     items: [

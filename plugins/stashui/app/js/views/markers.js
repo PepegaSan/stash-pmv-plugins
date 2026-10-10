@@ -21,7 +21,7 @@ const SORTS = [
 const PAGE = 48;
 const Q = `query($f: FindFilterType, $m: SceneMarkerFilterType) { findSceneMarkers(filter: $f, scene_marker_filter: $m) { count scene_markers {
   id title seconds end_seconds screenshot stream preview primary_tag { id name } tags { id name }
-  scene { id title files { basename } } } } }`;
+  scene { id title files { basename width height } } } } }`;
 
 export async function render(main, params, query) {
   const S = { q: query.q || "", sort: query.sort || "created_at", dir: query.dir || "", tags: (query.tags || "").split(",").filter(Boolean), seed: Math.floor(Math.random() * 1e8) };
@@ -74,7 +74,10 @@ export async function render(main, params, query) {
     const sc = m.scene || {};
     const title = m.title || (m.primary_tag && m.primary_tag.name) || t("Marker");
     const meta = [m.title && m.primary_tag ? m.primary_tag.name : "", sc.title || ((sc.files || [])[0] || {}).basename || ""].filter(Boolean).join(" · ");
-    return `<a class="kb-mk" href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}">
+    const f0 = (sc.files || [])[0] || {};
+    const portrait = f0.width && f0.height && f0.height > f0.width * 1.05; // an upright video gets an upright tile
+    const ar = portrait ? Math.max(0.5, f0.width / f0.height).toFixed(4) : "";
+    return `<a class="kb-mk${portrait ? " is-portrait" : ""}"${ar ? ` style="--ar:${ar}"` : ""} href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}">
       <span class="kb-mk-art">${m.screenshot ? `<img alt="" loading="lazy" src="${esc(m.screenshot)}">` : ""}<span class="kb-stamp">${fmtDuration(m.seconds || 0)}</span></span>
       <b>${esc(title)}</b><small>${esc(meta)}</small></a>`;
   };
