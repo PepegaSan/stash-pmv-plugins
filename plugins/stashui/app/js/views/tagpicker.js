@@ -79,10 +79,21 @@ export function tagPicker(host, opts) {
       .filter((tg) => !q || tg.name.toLowerCase().includes(q) || (tg.aliases || []).some((a) => a.toLowerCase().includes(q)));
     if (q) shown = shown.map((tg) => [matchRank(tg.name, tg.aliases, q), tg]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     shown = shown.slice(0, 30);
+    // opts.recent() = the tags used last ({ id, name }, newest first): the first 3 sit on top while nothing is typed –
+    // none used yet, nothing shown. (Only with the whole tag list: the counts come from it.)
+    const recent = !q && state === "ok" && opts.recent ? opts.recent().slice(0, 3).map((r) => tags.find((tg) => tg.id === r.id)).filter((tg) => tg && !inc.includes(tg.id) && !exc.includes(tg.id)) : [];
+    if (recent.length) shown = [...recent, ...shown.filter((tg) => !recent.includes(tg))];
     const exact = tags.some((tg) => tg.name.toLowerCase() === q);
     const create = opts.allowCreate && q && !exact;
     sugg.innerHTML =
-      shown.map((tg, i) => `<button type="button" role="option" data-i="${i}" class="${i === active ? "is-active" : ""}">${esc(tg.name)}<small>${fmtNum(tg.scene_count + tg.image_count + tg.gallery_count)}</small></button>`).join("") +
+      shown
+        .map(
+          (tg, i) =>
+            (recent.length && i === 0 ? `<div class="kb-sugg-h">${t("Recently used")}</div>` : "") +
+            (recent.length && i === recent.length ? `<div class="kb-sugg-h">${t("All tags")}</div>` : "") +
+            `<button type="button" role="option" data-i="${i}" class="${i === active ? "is-active" : ""}">${esc(tg.name)}<small>${fmtNum(tg.scene_count + tg.image_count + tg.gallery_count)}</small></button>`
+        )
+        .join("") +
       (create ? `<button type="button" data-create class="${active === shown.length ? "is-active" : ""}">${esc(t("New tag “{name}”", { name: input.value.trim() }))}</button>` : "") +
       (!shown.length && !create ? `<button type="button" disabled>${loadErr ? esc(t("Couldn't search the tags: {msg}", { msg: loadErr })) : t("No matching tag")}</button>` : "");
     sugg.hidden = false;
@@ -199,6 +210,10 @@ export function tagPicker(host, opts) {
   return {
     get include() {
       return [...inc];
+    },
+    // the chosen tags with their names ({ id, name }), e.g. to remember them as "used last"
+    get picked() {
+      return inc.map((id) => ({ id, name: name(id) }));
     },
     set(ids, extra = []) {
       // (extra: tags just made, which the list doesn't know yet)

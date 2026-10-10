@@ -4,6 +4,14 @@
 
 export const CHANGES = [
   {
+    v: "3.83.0",
+    date: "2026-10-10",
+    items: [
+      ["ui", "Performer cards in the player's info bar: the performer's pill shows the age in this scene, and hovering a performer opens a card with photo, gender, country, number of scenes, age on the scene's date, age now and birth date. (Contributed by AffordObedienceUntamed.)", "播放器信息栏中的演员卡片：演员标签上显示其在该场景中的年龄；鼠标悬停在演员上会弹出卡片，显示照片、性别、国家、场景数、拍摄时年龄、现年和出生日期。（由 AffordObedienceUntamed 贡献。）"],
+      ["ui", "Frame-exact markers: the keys , and . step the video one frame back / forward; B sets a marker on the frame you see. The marker editor shows times to the millisecond, has −1 s / −0.1 / frame / +0.1 / +1 s buttons (hold to repeat) and ↑ ↓ in the fields (Shift = second, Alt = tenth); the video follows. The tag lists in the editor show the three tags you used last on top. (Contributed by AffordObedienceUntamed.)", "精确到帧的标记：按 , 和 . 让视频逐帧后退/前进；按 B 会在你看到的那一帧设置标记。标记编辑器显示精确到毫秒的时间，提供 −1 秒 / −0.1 / 帧 / +0.1 / +1 秒按钮（按住可连续），输入框中可用 ↑ ↓（Shift = 一秒，Alt = 十分之一秒），视频会跟随。编辑器中的标签列表会把你最近用过的三个标签放在最前面。（由 AffordObedienceUntamed 贡献。）"],
+    ],
+  },
+  {
     v: "3.82.2",
     date: "2026-10-10",
     items: [

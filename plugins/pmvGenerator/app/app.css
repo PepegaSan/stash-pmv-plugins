@@ -637,6 +637,8 @@ a.kb-chip:hover, button.kb-chip:hover { background: rgba(180, 140, 255, .28); }
 }
 .kb-sugg button:hover, .kb-sugg button.is-active { background: var(--bg-3); box-shadow: inset 3px 0 0 var(--pink); }
 .kb-sugg small { color: var(--faint); }
+.kb-sugg-h { padding: 8px 11px 4px; color: var(--faint); font: 700 10.5px/1 var(--f-label); letter-spacing: .05em; text-transform: uppercase; }
+.kb-sugg-h:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--bg-3); padding-top: 10px; }
 
 /* Stars */
 .kb-stars { display: inline-flex; gap: 2px; }
@@ -1166,6 +1168,9 @@ html.kb-glass .kb-mini-in { border-color: var(--glass-edge); }
 .kb-music-t { display: flex; gap: 6px; }
 .kb-music-t .kb-field { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
 .kb-form-row > span.kb-music-t { color: inherit; font: inherit; }
+.kb-nudge { display: flex; gap: 4px; user-select: none; -webkit-user-select: none; }
+.kb-nudge .kb-btn { flex: 1; min-width: 0; height: 30px; padding: 0 4px; font-size: 12.5px; font-variant-numeric: tabular-nums; touch-action: manipulation; }
+.kb-nudge .kb-ic { width: 16px; height: 16px; }
 
 /* Performer filter (next to the tags) */
 .kb-sugg .kb-psugg { align-items: center; justify-content: flex-start; }

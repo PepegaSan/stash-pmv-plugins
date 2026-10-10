@@ -1961,4 +1961,13 @@ export default {
   "{n} menu entries": "{n} 个菜单项",
   "{n} pages": "{n} 个页面",
   "{n} slots": "{n} 个插槽",
+  "Age at death": "去世时年龄",
+  "Age at scene date": "拍摄时年龄",
+  "Age now": "现年",
+  "Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.": "精确到帧：在输入框中按 ↑ ↓（或点按钮，按住可连续）每次调整一帧，按住 Shift 调整一秒，按住 Alt 调整十分之一秒。视频会跟随，你能看到对应的画面。按键 , 和 . 可让视频本身逐帧前进或后退。",
+  "No birthdate": "无出生日期",
+  "One frame earlier": "提前一帧",
+  "One frame later": "延后一帧",
+  "Recently used": "最近使用",
+  "Scene has no date": "该场景没有日期",
 };

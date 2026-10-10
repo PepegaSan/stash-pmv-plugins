@@ -17,6 +17,7 @@ import { tierNow, ensureTiers } from "../tiers.js";
 import { tierBadge } from "../versusx.js";
 import { createVR, guessVR } from "../vr.js";
 import { openMarkerEdit } from "../markeredit.js";
+import { fpsOf, stepFrame, snap, fmtExact } from "../frames.js";
 import { videoGlow } from "../theme.js";
 import { mountSlots } from "../ext.js";
 import { BINS, watchRecorder, watchBins, motionBins, combine, peaks } from "../heat.js";
@@ -129,6 +130,7 @@ export async function render(host, params, query = {}) {
     return;
   }
   const f = x.files[0] || {};
+  const fps = fpsOf(x); // for frame-exact stepping and markers
   const setShape = (w, h) => w && h && host.querySelector(".kb-stage") && host.querySelector(".kb-stage").style.setProperty("--ar", (w / h).toFixed(4));
   const prefs = Object.assign({ volume: 0.8, muted: false, auto: true, random: false, loop: false, panel: true, heat: true }, store.get("player", {}));
   // How it goes on – one button that cycles (was: three switches Random / Endless / Loop)
@@ -860,7 +862,7 @@ export async function render(host, params, query = {}) {
     paintMarks();
   }
   async function addMarker() {
-    const at = Math.round(v.currentTime * 10) / 10;
+    const at = snap(v.currentTime, fps);
     try {
       const tag = await markerTag();
       const d = await gql(`mutation($i: SceneMarkerCreateInput!) { sceneMarkerCreate(input: $i) { id title seconds primary_tag { id name } } }`, { i: { scene_id: x.id, seconds: at, primary_tag_id: tag, title: "" } });
@@ -1495,11 +1497,7 @@ export async function render(host, params, query = {}) {
 
   // Jumping: from the beginning, 10 s back / forward – with a short note on the picture
   let flashT = 0;
-  function seekTo(at, note) {
-    const end = (v.duration || dur || 0) - 0.5;
-    v.currentTime = Math.max(0, end > 0 ? Math.min(at, end) : at);
-    watch.seeked(v.currentTime);
-    if (v.paused && at === 0) v.play().catch(() => {});
+  function flash(note) {
     const f = $("[data-seekflash]");
     if (!f) return;
     f.textContent = note;
@@ -1508,6 +1506,19 @@ export async function render(host, params, query = {}) {
     f.classList.add("is-on");
     clearTimeout(flashT);
     flashT = setTimeout(() => f.classList.remove("is-on"), 700);
+  }
+  function seekTo(at, note) {
+    const end = (v.duration || dur || 0) - 0.5;
+    v.currentTime = Math.max(0, end > 0 ? Math.min(at, end) : at);
+    watch.seeked(v.currentTime);
+    if (v.paused && at === 0) v.play().catch(() => {});
+    flash(note);
+  }
+  // Frame by frame (the keys , and .): stops the video and shows the exact time, so "Here" in the marker editor can take it
+  function stepBy(n) {
+    stepFrame(v, fps, n);
+    watch.seeked(v.currentTime);
+    flash(`${n < 0 ? "◂" : "▸"} ${fmtExact(snap(v.currentTime, fps))}`);
   }
   const skipBy = (s) => seekTo(v.currentTime + s, s < 0 ? `−${-s} s` : `+${s} s`);
 
@@ -1522,6 +1533,7 @@ export async function render(host, params, query = {}) {
     else if (k === "arrowright") (v.currentTime += e.shiftKey ? 30 : 5), watch.seeked(v.currentTime);
     else if (k === "arrowleft") (v.currentTime -= e.shiftKey ? 30 : 5), watch.seeked(v.currentTime);
     else if (k === "j") nextHighlight();
+    else if (k === "," || k === ".") stepBy(k === "," ? -1 : 1);
     else if (k === "home") seekTo(0, "↺ 0:00");
     else if (k === "arrowup") (v.volume = Math.min(1, v.volume + 0.05)), (prefs.volume = v.volume), syncVol();
     else if (k === "arrowdown") (v.volume = Math.max(0, v.volume - 0.05)), (prefs.volume = v.volume), syncVol();
