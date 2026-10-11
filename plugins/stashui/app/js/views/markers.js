@@ -21,7 +21,7 @@ const SORTS = [
 const PAGE = 48;
 const Q = `query($f: FindFilterType, $m: SceneMarkerFilterType) { findSceneMarkers(filter: $f, scene_marker_filter: $m) { count scene_markers {
   id title seconds end_seconds screenshot stream preview primary_tag { id name } tags { id name }
-  scene { id title files { basename width height } } } } }`;
+  scene { id title files { basename width height } paths { stream } } } } }`;
 
 export async function render(main, params, query) {
   const S = { q: query.q || "", sort: query.sort || "created_at", dir: query.dir || "", tags: (query.tags || "").split(",").filter(Boolean), seed: Math.floor(Math.random() * 1e8) };
@@ -39,6 +39,7 @@ export async function render(main, params, query) {
       <span class="kb-spacer"></span>
       <button type="button" class="kb-btn is-ghost" data-pvon title="${t("Hover previews on or off")}"></button>
       <button type="button" class="kb-btn is-ghost" data-mute title="${t("Sound in hover previews")}"></button>
+      <button type="button" class="kb-btn is-ghost" data-orig title="${t("Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower")}"></button>
       <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="110" max="420" step="10" data-size value="${store.get(SIZE, 200)}" aria-label="${t("Size")}"></label>
       <button type="button" class="kb-btn" data-genprev title="${t("Makes the video previews and pictures of all markers that don't have them yet (see Tasks)")}">${t("Generate missing previews")}</button>
     </div>
@@ -59,6 +60,10 @@ export async function render(main, params, query) {
     $("[data-mute]").innerHTML = `${icon(snd ? "volume" : "mute")}<span>${snd ? t("Sound on") : t("Muted")}</span>`;
     $("[data-mute]").setAttribute("aria-pressed", !snd);
     $("[data-mute]").hidden = !on;
+    const orig = store.get("markerOrig", false);
+    $("[data-orig]").innerHTML = `${icon("image")}<span>${orig ? t("Original quality") : t("Generated previews")}</span>`;
+    $("[data-orig]").setAttribute("aria-pressed", orig);
+    $("[data-orig]").hidden = !on;
     $("[data-grid]").style.setProperty("--h", store.get(SIZE, 200) + "px");
   };
   paintBar();
@@ -77,7 +82,7 @@ export async function render(main, params, query) {
     const f0 = (sc.files || [])[0] || {};
     // every tile has the shape of its video (upright, wide, square) and the rows have one height – like the Scenes page
     const ar = f0.width && f0.height ? Math.min(2.4, Math.max(0.5, f0.width / f0.height)) : 16 / 9;
-    return `<a class="kb-mk" style="--ar:${ar.toFixed(4)}" href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}">
+    return `<a class="kb-mk" style="--ar:${ar.toFixed(4)}" href="#/scene/${esc(sc.id)}?t=${Math.floor(m.seconds || 0)}" data-mk data-prev="${esc(m.stream || m.preview || "")}" data-full="${esc((sc.paths && sc.paths.stream) || "")}" data-from="${Number(m.seconds) || 0}" data-to="${m.end_seconds || ""}">
       <span class="kb-mk-art">${m.screenshot ? `<img alt="" loading="lazy" src="${esc(m.screenshot)}">` : ""}<span class="kb-stamp">${fmtDuration(m.seconds || 0)}</span></span>
       <b>${esc(title)}</b><small>${esc(meta)}</small></a>`;
   };
@@ -145,6 +150,11 @@ export async function render(main, params, query) {
     store.set("previewSound", !store.get("previewSound", true));
     paintBar();
   };
+  $("[data-orig]").onclick = () => {
+    store.set("markerOrig", !store.get("markerOrig", false));
+    stopPrev();
+    paintBar();
+  };
   $("[data-size]").oninput = (e) => {
     store.set(SIZE, Number(e.target.value));
     paintBar();
@@ -181,13 +191,27 @@ export async function render(main, params, query) {
     if (!c || (prevEl && prevEl.parentNode === c.querySelector(".kb-mk-art")) || !c.dataset.prev || !previewsOn()) return;
     stopPrev();
     const v = document.createElement("video");
-    v.src = c.dataset.prev;
+    const useOrig = store.get("markerOrig", false) && c.dataset.full;
+    if (useOrig) {
+      // the marker's moment cut from the original file: from its start to its end (8 s if it has none), then round again
+      const a = Number(c.dataset.from) || 0;
+      const z = Number(c.dataset.to) > a ? Number(c.dataset.to) : a + 8;
+      v.src = c.dataset.full + "#t=" + a;
+      v.loop = false;
+      v.addEventListener("timeupdate", () => {
+        if (v.currentTime >= z || v.currentTime < a - 0.5) v.currentTime = a;
+      });
+      v.addEventListener("ended", () => {
+        v.currentTime = a;
+        v.play().catch(() => {});
+      });
+    } else v.src = c.dataset.prev;
     v.muted = !store.get("previewSound", true) || store.get("player", {}).muted === true; // (the same switch as on the other pages)
     v.volume = store.get("player", {}).volume ?? 0.8;
-    v.loop = true;
+    if (!useOrig) v.loop = true;
     v.autoplay = true;
     v.playsInline = true;
-    v.preload = "metadata";
+    v.preload = useOrig ? "auto" : "metadata";
     c.querySelector(".kb-mk-art").appendChild(v);
     prevEl = v;
   });

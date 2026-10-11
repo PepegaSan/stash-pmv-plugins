@@ -1929,4 +1929,7 @@ export default {
   "Motion": "Ruch",
   "Cross-fades the pictures – cheap, moving things leave a ghost": "Płynne przenikanie klatek – lekkie, ale poruszające się obiekty zostawiają ducha",
   "Follows the movement of the picture (uses the graphics card)": "Śledzi ruch w obrazie (używa karty graficznej)",
+  "Original quality": "Oryginalna jakość",
+  "Generated previews": "Wygenerowane podglądy",
+  "Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower": "Podglądy po najechaniu są wycinane z oryginalnego wideo zamiast małych podglądów wygenerowanych przez Stash: ostre, ale ładują się wolniej",
 };

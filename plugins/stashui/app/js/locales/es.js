@@ -1906,4 +1906,7 @@ export default {
   "Motion": "Movimiento",
   "Cross-fades the pictures – cheap, moving things leave a ghost": "Fundido entre fotogramas – ligero, pero lo que se mueve deja un fantasma",
   "Follows the movement of the picture (uses the graphics card)": "Sigue el movimiento de la imagen (usa la tarjeta gráfica)",
+  "Original quality": "Calidad original",
+  "Generated previews": "Vistas previas generadas",
+  "Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower": "Las vistas previas al pasar el ratón se toman del vídeo original en lugar de las pequeñas generadas por Stash: nítidas, pero tardan más en cargar",
 };

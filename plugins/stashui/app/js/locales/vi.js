@@ -1924,4 +1924,7 @@ export default {
   "Motion": "Theo chuyển động",
   "Cross-fades the pictures – cheap, moving things leave a ghost": "Chuyển mờ giữa các khung hình – nhẹ, nhưng vật chuyển động để lại bóng mờ",
   "Follows the movement of the picture (uses the graphics card)": "Bám theo chuyển động của hình ảnh (dùng card đồ họa)",
+  "Original quality": "Chất lượng gốc",
+  "Generated previews": "Bản xem trước đã tạo",
+  "Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower": "Bản xem trước khi di chuột được cắt từ video gốc thay vì bản xem trước nhỏ do Stash tạo: sắc nét nhưng tải chậm hơn",
 };

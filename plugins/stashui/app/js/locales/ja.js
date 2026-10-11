@@ -1931,4 +1931,7 @@ export default {
   "Motion": "モーション",
   "Cross-fades the pictures – cheap, moving things leave a ghost": "コマ同士をクロスフェードします。軽いですが、動くものに残像が出ます",
   "Follows the movement of the picture (uses the graphics card)": "映像の動きを追跡します（グラフィックスカードを使用）",
+  "Original quality": "オリジナル画質",
+  "Generated previews": "生成されたプレビュー",
+  "Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower": "ホバープレビューは Stash が生成した小さなプレビューではなく元の動画から切り出します。鮮明ですが読み込みは遅くなります",
 };

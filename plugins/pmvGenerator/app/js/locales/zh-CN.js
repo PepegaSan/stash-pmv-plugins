@@ -1988,4 +1988,7 @@ export default {
   "Motion": "运动跟随",
   "Cross-fades the pictures – cheap, moving things leave a ghost": "在画面之间交叉淡化——开销小，但移动的物体会留下重影",
   "Follows the movement of the picture (uses the graphics card)": "跟随画面的运动（使用显卡）",
+  "Original quality": "原始画质",
+  "Generated previews": "生成的预览",
+  "Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower": "悬停预览直接取自原始视频，而不是 Stash 生成的小预览：更清晰，但加载更慢",
 };

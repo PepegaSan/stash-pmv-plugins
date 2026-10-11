@@ -4,6 +4,13 @@
 
 export const CHANGES = [
   {
+    v: "3.88.0",
+    date: "2026-10-11",
+    items: [
+      ["ui", "Markers page: new button “Original quality” – the hover preview is then cut from the original video (from the marker's start to its end, looping; 8 s if it has no end) instead of Stash's small generated preview, so it is sharp. It loads slower, because the real file is read.", "“标记”页面：新增“原始画质”按钮——悬停预览会直接取自原始视频（从标记起点到终点，循环播放；没有终点时为 8 秒），而不是 Stash 生成的小预览，因此更清晰。由于要读取真实文件，加载会更慢。"],
+    ],
+  },
+  {
     v: "3.87.2",
     date: "2026-10-10",
     items: [
