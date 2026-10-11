@@ -660,7 +660,15 @@ export function openStorm() {
 }
 
 // ---------- Start ----------
-setHost({ go }); // (the extension API's go())
+// (the extension API's go() and play(): a plugin's list becomes the list the player goes on in)
+setHost({
+  go,
+  play(pieces, index) {
+    const ctx = (app.context = { kind: "scene", pieces, index });
+    go("scene/" + pieces[index].id);
+    return ctx;
+  },
+});
 
 async function init() {
   // a browser that has forgotten its settings gets them back from Stash first (then the page starts again)

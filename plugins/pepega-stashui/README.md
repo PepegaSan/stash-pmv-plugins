@@ -149,7 +149,8 @@ Everything a plugin draws is `mount(el, ctx) → cleanup`: Stash UI owns where i
 - `stashui.gql(query, vars, { heavy })`: the app's own `gql` (aborted when the page is left, `heavy` queues big queries).
 - `stashui.store.get(key, fallback)` / `.set(key, value)`: browser-local, namespaced per plugin (`stashui.ext.<pluginId>.*`) – part of Stash UI's backup and of the automatic backup in Stash.
 - `stashui.on(event, fn) → off`: `route` (`{ path, view, params, query }`), `library-changed`, `plugins-changed`, `rail-changed`, `playlists-changed`, `display-changed` (with or without the `stash:` prefix).
-- `stashui.has(feature)`: `list.source`, `list.invalidate`, `list.restricted`, `piece.actions`, `route`, `navItem`, `ui`, `strings`, `gql`, `store`, `on`, `slot:<name>` …
+- `stashui.play([{ id, title, thumb }], index) → { add(items) }` (`has("play")`): opens scene `index` of the list in the player; next / previous and the end of a video go on in this list, like for a list in Stash UI. `add(items)` appends more later (e.g. the rest of a list that loads page by page; scenes already in it are skipped).
+- `stashui.has(feature)`: `list.source`, `list.invalidate`, `list.restricted`, `piece.actions`, `route`, `navItem`, `ui`, `strings`, `gql`, `store`, `on`, `play`, `slot:<name>` …
 
 The CSS variables (`--base`, `--bg`, `--bg-2`, `--bg-3`, `--text`, `--text-2`, `--faint`, `--line`, `--pink`, `--paper`, `--danger`, `--ok`) and the classes `kb-btn`, `kb-chip`, `kb-field`, `kb-upsec`, `kb-h2`, `kb-empty`, `kb-hint` are stable – use them and your pieces follow the theme and liquid glass.
 
