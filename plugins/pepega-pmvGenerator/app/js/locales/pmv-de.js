@@ -649,6 +649,7 @@ export default {
     ["None of their latest (\\d+) clips has this tag \\(older clips may still\\)", "Keiner der letzten $1 Clips hat diesen Tag (ältere Clips vielleicht schon)"],
     ["None of their (\\d+) clips has this tag \\(older clips may still\\)", "Keiner der $1 Clips hat diesen Tag"],
     ["Couldn't load the creator's tags: (.+)", "Tags des Creators konnten nicht geladen werden: $1"],
+    ["Only @(.+)'s clips with this tag", "Nur Clips von @$1 mit diesem Tag"],
     ["1 clip was skipped", "1 Clip wurde übersprungen"],
     ["Playlist “(.+)”", "Playlist „$1“"],
     ["(.+) \\((scenes|images)\\)", "$1 ($2)"],

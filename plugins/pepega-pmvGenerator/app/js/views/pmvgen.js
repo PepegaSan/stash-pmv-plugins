@@ -937,11 +937,18 @@ export function render(main) {
   function paintRgChips() {
     $("[data-rgchips]").innerHTML = S.rgPicks.length
       ? S.rgPicks
-          .map((p, i) =>
-            p.type === "user"
-              ? `<span class="kb-chip is-on kb-rg-user" data-rgcreator="${i}" style="cursor:pointer" title="Creator – click to pick their tags">${esc(rg.pickLabel(p))}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`
-              : `<span class="kb-chip is-on kb-rg-${esc(p.type)}" title="${p.type === "niche" ? "Niche" : "Tag"}">${esc(rg.pickLabel(p))}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`
-          )
+          .map((p, i) => {
+            if (p.type !== "user") return `<span class="kb-chip is-on kb-rg-${esc(p.type)}" title="${p.type === "niche" ? "Niche" : "Tag"}">${esc(rg.pickLabel(p))}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`;
+            const creator = `<span class="kb-chip is-on kb-rg-user" data-rgcreator="${i}" style="cursor:pointer" title="Creator – click to pick their tags">@${esc(p.name)}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`;
+            const tags = Array.isArray(p.tags) ? p.tags : [];
+            if (!tags.length) return creator;
+            // A creator with tags: one framed group – the creator, then each tag as its own chip (+ = all of them, / = any)
+            return (
+              `<span data-noi18n style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;padding:2px;border:1px solid var(--bg-3);border-radius:4px">${creator}` +
+              tags.map((t, j) => `${j ? `<span aria-hidden="true" style="opacity:.6">${p.tagMode === "any" ? "/" : "+"}</span>` : ""}<span class="kb-chip kb-rg-tag" data-rgcreator="${i}" style="cursor:pointer" title="Only @${esc(p.name)}'s clips with this tag">#${esc(t)}<button type="button" data-rgtagrm="${i}:${j}" aria-label="Remove">×</button></span>`).join("") +
+              `</span>`
+            );
+          })
           .join("")
       : `<span class="kb-hint">Trending – or add niches, tags or creators</span>`;
   }
@@ -976,7 +983,7 @@ export function render(main) {
       body =
         `<div class="kb-chips">${list.map((x) => `<button type="button" class="kb-chip${sel.includes(x.name) ? " is-on" : ""}" data-rgtag="${esc(x.name)}">#${esc(x.name)}${x.count ? ` <small>${x.count}</small>` : ""}</button>`).join("")}</div>` +
         (sel.length > 1
-          ? `<div class="kb-seg kb-pmvg-small" data-rgtagmode><button type="button" data-v="all" class="${any ? "" : "is-on"}">All of the tags</button><button type="button" data-v="any" class="${any ? "is-on" : ""}">Any of the tags</button></div>`
+          ? `<div class="kb-seg kb-pmvg-small" data-rgtagmode style="align-self:flex-start"><button type="button" data-v="all" class="${any ? "" : "is-on"}">All of the tags</button><button type="button" data-v="any" class="${any ? "is-on" : ""}">Any of the tags</button></div>`
           : "") +
         (!sel.length
           ? `<span class="kb-hint">All of their clips (${fmtNum(rgTagList.total)})</span>`
@@ -1080,6 +1087,18 @@ export function render(main) {
     if (b) addRgPick(rgList[Number(b.dataset.rgpick)]);
   });
   $("[data-rgchips]").addEventListener("click", (e) => {
+    const tr = e.target.closest("[data-rgtagrm]");
+    if (tr) {
+      // One tag of a creator off (the creator stays – with no tag left: all of their clips)
+      const [i, j] = tr.dataset.rgtagrm.split(":").map(Number);
+      const p = S.rgPicks[i];
+      if (p && Array.isArray(p.tags)) p.tags.splice(j, 1);
+      save();
+      paintRgChips();
+      paintRgTags();
+      paintSummary();
+      return;
+    }
     const b = e.target.closest("[data-rgrm]");
     if (!b) {
       const c = e.target.closest("[data-rgcreator]");
