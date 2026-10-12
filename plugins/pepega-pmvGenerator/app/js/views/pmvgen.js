@@ -2257,6 +2257,74 @@ function motionCurve(fr) {
 }
 const meanSpeed = (pts) => (pts && pts.length >= 5 ? pts.reduce((s, p) => s + p.m, 0) / pts.length : null);
 
+// Width of the small measuring picture analyzeAsync makes (pmvsmart's tiny(): 64 px on the long side)
+const grayW = (w, h) => Math.max(8, Math.round(w >= h ? 64 : (64 * w) / h));
+// How fast what is in the picture moves – not the camera, not how much of the picture it fills or how much
+// contrast it has. Block matching on the small measuring picture: first the camera (the best shift of the
+// whole frame), then for each 4×4 block with some texture how far it moved on top of that (up to 6 px of 64).
+// The fastest 15 % of the blocks count – a fast hand in a wide shot is a small part of the picture
+// → pixels (of 64) per frame step
+function actionMotion(a, b, w) {
+  const h = Math.floor(a.length / w);
+  const C = 4; // camera search (± px)
+  const R = 6; // block search on top (± px)
+  const B = 4; // block size
+  const m = C + R;
+  if (w < 2 * m + 2 * B || h < 2 * m + B) return 0;
+  const diff = (x0, y0, dx, dy, n) => {
+    let s = 0;
+    for (let y = y0; y < y0 + n; y++) for (let x = x0; x < x0 + n; x++) s += Math.abs(a[y * w + x] - b[(y + dy) * w + x + dx]);
+    return s;
+  };
+  let best = Infinity;
+  let cx = 0;
+  let cy = 0;
+  for (let dy = -3; dy <= 3; dy++) {
+    for (let dx = -C; dx <= C; dx++) {
+      let s = 0;
+      for (let y = C; y < h - C; y += 2) for (let x = C; x < w - C; x += 2) s += Math.abs(a[y * w + x] - b[(y + dy) * w + x + dx]);
+      if (s < best) [best, cx, cy] = [s, dx, dy];
+    }
+  }
+  const mags = [];
+  for (let y0 = m; y0 + B <= h - m; y0 += B) {
+    for (let x0 = m; x0 + B <= w - m; x0 += B) {
+      let tex = 0;
+      for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) tex += Math.abs(a[y * w + x + 1] - a[y * w + x]) + Math.abs(a[(y + 1) * w + x] - a[y * w + x]);
+      if (tex < B * B * 6) continue; // flat: where it went can't be told
+      const still = diff(x0, y0, cx, cy, B);
+      let bs = still;
+      let mx = 0;
+      let my = 0;
+      for (let dy = -R; dy <= R; dy++) {
+        for (let dx = -R; dx <= R; dx++) {
+          const s = diff(x0, y0, cx + dx, cy + dy, B);
+          if (s < bs) [bs, mx, my] = [s, dx, dy];
+        }
+      }
+      // only a clearly better match counts as a move – noise finds some "better" place anywhere, and along an
+      // edge every place up or down fits about the same
+      mags.push(bs < 0.7 * still && still - bs > B * B * 5 ? Math.hypot(mx, my) : 0);
+    }
+  }
+  if (!mags.length) return 0;
+  mags.sort((p, q) => q - p);
+  const top = mags.slice(0, Math.max(1, Math.round(mags.length * 0.15)));
+  return top.reduce((s, v) => s + v, 0) / top.length;
+}
+// The speed of the action from frames (captureFrames) of a video w×h → motion per second, or null (a cut, too few)
+function actionSpeed(fr, w, h) {
+  const gw = grayW(w, h);
+  const pts = [];
+  for (let i = 1; i < fr.length; i++) {
+    const dt = fr[i].t - fr[i - 1].t;
+    if (dt <= 0) continue;
+    if (isCut(fr[i - 1].a, fr[i].a)) return null;
+    pts.push({ t: fr[i].t, m: actionMotion(fr[i - 1].a.gray, fr[i].a.gray, gw) / dt }); // (px of 64 per second)
+  }
+  return meanSpeed(pts);
+}
+
 // ---------- Clip speed follows the music ----------
 // Stash's scene preview (the hover video) is made of short pieces spread over the whole scene (Settings →
 // Tasks → Generate → previews: segments, segment length, left out at the start and the end). Playing it fast
@@ -2281,7 +2349,7 @@ const speedMaps = new Map();
 // The speeds seen so far (maps and measured clips): "fast" and "calm" are relative to your library
 const speedSeen = [];
 function noteSpeed(v) {
-  if (!(v >= 0)) return;
+  if (v == null || !(v >= 0)) return; // (null >= 0 is true)
   speedSeen.push(v);
   if (speedSeen.length > 600) speedSeen.shift();
 }
@@ -2329,8 +2397,7 @@ async function scanPreview(url, dur, pool) {
     for (const pc of pieces) {
       // The frames well inside the piece (its edges are cuts to the next piece)
       const inner = fr.filter((f) => f.t > pc.p0 + 0.06 && f.t < pc.p1 - 0.06);
-      const pts = motionCurve(inner);
-      const speed = meanSpeed(pts);
+      const speed = actionSpeed(inner, v.videoWidth, v.videoHeight);
       if (speed != null) out.push({ t: pc.t, len: pc.p1 - pc.p0, speed });
     }
     return out.length >= Math.min(3, pieces.length) ? out : null;
@@ -3276,14 +3343,16 @@ class Generator {
       // when this clip comes on (a few seconds ahead – the ready clips go first)
       let spd = null;
       const map = this.S.paceMatch && s.at == null ? speedMaps.get(s.id) : null;
-      let mapPick = null;
+      let mapCands = null;
+      let want = null;
       if (Array.isArray(map)) {
-        const want = this.paceAt(this.now() + Math.min(12, 1.5 + this.ready.length));
-        mapPick = map
+        want = this.paceAt(this.now() + Math.min(12, 1.5 + this.ready.length));
+        mapCands = map
           .filter((x) => x.t < dur - 3 && inSeq(x.t))
           .map((x) => ({ x, d: Math.abs((speedPct(x.speed) ?? 0.5) - want) + (fresh(x.t) ? 0 : 0.5) + Math.random() * 0.12 }))
-          .sort((a, b) => a.d - b.d)[0];
+          .sort((a, b) => a.d - b.d);
       }
+      const mapPick = mapCands && mapCands[0];
       if (s.at != null) {
         start = Math.max(0, Math.min(s.at, dur - 1.5)); // a marker clip starts at its marker
       } else if (mapPick) {
@@ -3362,12 +3431,22 @@ class Generator {
       if ((sync || this.S.paceMatch) && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.rhythmBusy < 3) {
         this.rhythmBusy++;
         try {
-          const pts = motionCurve(await captureFrames(v, SECS, 2));
-          const ms = meanSpeed(pts);
-          if (ms != null) {
-            noteSpeed(ms);
-            spd = ms;
+          let fr = await captureFrames(v, SECS, 2);
+          let ms = this.S.paceMatch ? actionSpeed(fr, v.videoWidth, v.videoHeight) : null;
+          noteSpeed(ms);
+          // A piece of the map is only 0.75 s of the scene: if the spot turns out far off the wanted pace,
+          // the next best piece is tried, and the better of the two taken
+          const off = (x) => Math.abs((speedPct(x) ?? want) - want);
+          if (mapPick && start === mapPick.x.t && mapCands.length > 1 && ms != null && off(ms) > 0.35) {
+            const alt = mapCands[1].x.t;
+            await seek(alt);
+            const fr2 = await captureFrames(v, SECS, 2);
+            const ms2 = actionSpeed(fr2, v.videoWidth, v.videoHeight);
+            noteSpeed(ms2);
+            if (ms2 != null && off(ms2) < off(ms)) [start, fr, ms] = [alt, fr2, ms2];
           }
+          if (ms != null) spd = ms;
+          const pts = motionCurve(fr);
           const r = sync && pts && rhythmOf(pts);
           if (r) {
             let rate = beatFit(r.period, this.song.bpm);
