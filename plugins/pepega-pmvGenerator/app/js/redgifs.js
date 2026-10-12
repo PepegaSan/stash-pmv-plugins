@@ -107,7 +107,38 @@ export async function suggest(query) {
   return { niches, tags, users };
 }
 
-export const pickLabel = (p) => (p.type === "user" ? "@" + p.name : p.type === "tag" ? "#" + p.name : p.name);
+// A creator with tags: "@name · #a + #b" (all of them) or "@name · #a / #b" (any of them)
+const userTags = (p) => (p.type === "user" && Array.isArray(p.tags) ? p.tags : []);
+export const pickLabel = (p) =>
+  p.type === "user"
+    ? "@" + p.name + (userTags(p).length ? " · " + userTags(p).map((t) => "#" + t).join(p.tagMode === "any" ? " / " : " + ") : "")
+    : p.type === "tag"
+    ? "#" + p.name
+    : p.name;
+
+// The tags a creator actually uses (from their latest clips, up to 3 pages)
+// → { tags: [{ name, count }] most used first, clips: [[tag, …] per clip], total: all of their clips }.
+// RedGifs matches tags exactly (case too), so they are picked from this list rather than typed.
+const creatorCache = new Map();
+export function creatorTags(user) {
+  const key = String(user).toLowerCase();
+  if (!creatorCache.has(key)) {
+    const v = encodeURIComponent(user);
+    const page = (p) => get(`/users/${v}/search?order=new&count=${PAGE}&page=${p}`);
+    const job = (async () => {
+      const first = await page(1);
+      const more = await Promise.all(Array.from({ length: Math.min(3, first.pages || 1) - 1 }, (_, i) => page(i + 2).catch(() => null)));
+      const clips = [first, ...more].flatMap((d) => ((d && d.gifs) || []).map((g) => g.tags || []));
+      const counts = new Map();
+      clips.forEach((tags) => tags.forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
+      const tags = [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      return { tags, clips, total: first.total || clips.length };
+    })();
+    creatorCache.set(key, job);
+    job.catch(() => creatorCache.delete(key)); // (a failed load is tried again next time)
+  }
+  return creatorCache.get(key);
+}
 
 // ---------- Feed: clips for the show ----------
 
@@ -125,10 +156,17 @@ function sources(S) {
     }
     if (pick.type === "user") {
       const order = S.rgOrder === "latest" ? "new" : "top";
-      return { id: `u:${pick.id.toLowerCase()}:${order}`, type: "user", name: pick.name, label: "@" + pick.name, path: (p) => `/users/${v}/search?order=${order}&${count}&page=${p}` };
+      // With tags: only the creator's clips with all of them (one request – RedGifs reads "a,b" as a AND b),
+      // or with any of them (one source per tag). (named after the creator: saved clips go into its folder)
+      const tags = userTags(pick);
+      const sets = !tags.length ? [[]] : pick.tagMode === "any" ? tags.map((t) => [t]) : [tags];
+      return sets.map((set) => {
+        const q = set.length ? `&tags=${encodeURIComponent(set.join(","))}` : "";
+        return { id: `u:${pick.id.toLowerCase()}:${order}:${set.join(",")}`, type: "user", name: pick.name, label: "@" + pick.name + set.map((t) => " #" + t).join(""), path: (p) => `/users/${v}/search?order=${order}${q}&${count}&page=${p}` };
+      });
     }
     return { id: `s:${pick.id.toLowerCase()}:${S.rgOrder}`, type: "tag", name: pick.name, label: "#" + pick.name, path: (p) => `/gifs/search?tags=${v}&order=${S.rgOrder}&${count}&page=${p}` };
-  });
+  }).flat();
 }
 
 function norm(g, src, S) {

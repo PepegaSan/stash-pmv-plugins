@@ -387,6 +387,7 @@ export function render(main) {
           <label class="kb-pmvg-range"><span>${icon("film")}Share</span><input type="range" min="0" max="100" step="5" data-r="rgPct" aria-label="RedGifs share"><output data-ro="rgPct"></output></label>
           <div class="kb-pmvg-rgbox" data-rgbox>
             <div class="kb-chips" data-rgchips></div>
+            <div class="kb-pmvg-rg" data-rgtags style="display:none"></div>
             <div class="kb-pmvg-rgsearch">
               <input class="kb-field" type="search" data-rgq placeholder="Add niches, tags or creators … (none = trending)" autocomplete="off" spellcheck="false" aria-label="Search RedGifs niches, tags and creators">
               <div class="kb-pmvg-rgsug" data-rgsug hidden></div>
@@ -933,9 +934,87 @@ export function render(main) {
 
   function paintRgChips() {
     $("[data-rgchips]").innerHTML = S.rgPicks.length
-      ? S.rgPicks.map((p, i) => `<span class="kb-chip is-on kb-rg-${esc(p.type)}" title="${p.type === "user" ? "Creator" : p.type === "niche" ? "Niche" : "Tag"}">${esc(rg.pickLabel(p))}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`).join("")
+      ? S.rgPicks
+          .map((p, i) =>
+            p.type === "user"
+              ? `<span class="kb-chip is-on kb-rg-user" data-rgcreator="${i}" style="cursor:pointer" title="Creator – click to pick their tags">${esc(rg.pickLabel(p))}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`
+              : `<span class="kb-chip is-on kb-rg-${esc(p.type)}" title="${p.type === "niche" ? "Niche" : "Tag"}">${esc(rg.pickLabel(p))}<button type="button" data-rgrm="${i}" aria-label="Remove">×</button></span>`
+          )
+          .join("")
       : `<span class="kb-hint">Trending – or add niches, tags or creators</span>`;
   }
+
+  // A creator's tags: only their clips with these tags (none = all of their clips)
+  const rgTags = $("[data-rgtags]");
+  let rgTagsFor = null; // the creator pick whose tags are open
+  let rgTagList = null; // { tags, clips, total } (see rg.creatorTags) or an Error
+  const RG_TAGS_SHOWN = 40;
+  function closeRgTags() {
+    rgTagsFor = null;
+    rgTags.style.display = "none";
+    rgTags.innerHTML = "";
+  }
+  function paintRgTags() {
+    const p = rgTagsFor;
+    if (!p || !S.rgPicks.includes(p)) return closeRgTags();
+    const sel = Array.isArray(p.tags) ? p.tags : [];
+    const head = `<span class="kb-lab-t">@${esc(p.name)} <small>– only clips with these tags (none = all of their clips)</small></span>`;
+    let body;
+    if (!rgTagList) body = `<span class="kb-hint">Loading the creator's tags …</span>`;
+    else if (rgTagList instanceof Error) body = `<span class="kb-hint">Couldn't load the creator's tags: ${esc(rgTagList.message)}</span>`;
+    else if (!rgTagList.tags.length && !sel.length) body = `<span class="kb-hint">This creator's clips have no tags</span>`;
+    else {
+      // The most used ones, plus picked ones that aren't among them
+      const list = rgTagList.tags.slice(0, RG_TAGS_SHOWN);
+      sel.filter((t) => !list.some((x) => x.name === t)).forEach((t) => list.push({ name: t, count: 0 }));
+      // How many of the looked-at clips the choice leaves (an "all" that nothing has would bring no RedGifs clips at all)
+      const any = p.tagMode === "any";
+      const n = rgTagList.clips.filter((tags) => (any ? sel.some((t) => tags.includes(t)) : sel.every((t) => tags.includes(t)))).length;
+      const of = rgTagList.total > rgTagList.clips.length ? `of their latest ${rgTagList.clips.length} clips` : `of their ${rgTagList.clips.length} clips`;
+      body =
+        `<div class="kb-chips">${list.map((x) => `<button type="button" class="kb-chip${sel.includes(x.name) ? " is-on" : ""}" data-rgtag="${esc(x.name)}">#${esc(x.name)}${x.count ? ` <small>${x.count}</small>` : ""}</button>`).join("")}</div>` +
+        (sel.length > 1
+          ? `<div class="kb-seg kb-pmvg-small" data-rgtagmode><button type="button" data-v="all" class="${any ? "" : "is-on"}">All of the tags</button><button type="button" data-v="any" class="${any ? "is-on" : ""}">Any of the tags</button></div>`
+          : "") +
+        (!sel.length
+          ? `<span class="kb-hint">All of their clips (${fmtNum(rgTagList.total)})</span>`
+          : n
+          ? `<span class="kb-hint">${n} ${of} match</span>`
+          : `<span class="kb-hint">None ${of} has ${sel.length > 1 && !any ? "all of these tags – try “Any of the tags”" : "this tag"} (older clips may still)</span>`);
+    }
+    rgTags.innerHTML = head + body;
+    rgTags.style.display = "";
+  }
+  async function openRgTags(p) {
+    if (rgTagsFor === p) return closeRgTags(); // (a second click closes it)
+    rgTagsFor = p;
+    rgTagList = null;
+    paintRgTags();
+    try {
+      const list = await rg.creatorTags(p.id);
+      if (rgTagsFor === p) rgTagList = list;
+    } catch (err) {
+      if (rgTagsFor === p) rgTagList = err;
+    }
+    paintRgTags();
+  }
+  rgTags.addEventListener("click", (e) => {
+    const p = rgTagsFor;
+    if (!p) return;
+    const t = e.target.closest("[data-rgtag]");
+    const m = e.target.closest("[data-rgtagmode] [data-v]");
+    if (t) {
+      const sel = Array.isArray(p.tags) ? p.tags : (p.tags = []);
+      const k = sel.indexOf(t.dataset.rgtag);
+      if (k >= 0) sel.splice(k, 1);
+      else sel.push(t.dataset.rgtag);
+    } else if (m) p.tagMode = m.dataset.v;
+    else return;
+    save();
+    paintRgChips();
+    paintRgTags();
+    paintSummary();
+  });
   const rgq = $("[data-rgq]");
   const rgsug = $("[data-rgsug]");
   let rgTimer;
@@ -966,12 +1045,16 @@ export function render(main) {
     }
   }
   function addRgPick(p) {
-    if (!S.rgPicks.some((x) => x.type === p.type && x.id.toLowerCase() === String(p.id).toLowerCase())) S.rgPicks.push({ type: p.type, id: p.id, name: p.name });
+    const same = (x) => x.type === p.type && x.id.toLowerCase() === String(p.id).toLowerCase();
+    if (!S.rgPicks.some(same)) S.rgPicks.push({ type: p.type, id: p.id, name: p.name });
     save();
     paintRgChips();
     paintSummary();
     rgq.value = "";
     rgsug.hidden = true;
+    // A creator: their tags right away (to narrow them down – or leave it at all of their clips)
+    const pick = S.rgPicks.find(same);
+    if (p.type === "user" && rgTagsFor !== pick) openRgTags(pick);
   }
   rgq.addEventListener("input", () => {
     clearTimeout(rgTimer);
@@ -996,10 +1079,15 @@ export function render(main) {
   });
   $("[data-rgchips]").addEventListener("click", (e) => {
     const b = e.target.closest("[data-rgrm]");
-    if (!b) return;
+    if (!b) {
+      const c = e.target.closest("[data-rgcreator]");
+      if (c) openRgTags(S.rgPicks[Number(c.dataset.rgcreator)]);
+      return;
+    }
     S.rgPicks.splice(Number(b.dataset.rgrm), 1);
     save();
     paintRgChips();
+    paintRgTags(); // (closes it if that creator was removed)
     paintSummary();
   });
   document.addEventListener("click", (e) => {
@@ -1403,6 +1491,7 @@ export function render(main) {
     mountFolders();
     mountPerfs();
     paintRgChips();
+    paintRgTags(); // (the open creator may be gone with the preset)
     paintSegs();
     paintSummary();
     paintTip();
