@@ -4,6 +4,23 @@
 
 export const CHANGES = [
   {
+    v: "3.89.1",
+    date: "2026-10-12",
+    items: [
+      ["pmv", "PMV Generator 2.29.1: RedGifs tags you pick bring clips with that tag again – RedGifs had stopped understanding the old way of asking and sent its trending clips instead.", "PMV Generator 2.29.1：所选的 RedGifs 标签重新只带来含该标签的片段 – RedGifs 已不再支持旧的请求方式，之前返回的是热门片段。"],
+      ["storm", "Media Storm 2.8.1: the same fix for RedGifs tags in the storm – a tag now brings videos with that tag, not RedGifs' trending ones.", "Media Storm 2.8.1：风暴中的 RedGifs 标签同样已修复 – 现在只会出现带该标签的视频，而不是 RedGifs 的热门视频。"],
+    ],
+  },
+  {
+    v: "3.89.0",
+    date: "2026-10-11",
+    items: [
+      ["ui", "Player on phones: a swipe left or right across the picture jumps back or forward (the further, the more – a full width is one to five minutes, depending on the video's length; a note shows where it goes). The 10-second buttons are gone there to make room, titles are smaller, the “Resume at …” note is a small pill in the corner with “From the start” as a text button, and the gear menu (quality, subtitles, speed) opens as a sheet at the bottom of the screen – before, it was cut off above the short picture and hidden behind the info bar.", "手机上的播放器：在画面上向左或向右滑动即可后退或快进（滑得越远跳得越多——整个宽度约为一到五分钟，取决于视频长度；会有提示显示跳到哪里）。为节省空间，手机上去掉了 10 秒按钮，标题更小，“从 … 继续”提示变成角落里的小标签，“从头开始”改为文字按钮；齿轮菜单（画质、字幕、速度）现在从屏幕底部弹出——以前它在较矮的画面上方被截断，并被信息栏遮住。"],
+      ["ui", "For plugin authors: stashui.play(scenes, index) opens a scene from a plugin's own list – next / previous and the end of a video then go on in that list. (Contributed by PepegaSan.)", "面向插件作者：stashui.play(scenes, index) 可从插件自己的列表中打开场景——之后的上一个 / 下一个以及视频结束后都会在该列表中继续。（由 PepegaSan 贡献。）"],
+      ["pmv", "PMV Generator 2.29.0: with only a few matching clips (e.g. a high minimum rating) all of them come up again instead of mostly one. Copies of one clip no longer crowd out the others, “Clip shape per layout” takes turns between the clips of that shape, a clip being loaded twice at once gets its own address, and a clip that only loaded too slowly gets two more chances. (Contributed by PepegaSan.)", "PMV 生成器 2.29.0：匹配的片段很少时（例如设置了较高的最低评分），现在所有片段都会轮流出现，而不是几乎只有一个。同一片段的多个副本不再挤掉其他片段，“每种布局的片段形状”会在该形状的片段之间轮换，同时加载两次的片段会使用各自的地址，仅因加载太慢而失败的片段还会再获得两次机会。（由 PepegaSan 贡献。）"],
+    ],
+  },
+  {
     v: "3.88.0",
     date: "2026-10-11",
     items: [

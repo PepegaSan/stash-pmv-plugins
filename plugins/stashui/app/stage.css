@@ -337,6 +337,24 @@ html.kb-glass .kb-plc-btn.is-danger:hover { background: rgba(210, 44, 74, .22); 
 .kb-seekflash.is-on { opacity: 1; transform: translate(-50%, -50%) scale(1); transition: none; }
 .kb-seekflash:empty { display: none; }
 @media (max-width: 460px) { .kb-player .kb-skip-start, .kb-player .kb-ctrl-row [data-mini] { display: none; } }
+/* Phones (upright, or lying with a low screen): a swipe across the picture seeks, so the 10 s buttons go;
+   smaller titles; the resume note is a small pill in the corner; the menu (quality, subtitles, speed) opens as
+   a sheet at the bottom of the screen – above the bar it was cut off by the short picture */
+.kb-player .kb-screen { touch-action: pan-y pinch-zoom; }
+.kb-stage.is-idle:has(.kb-pmenu:not([hidden])) .kb-controls { opacity: 1; pointer-events: auto; }
+.kb-stage.is-idle:has(.kb-pmenu:not([hidden])) { cursor: auto; }
+@media (max-width: 560px), (hover: none) and (max-height: 500px) {
+  .kb-player .kb-ctrl-row [data-skip] { display: none; }
+  .kb-player .kb-topbar { padding: 8px 8px 24px; }
+  .kb-player .kb-topbar-title { font-size: 16px; }
+  .kb-stage .kb-plc-title { font-size: 22px; line-height: 1.08; }
+  .kb-player .kb-resume-hint { top: 50px; right: 8px; left: auto; gap: 6px; max-width: calc(100% - 16px); padding: 4px 4px 4px 10px; border-width: 1.5px; border-radius: 14px; font-size: 12px; transform: none; box-shadow: 0 6px 16px rgba(0, 0, 0, .4); }
+  .kb-player .kb-resume-hint .kb-btn { height: 22px; padding: 0 6px; border-color: transparent; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+  html .kb-stage.kb-player:has(.kb-pmenu:not([hidden])) > .kb-screen { z-index: 7; } /* (above the info bar below the picture) */
+  .kb-player .kb-pmenu { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 60; width: auto; max-width: 520px; margin-inline: auto; max-height: min(70vh, 520px); overscroll-behavior: contain; }
+  .kb-player .kb-pmenu-opt { padding: 10px 8px; }
+  .kb-player .kb-pmenu-speeds .kb-chip { min-height: 30px; }
+}
 /* Fullscreen: only the picture – the info bar steps aside */
 /* Fullscreen is the page's overlay root (it stays when the next scene opens), the stage carries .is-full and fills the screen */
 .kb-stage.is-full { position: fixed; inset: 0; z-index: 5; width: 100vw; height: 100vh; background: #000; }

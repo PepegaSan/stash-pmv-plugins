@@ -149,7 +149,8 @@ Everything a plugin draws is `mount(el, ctx) → cleanup`: Stash UI owns where i
 - `stashui.gql(query, vars, { heavy })`: the app's own `gql` (aborted when the page is left, `heavy` queues big queries).
 - `stashui.store.get(key, fallback)` / `.set(key, value)`: browser-local, namespaced per plugin (`stashui.ext.<pluginId>.*`) – part of Stash UI's backup and of the automatic backup in Stash.
 - `stashui.on(event, fn) → off`: `route` (`{ path, view, params, query }`), `library-changed`, `plugins-changed`, `rail-changed`, `playlists-changed`, `display-changed` (with or without the `stash:` prefix).
-- `stashui.has(feature)`: `list.source`, `list.invalidate`, `list.restricted`, `piece.actions`, `route`, `navItem`, `ui`, `strings`, `gql`, `store`, `on`, `slot:<name>` …
+- `stashui.play([{ id, title, thumb }], index) → { add(items) }` (`has("play")`): opens scene `index` of the list in the player; next / previous and the end of a video go on in this list, like for a list in Stash UI. `add(items)` appends more later (e.g. the rest of a list that loads page by page; scenes already in it are skipped).
+- `stashui.has(feature)`: `list.source`, `list.invalidate`, `list.restricted`, `piece.actions`, `route`, `navItem`, `ui`, `strings`, `gql`, `store`, `on`, `play`, `slot:<name>` …
 
 The CSS variables (`--base`, `--bg`, `--bg-2`, `--bg-3`, `--text`, `--text-2`, `--faint`, `--line`, `--pink`, `--paper`, `--danger`, `--ok`) and the classes `kb-btn`, `kb-chip`, `kb-field`, `kb-upsec`, `kb-h2`, `kb-empty`, `kb-hint` are stable – use them and your pieces follow the theme and liquid glass.
 
@@ -173,13 +174,14 @@ The CSS variables (`--base`, `--bg`, `--bg-2`, `--bg-3`, `--text`, `--text-2`, `
   - **Your watching**: which parts you actually watch and where you seek to. Stored only in this browser (the last 400 scenes).
 - **Mini player** (button next to fullscreen, key **X**): the player closes, the video keeps playing small in a corner while you browse – history and progress keep counting. Drag it anywhere; resize it by pulling any edge or corner, or with the mouse wheel over it (it keeps the video's shape and remembers where it was); the title or ⤢ goes back to the player at the same spot, ▣ floats it above other windows (picture in picture).
 - **Music** in the info bar (with the PMV Generator installed): the sound of this video from/to any point (“Here” takes the current position) – **Open in PMV Generator** (it opens with the video and the part already picked), **Download** as .m4a, or **Save to library** (folder “PMV Generator/Songs”). ffmpeg (the one Stash brings) does the cutting.
+- **On phones**: swipe left / right across the picture to jump back / forward (the further, the more; a full width is 1–5 minutes, depending on the video's length). The 10-second buttons are hidden there, titles are smaller, the resume note is a small pill in the corner, and the gear menu opens as a sheet at the bottom of the screen.
 - **Cast to TV** in the gear menu: sends the video to a Chromecast / Google TV (Chrome, Edge) or AirPlay (Safari) – the browser's own device picker.
 - **Similar** in the info bar: up to 8 matching scenes – shared performers count most, then studio, share of common tags and the same folder; the best ones are also sorted by the look of the thumbnail (color, brightness, composition). Every suggestion shows the reason (e.g. “3 shared tags”, “similar look”). If a scene has no metadata, only the look decides.
 
 | Key | Player | Image viewer |
 |---|---|---|
 | Space | Play/pause | Slideshow on/off |
-| ← / → | 5 s back/forward (Shift: 30 s); the buttons next to play jump 10 s | Previous/next image |
+| ← / → | 5 s back/forward (Shift: 30 s); the buttons next to play jump 10 s (on phones: swipe across the picture) | Previous/next image |
 | Home | From the beginning (also a button) | – |
 | N / P | Next/previous scene | – |
 | J | Next highlight | – |

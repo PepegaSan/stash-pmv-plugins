@@ -573,11 +573,49 @@ export async function render(host, params, query = {}) {
     tapWoke = stage.classList.contains("is-idle");
     wake();
   });
+  // Touch: swipe left/right across the picture = back/forward (the further, the more – a full width is
+  // 1–5 minutes, depending on how long the video is; the note shows where it goes). Up/down still scrolls.
+  let swipe = null;
+  let swiped = 0;
+  stage.addEventListener("pointerdown", (e) => {
+    swipe = null;
+    if (e.pointerType === "mouse" || (vr && vr.mode) || !(e.target === v || e.target.classList.contains("kb-screen"))) return;
+    const d = v.duration || dur || 0;
+    if (!d) return;
+    swipe = { id: e.pointerId, x: e.clientX, y: e.clientY, from: v.currentTime, span: Math.min(d, Math.max(60, Math.min(300, d / 10))), w: $(".kb-screen").clientWidth || 1, on: false };
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!swipe || e.pointerId !== swipe.id) return;
+    const dx = e.clientX - swipe.x;
+    const dy = e.clientY - swipe.y;
+    if (!swipe.on) {
+      if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) return (swipe = null); // scrolling
+      if (Math.abs(dx) < 16) return;
+      swipe.on = true;
+    }
+    const end = Math.max(0, (v.duration || dur || 0) - 0.5);
+    swipe.to = Math.max(0, Math.min(end, swipe.from + (dx / swipe.w) * swipe.span));
+    const by = swipe.to - swipe.from;
+    flash(`${by < 0 ? "−" : "+"}${fmtDuration(Math.abs(by))} · ${fmtDuration(swipe.to)}`, true);
+  });
+  const endSwipe = (e) => {
+    if (!swipe || e.pointerId !== swipe.id) return;
+    const s = swipe;
+    swipe = null;
+    if (!s.on || e.type === "pointercancel" || s.to == null) return;
+    swiped = Date.now(); // (the tap that ends a swipe doesn't pause)
+    v.currentTime = s.to;
+    watch.seeked(v.currentTime);
+    flash(`${s.to < s.from ? "«" : "»"} ${fmtDuration(s.to)}`);
+  };
+  stage.addEventListener("pointerup", endSwipe);
+  stage.addEventListener("pointercancel", endSwipe);
 
   host.addEventListener("click", (e) => {
     const el = e.target;
     const woke = tapWoke;
     tapWoke = false;
+    if (Date.now() - swiped < 400 && (el === v || el.classList.contains("kb-screen"))) return;
     if (el.closest("[data-close]")) return closeOverlay();
     if (el.closest("[data-play]") || el.closest("[data-bigplay]")) return toggle();
     if (el === v) return woke ? undefined : toggle();
@@ -1508,14 +1546,19 @@ export async function render(host, params, query = {}) {
 
   // Jumping: from the beginning, 10 s back / forward – with a short note on the picture
   let flashT = 0;
-  function flash(note) {
+  function flash(note, hold) {
     const f = $("[data-seekflash]");
     if (!f) return;
     f.textContent = note;
+    clearTimeout(flashT);
+    if (hold) {
+      f.classList.add("is-on"); // (while a finger swipes: stays, no new pop each move)
+      flashT = setTimeout(() => f.classList.remove("is-on"), 1500);
+      return;
+    }
     f.classList.remove("is-on");
     void f.offsetWidth;
     f.classList.add("is-on");
-    clearTimeout(flashT);
     flashT = setTimeout(() => f.classList.remove("is-on"), 700);
   }
   function seekTo(at, note) {

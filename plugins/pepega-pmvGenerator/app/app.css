@@ -886,6 +886,12 @@ html.kb-glass .kb-resume-hint {
 }
 html.kb-glass .kb-resume-hint .kb-btn.kb-btn { color: var(--text); border-color: var(--glass-edge); }
 html.kb-glass .kb-resume-hint .kb-btn.kb-btn:hover { color: var(--ink); background: var(--pink); }
+/* Phones: the small resume pill (text button) and the menu as a sheet at the bottom */
+@media (max-width: 560px), (hover: none) and (max-height: 500px) {
+  html.kb-glass .kb-player .kb-resume-hint .kb-btn.kb-btn { border-color: transparent; background: transparent; }
+  html.kb-glass .kb-player .kb-resume-hint .kb-btn.kb-btn:hover { color: var(--pink); }
+  html.kb-glass .kb-player .kb-pmenu { border-radius: 20px; background: var(--glass-shine), color-mix(in srgb, var(--base) 84%, transparent); box-shadow: var(--glass-shadow), 0 -8px 40px rgba(0, 0, 0, .45); }
+}
 /* PMV Generator: option boxes, sections, pickers, the live HUD and end card */
 html.kb-glass :is(.kb-pmvg-sec, .kb-pmvg-opt, .kb-pmvg-range, .kb-fpick, .kb-pmvg-rgbox, .kb-pmvg-drop, .kb-pmvg-wave) {
   border-color: var(--glass-edge);

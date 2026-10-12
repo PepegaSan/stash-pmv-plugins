@@ -7,8 +7,8 @@
    (edit them in pepega-stashui, then run this script). The generator itself (pmvgen.js, beats.js, …)
    lives only in plugins/pepega-pmvGenerator; its beats.js is also copied to plugins/mediaStorm/web.
    Media Storm's rgbackend.py (RedGifs) is copied to plugins/pepega-pmvGenerator.
-2. Stamp: every app page gets an import map with version stamps, so browsers never mix
-   cached old modules with new ones.
+2. Stamp: every app page (Stash UI, PMV Generator, RedTok) gets an import map with version stamps,
+   so browsers never mix cached old modules with new ones.
 3. Package: every plugin folder is zipped and listed in <out>/index.yml – the file Stash reads
    when you add this repository as a plugin source.
 """
@@ -30,6 +30,7 @@ UI_ORIG = os.path.join(PLUGINS, "stashui")
 GEN = os.path.join(PLUGINS, "pepega-pmvGenerator")
 GEN_ORIG = os.path.join(PLUGINS, "pmvGenerator")
 STORM = os.path.join(PLUGINS, "mediaStorm")
+TOK = os.path.join(PLUGINS, "redtok")
 
 SHARED = [
     "app/js/theme.js",
@@ -94,10 +95,10 @@ def version_of(plugin_dir):
     return m.group(1) if m else "0"
 
 
-def stamp(app, ver):
+def stamp(app, ver, dirs=("js",)):
     """Import map + ?v= stamps for index.html in an app folder."""
     mods = []
-    for root, _, files in os.walk(os.path.join(app, "js")):
+    for root, _, files in (w for d in dirs for w in os.walk(os.path.join(app, d))):
         for f in files:
             if f.endswith(".js"):
                 mods.append(os.path.relpath(os.path.join(root, f), app).replace("\\", "/"))
@@ -208,6 +209,7 @@ def main():
         stamp(os.path.join(UI_ORIG, "app"), version_of(UI_ORIG))
     if os.path.isfile(os.path.join(GEN_ORIG, "pmvGenerator.yml")):
         stamp(os.path.join(GEN_ORIG, "app"), version_of(GEN_ORIG))
+    stamp(os.path.join(TOK, "web"), version_of(TOK), ("js", "locales"))
     if a.sync_only:
         print("synced and stamped")
         return

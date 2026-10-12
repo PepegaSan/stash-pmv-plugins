@@ -1963,7 +1963,7 @@ async function spriteSpots(s, dur) {
   if (!s.sprite || !s.vtt) return null;
   if (spriteCache.has(s.key)) return spriteCache.get(s.key);
   const job = (async () => {
-    const text = await (await fetch(s.vtt)).text();
+    const text = await withTimeout(fetch(s.vtt).then((r) => r.text()), 8000); // (a load that hangs mustn't hold up the clip)
     const cues = [];
     const re = /(\d+):(\d+):(\d+(?:\.\d+)?)\s*-->\s*(\d+):(\d+):(\d+(?:\.\d+)?)[^\n]*\n[^\n#]*#xywh=(\d+),(\d+),(\d+),(\d+)/g;
     for (let m; (m = re.exec(text)); ) {
@@ -2202,6 +2202,7 @@ class Generator {
     this.sp = Array.from({ length: this.nStages }, () => ({ sources: [], srcIdx: 0, page: { scene: 1, image: 1, marker: 1 }, seed: Math.floor(Math.random() * 1e8), fetching: null, dead: false }));
     this.ready = [];
     this.preparing = 0;
+    this.prepKeys = []; // keys of the clips being prepared
     this.bad = 0;
     this.recent = []; // recently shown clips (variety)
     this.used = new Set();
@@ -2403,7 +2404,8 @@ class Generator {
       [...new Set(this.groups)].filter(Boolean).map(row).join("") +
       (fails.length ? `<div class="kb-pmvg-infohead">Skipped</div>` + fails.map((f) => `<div class="is-bad">${esc(f.name)} <small>${esc(f.file || f.url || "")}</small> – ${esc(f.why)}${f.n > 1 ? ` <small>×${f.n}</small>` : ""}</div>`).join("") : "");
   }
-  // A clip that failed: listed once (with a count) and not tried again in this show
+  // A clip that failed: listed once (with a count) and not tried again in this show –
+  // only slow to load (timed out): it gets two more chances (with few clips every one counts)
   noteFail(s, e) {
     const why = e.why || e.message || String(e);
     this.failed = this.failed || [];
@@ -2414,7 +2416,7 @@ class Generator {
       this.failed.push(this.failed.splice(this.failed.indexOf(known), 1)[0]);
     } else this.failed.push({ key: s.key, name: s.name || s.key, file: s.file, url: s.url, why, n: 1 });
     if (this.failed.length > 20) this.failed.shift();
-    (this.badKeys = this.badKeys || new Set()).add(s.key);
+    if (e.message !== "Timed out" || (known && known.n >= 3)) (this.badKeys = this.badKeys || new Set()).add(s.key);
     if (!known) console.warn(`[PMV Generator] clip skipped: ${s.name || s.key} (${s.url}) – ${why}`);
   }
 
@@ -2658,7 +2660,16 @@ class Generator {
         // (new ones first, then not shown recently; with a small selection a repeat is better than the wrong shape)
         let k = P.sources.findIndex((x, n) => n >= P.srcIdx && fits(x) && !this.isRecent(x));
         if (k < 0) k = P.sources.findIndex((x) => fits(x) && !this.isRecent(x));
-        if (k < 0) k = P.sources.findIndex(fits);
+        if (k < 0) {
+          // All of that shape are recent: in turns – the one with the fewest copies ready, then the one shown longest ago
+          // (always the first that fits = always the same clip, with few clips of that shape)
+          const keys = this.recent.map((m) => m.key);
+          let low = Infinity;
+          P.sources.forEach((x, n) => {
+            const sc = fits(x) ? this.copies(x.key) * 100 + keys.lastIndexOf(x.key) : Infinity;
+            if (sc < low) [low, k] = [sc, n];
+          });
+        }
         if (k >= 0) return P.sources[k];
       }
       const s = P.sources[P.srcIdx++];
@@ -2670,7 +2681,11 @@ class Generator {
 
   // Variety: the same scene within the last 24 clips or – softer – the same performer within the last 4
   isRecent(s) {
-    return this.used.has(s.key) || this.ready.some((m) => m.key === s.key);
+    return this.used.has(s.key) || this.copies(s.key) > 0;
+  }
+  // How often a clip is ready or being prepared
+  copies(key) {
+    return this.ready.filter((m) => m.key === key).length + this.prepKeys.filter((k) => k === key).length;
   }
   remember(m) {
     this.shown.add(m.key);
@@ -2721,9 +2736,17 @@ class Generator {
     const rules = this.S.layoutShape || {};
     const need = [...new Set(this.layouts.map((k) => rules[k]).filter((v) => v === "landscape" || v === "portrait"))];
     if (!need.length) return null;
-    const have = (sh) => this.ready.filter((m) => (sh === "portrait" ? m.h > m.w : m.w >= m.h)).length + this.prepShape[sh];
-    need.sort((a, b) => have(a) - have(b));
-    return have(need[0]) < 5 ? need[0] : null;
+    const isShape = (x, sh) => x.w && x.h && (sh === "portrait" ? x.h > x.w : x.w >= x.h);
+    const have = (sh) => this.ready.filter((m) => isShape(m, sh)).length + this.prepShape[sh];
+    // Enough for the biggest layout with that rule – more only while there are other clips of that shape
+    // (with few of them: no pile of copies of one clip that crowds out the rest)
+    const target = (sh) => {
+      const avail = new Set(this.sp.flatMap((p) => p.sources).filter((x) => isShape(x, sh) && !(this.badKeys && this.badKeys.has(x.key))).map((x) => x.key)).size;
+      const groups = Math.max(...this.layouts.filter((k) => rules[k] === sh).map((k) => LAYOUTS[k].groups));
+      return Math.min(5, Math.max(groups, avail));
+    };
+    const short = need.map((sh) => [sh, have(sh) - target(sh)]).filter(([, d]) => d < 0).sort((a, b) => a[1] - b[1]);
+    return short.length ? short[0][0] : null;
   }
 
   // Which stage needs clips next: the current one first, then a reserve for drops (the last) and the one coming up
@@ -2752,11 +2775,14 @@ class Generator {
 
   async prepareOne(st = 0, want = null) {
     const s = await this.nextSource(st, want);
+    this.prepKeys.push(s.key); // (variety: not the same clip again while it is being prepared)
     try {
       return await this.prepareFrom(s);
     } catch (e) {
       this.noteFail(s, e);
       throw e;
+    } finally {
+      this.prepKeys.splice(this.prepKeys.indexOf(s.key), 1);
     }
   }
 
@@ -2780,7 +2806,11 @@ class Generator {
     this.pool.appendChild(v);
     try {
       if (s.cors) v.crossOrigin = "anonymous"; // RedGifs allows it – analysis and recording keep working
-      v.src = s.url;
+      // The same file a second time at once (few clips: on screen, ready and being prepared): an address of its own –
+      // the browser lets two loads of one address wait for each other, the clip on screen stalls and nothing new comes
+      const twin = !s.cors && [...this.pool.children].some((x) => x !== v && x.dataset.key === s.key);
+      v.dataset.key = s.key;
+      v.src = twin ? copyUrl(s.url, (this.copyN = (this.copyN || 0) + 1)) : s.url;
       await withTimeout(once(v, "loadedmetadata"), 8000);
       // Opens but no picture (e.g. a codec the browser can't decode): skip it – else it's a black field
       if (!v.videoWidth || !v.videoHeight) throw Object.assign(new Error("no picture"), { why: "no picture – the browser can't decode this video (codec?)" });
@@ -2804,7 +2834,7 @@ class Generator {
       let start = rand();
       let info = null;
       // Your best moments (Versus): most of the time straight there – no need to look around
-      const best = this.S.bestSpots && s.markers && s.markers.length ? await bestMarkers().catch(() => null) : null;
+      const best = this.S.bestSpots && s.markers && s.markers.length ? await withTimeout(bestMarkers(), 8000).catch(() => null) : null;
       const bestHere = best ? s.markers.filter((mk) => best.has(mk.id) && mk.seconds < dur - 2 && inSeq(mk.seconds)) : [];
       if (s.at != null) {
         start = Math.max(0, Math.min(s.at, dur - 1.5)); // a marker clip starts at its marker
@@ -2917,6 +2947,9 @@ class Generator {
       if (fit.length) cand = fit;
       else if (strict) return null; // (a single field: better keep the clip than show the wrong shape)
     }
+    // Copies of one clip count once – else a few of them fill the choice and the other clips never come up
+    const seen = new Set();
+    cand = cand.filter((i) => !seen.has(this.ready[i].key) && seen.add(this.ready[i].key));
     cand.slice(0, this.S.matchCut ? 8 : 5).forEach((i) => {
       const m = this.ready[i];
       let s = Math.abs(Math.log(m.w / m.h / aspect));
@@ -4030,6 +4063,16 @@ const mediaError = (err) =>
 
 function withTimeout(p, ms) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("Timed out")), ms))]);
+}
+// The same address with a marker of its own (a second, separate load of the same file)
+function copyUrl(url, n) {
+  try {
+    const u = new URL(url, location.href);
+    u.searchParams.set("pmvcopy", n);
+    return u.href;
+  } catch (e) {
+    return url;
+  }
 }
 const fileName = (s) => ("PMV - " + s).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").slice(0, 100);
 

@@ -127,7 +127,7 @@ function sources(S) {
       const order = S.rgOrder === "latest" ? "new" : "top";
       return { id: `u:${pick.id.toLowerCase()}:${order}`, type: "user", name: pick.name, label: "@" + pick.name, path: (p) => `/users/${v}/search?order=${order}&${count}&page=${p}` };
     }
-    return { id: `s:${pick.id.toLowerCase()}:${S.rgOrder}`, type: "tag", name: pick.name, label: "#" + pick.name, path: (p) => `/gifs/search?search_text=${v}&order=${S.rgOrder}&${count}&page=${p}` };
+    return { id: `s:${pick.id.toLowerCase()}:${S.rgOrder}`, type: "tag", name: pick.name, label: "#" + pick.name, path: (p) => `/gifs/search?tags=${v}&order=${S.rgOrder}&${count}&page=${p}` };
   });
 }
 

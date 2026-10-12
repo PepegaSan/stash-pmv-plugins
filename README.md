@@ -2,9 +2,9 @@ TEST YAML URL from PepegaSan.
 https://pepegasan.github.io/stash-pmv-plugins/index.yml
 
 
-# Stash plugins: Stash UI, PMV Generator, Media Storm
+# Stash plugins: Stash UI, PMV Generator, Media Storm, RedTok
 
-Three plugins for [Stash](https://github.com/stashapp/stash).
+Four plugins for [Stash](https://github.com/stashapp/stash).
 
 | Plugin | What it is |
 |---|---|
@@ -13,8 +13,9 @@ Three plugins for [Stash](https://github.com/stashapp/stash).
 | [**PMV Generator**](plugins/pmvGenerator/README.md) | Pick a song – or take the music from any video in your library – and on every beat it cuts to a clip from your library, with split-screen layouts, effects, speed ramps and clip audio. Live in the browser, optionally recorded and saved back to Stash. Plays several songs in a row, follows the music you play in **Plex**, or listens live to **Spotify** (or any app on your PC) as a visualizer. Can also rebuild an existing PMV with your own clips, and mix in clips from RedGifs. |
 | [**PMV Generator Pepega**](plugins/pepega-pmvGenerator/README.md) | Pepega build of the PMV Generator; install next to the original and enable either one. Same features as PMV Generator. |
 | [**Media Storm**](plugins/mediaStorm/README.md) | Random images and videos from your library appear in waves in their own tab – eight layouts, effects, moods, folder and tag filters, waves on the beat of a song. |
+| [**RedTok**](plugins/redtok/README.md) | RedGifs as a TikTok-style feed – swipe through videos, follow creators and niches, like, and save the ones you want into your library with one tap. Also plays your own Stash scenes as a feed. No account needed. |
 
-Each plugin works on its own – install just the ones you want. They share the same look and work together: with Stash UI installed, Media Storm and the PMV Generator show up in its menu, the PMV Generator leads back into Stash UI, and Stash UI's player can hand a video's music straight to the PMV Generator.
+Each plugin works on its own – install just the ones you want. They share the same look and work together: with Stash UI installed, Media Storm, the PMV Generator and RedTok show up in its menu, the PMV Generator leads back into Stash UI, and Stash UI's player can hand a video's music straight to the PMV Generator.
 
 ## Stash UI at a glance
 
@@ -53,7 +54,7 @@ Manual install: copy a folder from `plugins/` into your Stash plugins folder and
 ### Requirements
 
 - A recent Stash version and a current Chrome, Edge, Safari or Firefox.
-- `python` in the PATH for the small backends: saving PMV Generator recordings to Stash, taking the music out of videos, and the optional RedGifs features of Media Storm and the PMV Generator. Everything else runs in the browser.
+- `python` in the PATH for the small backends: saving PMV Generator recordings to Stash, taking the music out of videos, RedTok's downloads, and the optional RedGifs features of Media Storm and the PMV Generator. Everything else runs in the browser.
 - ffmpeg – Stash's own is used – for the music out of videos and so saved recordings get a proper duration.
 
 ## Development

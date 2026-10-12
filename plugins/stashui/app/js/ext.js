@@ -8,6 +8,7 @@
 //     stashui.addNavItem({ id, label, icon, route | href, group, place, count });
 //     stashui.addSlot("scene.info", { id, title, match(ctx), mount(el, ctx) → cleanup });
 //     stashui.ui / t / addStrings / gql / store / on / go
+//     stashui.play([{ id, title, thumb }], index) → { add(items) }  // next/previous in the player follow this list
 //   }
 //
 // List ctx = { page, params, kind, sort, dir, q, filter, restricted, pageNumber, perPage, count, items, prev }; before = id of a raw
@@ -35,7 +36,7 @@ export const SLOT_NAMES = [
 ];
 const FEATURES = new Set([
   "list.source", "list.invalidate", "list.restricted", "list.emptyCards", "piece.actions", "piece.dim",
-  "route", "navItem", "ui", "strings", "gql", "store", "on", "go", "diagnostics",
+  "route", "navItem", "ui", "strings", "gql", "store", "on", "go", "play", "diagnostics",
   ...SLOT_NAMES.map((n) => "slot:" + n),
 ]);
 
@@ -43,7 +44,7 @@ const plugins = new Map(); // id → { id, name, version, sources, routes, nav, 
 const loaded = new Set();
 const handles = new Set(); // mounted slot hosts (they pick up slots that register late)
 const lists = new Set(); // open lists ({ reextend(prefix) })
-let host = { go: (p) => (location.hash = "#/" + p) };
+let host = { go: (p) => (location.hash = "#/" + p), play: null };
 export const setHost = (h) => Object.assign(host, h);
 
 let readyRes;
@@ -303,6 +304,26 @@ function makeApi(pluginId) {
       return () => window.removeEventListener(ev, wrap);
     },
     go: (path) => host.go(String(path).replace(/^#?\/?/, "")),
+    // Play scenes[index]; next/previous (and the end of a video) go on in this list. add(items) appends to it later,
+    // e.g. the rest of a list that loads page by page.
+    play(items, index) {
+      const norm = (list) =>
+        (Array.isArray(list) ? list : [])
+          .map((it) => (it && typeof it === "object" ? it : { id: it }))
+          .filter((it) => it.id != null && it.id !== "")
+          .map((it) => ({ kind: "scene", id: String(it.id), title: it.title ? String(it.title) : "", thumb: it.thumb ? String(it.thumb) : "" }));
+      const pieces = norm(items);
+      if (!pieces.length || !host.play) return null;
+      const i = Math.max(0, Math.min(pieces.length - 1, Math.floor(Number(index) || 0)));
+      const ctx = host.play(pieces, i);
+      return {
+        add(more) {
+          const list = ctx.pieces; // (the player swaps the array when it deletes a scene)
+          const have = new Set(list.map((p) => p.id));
+          norm(more).forEach((p) => have.has(p.id) || (have.add(p.id), list.push(p)));
+        },
+      };
+    },
 
     addListSource(src) {
       if (!src || typeof src.extend !== "function") return;
