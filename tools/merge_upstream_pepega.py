@@ -1,6 +1,7 @@
 """Merge upstream stashui / pmvGenerator into Pepega forks without losing fork-only files."""
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -124,12 +125,15 @@ def patch_pepega_main(path):
     if "awaitPluginHostFor" in s and "pepega-pmvGenerator" in s:
         return
     if 'import { bootPluginHost } from "./plugin-host.js";' not in s:
-        s = s.replace(
-            'import { visibleRail } from "./railcfg.js";\n',
-            'import { visibleRail } from "./railcfg.js";\n'
-            'import { bootPluginHost } from "./plugin-host.js";\n\n'
+        # the railcfg import grows over time ({ visibleRail }, { visibleRail, navIcon }, …)
+        s = re.sub(
+            r'^(import \{[^}]*\} from "\./railcfg\.js";\n)',
+            lambda m: m.group(1)
+            + 'import { bootPluginHost } from "./plugin-host.js";\n\n'
             "let pluginHostReady = Promise.resolve();\n\n",
-            1,
+            s,
+            count=1,
+            flags=re.M,
         )
     else:
         s = s.replace(
@@ -137,36 +141,37 @@ def patch_pepega_main(path):
             "let pluginHostReady = Promise.resolve();\n",
             1,
         )
-    old_route = (
-        "async function route() {\n"
-        "  try {\n"
-        "    await pluginHostReady;\n"
-        "  } catch (err) {\n"
-        '    console.error("[Stash UI] plugin host failed", err);\n'
-        "  }\n"
-        "  const r = parseHash();"
+    # upstream declares r with const or let, depending on the version
+    old_route = re.compile(
+        r"async function route\(\) \{\n"
+        r"  try \{\n"
+        r"    await pluginHostReady;\n"
+        r"  \} catch \(err\) \{\n"
+        r'    console\.error\("\[Stash UI\] plugin host failed", err\);\n'
+        r"  \}\n"
+        r"  (const|let) r = parseHash\(\);"
     )
-    new_route = (
-        "async function awaitPluginHostFor(view) {\n"
-        '  if (view !== "player" && view !== "plugins") return;\n'
-        "  try {\n"
-        "    await pluginHostReady;\n"
-        "  } catch (err) {\n"
-        '    console.error("[Stash UI] plugin host failed", err);\n'
-        "  }\n"
-        "}\n"
-        "async function route() {\n"
-        "  const r = parseHash();\n"
-        "  await awaitPluginHostFor(r.view);"
-    )
-    if old_route in s:
-        s = s.replace(old_route, new_route, 1)
-    elif "await awaitPluginHostFor(r.view)" not in s:
-        s = s.replace(
-            "async function route() {\n  const r = parseHash();",
-            new_route,
-            1,
+    plain_route = re.compile(r"async function route\(\) \{\n  (const|let) r = parseHash\(\);")
+
+    def new_route(m):
+        return (
+            "async function awaitPluginHostFor(view) {\n"
+            '  if (view !== "player" && view !== "plugins") return;\n'
+            "  try {\n"
+            "    await pluginHostReady;\n"
+            "  } catch (err) {\n"
+            '    console.error("[Stash UI] plugin host failed", err);\n'
+            "  }\n"
+            "}\n"
+            "async function route() {\n"
+            f"  {m.group(1)} r = parseHash();\n"
+            "  await awaitPluginHostFor(r.view);"
         )
+
+    if old_route.search(s):
+        s = old_route.sub(new_route, s, count=1)
+    elif "await awaitPluginHostFor(r.view)" not in s:
+        s = plain_route.sub(new_route, s, count=1)
     if "pluginHostReady = bootPluginHost();" not in s:
         s = s.replace(
             "  renderRail();\n  try {\n    app.favId = await favoriteTagId(false);",
@@ -191,6 +196,17 @@ def patch_pepega_main(path):
         'const OWN = new Set(["stashui", "mediastorm", "pmvgenerator"]);',
         'const OWN = new Set(["pepega-stashui", "mediastorm", "pepegapmvgenerator"]);',
     )
+    # upstream moves lines around – say so instead of shipping a main.js that fails at startup
+    for hook in (
+        'import { bootPluginHost } from "./plugin-host.js";',
+        "await awaitPluginHostFor(r.view);",
+        "pluginHostReady = bootPluginHost();",
+        "/plugin/pepega-pmvGenerator/assets/index.html",
+        '"pepegapmvgenerator"',
+        '!== "pepegastashui"',
+    ):
+        if hook not in s:
+            print(f"warn: main.js Pepega hook missing, patch by hand: {hook}", file=sys.stderr)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(s)
 
