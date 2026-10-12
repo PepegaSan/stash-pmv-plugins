@@ -254,6 +254,27 @@ def upstream_version(yml_path):
     return m.group(1).decode() if m else "0"
 
 
+def patch_pepega_redgifs(path):
+    """RedGifs detour must go through pepega-pmvGenerator's backend, not the original plugin (may be disabled)."""
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        s = f.read()
+    if "window.PMVGEN_PLUGIN" in s:
+        return
+    needle = 'const PLUGIN = "pmvGenerator";'
+    if needle not in s:
+        print("warn: could not patch redgifs.js plugin id (RedGifs may call the original plugin)", file=sys.stderr)
+        return
+    s = s.replace(
+        needle,
+        'const PLUGIN = window.PMVGEN_PLUGIN || "pmvGenerator"; // plugin whose backend does the RedGifs detour (the Pepega build sets its own, see config.js)',
+        1,
+    )
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(s)
+
+
 def main():
     stashui_v = upstream_version("plugins/stashui/stashui.yml")
     pmv_v = upstream_version("plugins/pmvGenerator/pmvGenerator.yml")
@@ -277,6 +298,7 @@ def main():
     skip_pmv = set(PEPEGA_PMV_KEEP)
     merge_tree("plugins/pmvGenerator", pepega_pmv, skip_pmv)
     restore_files(pepega_pmv, PEPEGA_PMV_KEEP, bpmv)
+    patch_pepega_redgifs(os.path.join(pepega_pmv, "app/js/redgifs.js"))
 
     yml = os.path.join(pepega_pmv, "pepega-pmvGenerator.yml")
     if os.path.isfile(yml):
