@@ -302,7 +302,7 @@ export default {
     "No folder matches": "Kein Ordner passt",
     "Best moments instead of random": "Beste Momente statt Zufall",
     "Motion on the beat (experimental)": "Bewegung im Takt (experimentell)",
-    "Measures the rhythm of the motion in each clip and lines it up with the beat – a clip comes in on a turn of the motion and plays up to 12 % faster or slower. Clips take about 2 s longer to prepare; works best with steady, repeating motion and a still camera": "Misst den Rhythmus der Bewegung in jedem Clip und legt ihn auf den Beat – ein Clip setzt an einer Wende der Bewegung ein und läuft bis zu 12 % schneller oder langsamer. Clips brauchen etwa 2 s länger zum Vorbereiten; klappt am besten bei gleichmäßiger, wiederkehrender Bewegung und ruhiger Kamera",
+    "Measures the rhythm of the motion in each clip and lines it up with the beat – a clip comes in on a turn of the motion and plays up to 12 % faster or slower. Clips take about 1 s longer to prepare; works best with steady, repeating motion, a still camera and clips that stay on for a few beats": "Misst den Rhythmus der Bewegung in jedem Clip und legt ihn auf den Beat – ein Clip setzt an einer Wende der Bewegung ein und läuft bis zu 12 % schneller oder langsamer. Clips brauchen etwa 1 s länger zum Vorbereiten; klappt am besten bei gleichmäßiger, wiederkehrender Bewegung, ruhiger Kamera und Clips, die ein paar Beats stehen bleiben",
     "Creator – click to pick their tags": "Creator – klicken, um seine Tags zu wählen",
     "– only clips with these tags (none = all of their clips)": "– nur Clips mit diesen Tags (keiner = alle Clips)",
     "Loading the creator's tags …": "Tags des Creators werden geladen …",

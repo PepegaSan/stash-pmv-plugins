@@ -373,7 +373,7 @@ export function render(main) {
         <span class="kb-lab-t">Clip selection <small>– which part of a scene is taken</small></span>
         <div class="kb-pmvg-opts">
           ${sw("bestSpots", "Best moments instead of random", "Looks at several spots per scene (motion, skin, your markers) and takes the best one")}
-          ${sw("beatSync", "Motion on the beat (experimental)", "Measures the rhythm of the motion in each clip and lines it up with the beat – a clip comes in on a turn of the motion and plays up to 12 % faster or slower. Clips take about 2 s longer to prepare; works best with steady, repeating motion and a still camera")}
+          ${sw("beatSync", "Motion on the beat (experimental)", "Measures the rhythm of the motion in each clip and lines it up with the beat – a clip comes in on a turn of the motion and plays up to 12 % faster or slower. Clips take about 1 s longer to prepare; works best with steady, repeating motion, a still camera and clips that stay on for a few beats")}
           ${sw("cleanCuts", "Clean cuts", "With best moments: a clip starts where its scene runs on for the next few seconds – no hidden cut inside the clip that jumps to another scene by itself")}
           ${sw("smartCrop", "Smart crop", "The crop follows what matters in the clip instead of sticking to the center")}
         </div>
@@ -2194,14 +2194,16 @@ function beatFit(period, bpm) {
   return rate;
 }
 
-// Plays the clip (muted, in the pool) for `secs` from where it stands and measures every frame → rhythmOf();
-// null on a cut in the stretch or when frames can't be read
-async function measureRhythm(v, secs) {
+// Plays the clip (muted, in the pool, at `speed` – the frames keep their own times) for `secs` of the video
+// from where it stands and measures every frame → rhythmOf(); null on a cut in the stretch or when frames
+// can't be read
+async function measureRhythm(v, secs, speed = 1) {
   if (!v.requestVideoFrameCallback) return null;
   const from = v.currentTime;
   const jobs = [];
+  v.playbackRate = speed;
   await new Promise((res) => {
-    const stop = setTimeout(res, (secs + 2) * 1000); // (a stalled video mustn't hold up the clip)
+    const stop = setTimeout(res, (secs / speed + 2) * 1000); // (a stalled video mustn't hold up the clip)
     const onFrame = (now, meta) => {
       if (meta.mediaTime >= from + secs) {
         clearTimeout(stop);
@@ -2218,6 +2220,7 @@ async function measureRhythm(v, secs) {
     });
   });
   v.pause();
+  v.playbackRate = 1;
   const fr = (await Promise.all(jobs)).filter((x) => x.a && x.a.gray).sort((x, y) => x.t - y.t);
   const pts = [];
   for (let i = 1; i < fr.length; i++) {
@@ -3183,21 +3186,24 @@ class Generator {
       }
       if (s.at == null) this.useSpot(s, start);
       await seek(start);
-      // Motion on the beat: measure the rhythm here (the clip plays ~2 s in the pool); if it fits the song's tempo,
-      // the clip starts on a turn of the motion (it comes on screen on a beat) and plays a little faster or slower.
-      // Not with big videos (above 1440p: decoding them along costs too much) and at most two at a time
+      // Motion on the beat: measure the rhythm here (the clip plays 1.8 s of video at double speed in the pool – about
+      // 0.9 s, so the supply keeps up with fast cuts); if it fits the song's tempo, the clip starts on a turn of the
+      // motion (it comes on screen on a beat) and plays a little faster or slower.
+      // Not with big videos (above 1440p: decoding them along costs too much)
       let tempo = null;
-      const SECS = 2.2;
-      if (this.S.beatSync && this.song && this.song.bpm > 0 && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.rhythmBusy < 2) {
+      const SECS = 1.8;
+      if (this.S.beatSync && this.song && this.song.bpm > 0 && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.rhythmBusy < 3) {
         this.rhythmBusy++;
         try {
-          const r = await measureRhythm(v, SECS);
-          let p = r && r.period;
-          let rate = r && beatFit(p, this.song.bpm);
-          if (r && !rate && r.half) rate = beatFit((p = r.half), this.song.bpm);
-          if (rate) {
-            // the first turn from the start on (the start of a marker clip stays where it is)
-            const turn = r.turn - Math.floor((r.turn - start) / p) * p;
+          const r = await measureRhythm(v, SECS, 2);
+          if (r) {
+            let rate = beatFit(r.period, this.song.bpm);
+            if (!rate && r.half) rate = beatFit(r.half, this.song.bpm);
+            // Starts on the first turn from the start on – also when the tempo doesn't fit: with fast cuts a clip
+            // is on for a beat or two, then the motion setting in on the beat is what shows
+            // (the start of a marker clip stays where it is)
+            const step = r.half || r.period;
+            const turn = r.turn - Math.floor((r.turn - start) / step) * step;
             if (s.at == null && turn < dur - 1) start = turn;
             tempo = rate;
           }
@@ -3284,7 +3290,7 @@ class Generator {
       let s = Math.abs(Math.log(m.w / m.h / aspect));
       if (outSig) s += 1.5 * matchDist(outSig, m.sig);
       if (rank.size) s += 1.2 * Math.abs((rank.has(i) ? rank.get(i) : 0.5) - energy);
-      if (this.S.beatSync && m.tempo) s -= 0.6; // motion on the beat: clips whose rhythm fits come first
+      if (this.S.beatSync && m.tempo) s -= 1; // motion on the beat: clips whose rhythm fits come first
       s += this.varietyPenalty(m);
       if (s < score) {
         score = s;
