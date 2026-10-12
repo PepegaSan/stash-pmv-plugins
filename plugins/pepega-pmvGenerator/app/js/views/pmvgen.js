@@ -3172,6 +3172,15 @@ class Generator {
     return this.song.pace ? 0.6 * (this.song.pace[lo] || 0) + 0.4 * e : e;
   }
 
+  // About how long a clip prepared now waits until it comes on (seconds): the clips ready before it, each for
+  // the time between cuts lately – at half the tempo twice as long (the clip has to fit the music *then*)
+  readyWait() {
+    const cuts = this.log.filter((e) => e.type === "cut").slice(-9);
+    const gap = cuts.length >= 3 ? (cuts[cuts.length - 1].t - cuts[0].t) / (cuts.length - 1) : this.song && this.song.bpm ? 120 / this.song.bpm : 1;
+    // (several fields share the cuts: a field's clip is taken at every n-th cut, but any ready clip can go into any field)
+    return Math.min(20, Math.max(1.5, 0.5 + (this.ready.length + 1) * Math.max(0.2, gap)));
+  }
+
   // Clip speed follows the music: the speed maps of the scenes coming up next, one preview at a time
   scanAhead() {
     if (!this.S.paceMatch || this.scanning || this.done) return;
@@ -3201,7 +3210,8 @@ class Generator {
     // At most 3 at once: each one decodes and seeks its video – with 4K several at once choke the decoder
     while (!this.done && this.preparing < 3) {
       const want = this.shapeShort();
-      let st = this.stageToFill(this.S.matchCut ? 8 : 6);
+      // (clip speed follows the music: two more, so calm and fast ones are both at hand when the music turns)
+      let st = this.stageToFill((this.S.matchCut ? 8 : 6) + (this.S.paceMatch ? 2 : 0));
       if (st < 0 && want) st = this.stageToFill(this.S.matchCut ? 14 : 12);
       if (st < 0) break;
       this.preparing++;
@@ -3340,13 +3350,14 @@ class Generator {
       const best = this.S.bestSpots && s.markers && s.markers.length ? await withTimeout(bestMarkers(), 8000).catch(() => null) : null;
       const bestHere = best ? s.markers.filter((mk) => best.has(mk.id) && mk.seconds < dur - 2 && inSeq(mk.seconds) && fresh(mk.seconds)) : [];
       // Clip speed follows the music: the piece of the scene's speed map that fits how fast the music will feel
-      // when this clip comes on (a few seconds ahead – the ready clips go first)
+      // when this clip comes on – some time within the stretch the ready clips cover (they are picked by speed,
+      // not in turn, so the ready ones should cover what is coming: now as well as a drop in a few seconds)
       let spd = null;
       const map = this.S.paceMatch && s.at == null ? speedMaps.get(s.id) : null;
       let mapCands = null;
       let want = null;
       if (Array.isArray(map)) {
-        want = this.paceAt(this.now() + Math.min(12, 1.5 + this.ready.length));
+        want = this.paceAt(this.now() + 1 + Math.random() * this.readyWait());
         mapCands = map
           .filter((x) => x.t < dur - 3 && inSeq(x.t))
           .map((x) => ({ x, d: Math.abs((speedPct(x.speed) ?? 0.5) - want) + (fresh(x.t) ? 0 : 0.5) + Math.random() * 0.12 }))
@@ -3522,7 +3533,8 @@ class Generator {
     // Copies of one clip count once – else a few of them fill the choice and the other clips never come up
     const seen = new Set();
     cand = cand.filter((i) => !seen.has(this.ready[i].key) && seen.add(this.ready[i].key));
-    cand = cand.slice(0, this.S.matchCut ? 8 : 5);
+    // (clip speed follows the music: all of them – the ones just prepared for a change of pace are the newest)
+    if (!this.S.paceMatch) cand = cand.slice(0, this.S.matchCut ? 8 : 5);
     // Best moments: calm music gets the calmer clips, loud parts and drops the ones where the most is going on.
     // Ranked among the candidates (picture motion and funscript speed don't share a scale); unknown = in the middle
     const rank = new Map();
