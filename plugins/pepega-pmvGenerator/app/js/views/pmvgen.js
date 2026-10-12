@@ -12,7 +12,7 @@ import { attachHandy, getHandy } from "../interactive.js";
 import { analyzeFile, analyzeBuffer, sliceBuffer, songFromFrames, rescale, shift } from "../beats.js";
 import { extractAudio, parseTime, fmtTime } from "../audiox.js";
 import { scanPmv } from "../pmvscan.js";
-import { analyzeAsync, analyzeTiles, spotScore, matchDist, isCut } from "../pmvsmart.js";
+import { analyzeAsync, analyzeTiles, spotScore, matchDist, isCut, motion } from "../pmvsmart.js";
 import { tagPicker } from "./tagpicker.js";
 import { folderPicker, folderRegions } from "./folderpick.js";
 import { perfPicker, hasPerformers } from "./perfpicker.js";
@@ -1957,9 +1957,9 @@ function layoutIcon(id) {
 
 // Same filter logic as the lists: all chosen tags, optionally favorites only
 // Best-looking spots of a scene from Stash's sprite sheet + VTT (the scrubbing thumbnails):
-// skin and contrast per picture, a bonus near your markers → [{ t, score }], best first
+// skin and contrast per picture, a bonus near your markers and where the funscript is fast → [{ t, score }], best first
 const spriteCache = new Map();
-async function spriteSpots(s, dur) {
+async function spriteSpots(s, dur, heat) {
   if (!s.sprite || !s.vtt) return null;
   if (spriteCache.has(s.key)) return spriteCache.get(s.key);
   const job = (async () => {
@@ -1981,7 +1981,8 @@ async function spriteSpots(s, dur) {
     for (const [i, c] of use.entries()) {
       const a = sigs[i];
       const near = (s.marks || []).some((mk) => Math.abs(mk - c.t) < Math.max(3, dur / cues.length));
-      out.push({ t: Math.max(0, c.t - 1), score: 1.2 * Math.min(1, a.skin * 2.5) + 0.6 * Math.min(1, a.contrast * 3) + (near ? 0.4 : 0) + Math.random() * 0.3 });
+      const t = Math.max(0, c.t - 1);
+      out.push({ t, score: 1.2 * Math.min(1, a.skin * 2.5) + 0.6 * Math.min(1, a.contrast * 3) + (near ? 0.4 : 0) + (heat ? 1.5 * heat(t) : 0) + Math.random() * 0.3 });
     }
     return out.sort((x, y) => y.score - x.score).slice(0, 12);
   })();
@@ -1991,6 +1992,30 @@ async function spriteSpots(s, dur) {
   if (!list) return null;
   // Every visit a different one of the good spots
   return list.slice().sort(() => Math.random() - 0.5).sort((x, y) => y.score - x.score + (Math.random() - 0.5) * 0.4);
+}
+
+// How much is going on in a scene, from its funscript: the stroke speed in 2-second steps
+// → heat(t) = 0–1 for the few seconds from t on (300 units per second and more = 1), or null without a funscript
+const heatCache = new Map();
+const HEAT_STEP = 2;
+function funscriptHeat(s) {
+  if (!s.fs) return Promise.resolve(null);
+  if (!heatCache.has(s.id)) {
+    const job = (async () => {
+      const fs = await withTimeout(fetch(s.fs, { credentials: "same-origin" }).then((r) => r.json()), 8000);
+      const acts = (fs.actions || []).filter((a) => isFinite(a.at) && isFinite(a.pos)).sort((a, b) => a.at - b.at);
+      if (acts.length < 4) return null;
+      const way = new Float32Array(Math.ceil(acts[acts.length - 1].at / 1000 / HEAT_STEP) + 1);
+      for (let i = 1; i < acts.length; i++) way[Math.floor(acts[i].at / 1000 / HEAT_STEP)] += Math.abs(acts[i].pos - acts[i - 1].pos);
+      return (t) => {
+        const k = Math.max(0, Math.floor(t / HEAT_STEP));
+        return Math.min(1, ((way[k] || 0) + (way[k + 1] || 0)) / (2 * HEAT_STEP) / 300);
+      };
+    })();
+    heatCache.set(s.id, job.catch(() => null)); // (no funscript to read: like none)
+    if (heatCache.size > 300) heatCache.delete(heatCache.keys().next().value);
+  }
+  return heatCache.get(s.id);
 }
 
 // Which clips: the filters on the page, or a smart playlist → { kinds, filter(kind) }
@@ -2206,6 +2231,7 @@ class Generator {
     this.bad = 0;
     this.recent = []; // recently shown clips (variety)
     this.used = new Set();
+    this.spots = new Map(); // scene → start times used (the next clip of that scene comes from elsewhere)
     this.shown = new Set(); // all shown clips (credits)
     // RedGifs: a share of the clips (error diffusion keeps the ratio); what was shown can be saved
     this.rg = S.rgPct > 0 ? new rg.Feed(S, (msg) => this.rgError(msg)) : null;
@@ -2549,7 +2575,7 @@ class Generator {
         const q = k === "marker"
           ? `query($f: FindFilterType, $x: SceneMarkerFilterType) { r: findSceneMarkers(filter: $f, scene_marker_filter: $x) { count scene_markers { id title seconds${Generator.noEnd ? "" : " end_seconds"} primary_tag { id name } tags { id name } scene { id title paths { stream sprite vtt } files { duration width height basename } performers { id } } } } }`
           : k === "scene"
-          ? `query($f: FindFilterType, $x: SceneFilterType, $ids: [ID!]) { r: findScenes(filter: $f, scene_filter: $x, ids: $ids) { count scenes { id title paths { stream sprite vtt } files { duration width height basename } scene_markers { id seconds } performers { id } } } }`
+          ? `query($f: FindFilterType, $x: SceneFilterType, $ids: [ID!]) { r: findScenes(filter: $f, scene_filter: $x, ids: $ids) { count scenes { id title interactive paths { stream sprite vtt funscript } files { duration width height basename } scene_markers { id seconds } performers { id } } } }`
           : `query($f: FindFilterType, $x: ImageFilterType, $ids: [ID!]) { r: findImages(filter: $f, image_filter: $x, ids: $ids) { count images { id title paths { image } visual_files { __typename ... on ImageFile { width height basename } } performers { id } } } }`;
         if (spec.idsBy && !spec.idsBy[k].length) return [];
         // Picked ids: Stash ignores page and order when asked by id – shuffle (same seed) and page here
@@ -2580,7 +2606,7 @@ class Generator {
           .map((x) =>
             k === "scene"
               ? x.paths.stream && { kind: "video", id: x.id, url: x.paths.stream, dur: (x.files[0] || {}).duration || 0, w: (x.files[0] || {}).width || 0, h: (x.files[0] || {}).height || 0, marks: (x.scene_markers || []).map((mk) => mk.seconds), markers: x.scene_markers || [],
-                  sprite: x.paths.sprite, vtt: x.paths.vtt, name: x.title || (x.files[0] || {}).basename || "Scene " + x.id, file: (x.files[0] || {}).basename || "" }
+                  sprite: x.paths.sprite, vtt: x.paths.vtt, fs: x.interactive ? x.paths.funscript : null, name: x.title || (x.files[0] || {}).basename || "Scene " + x.id, file: (x.files[0] || {}).basename || "" }
               : x.paths.image && (x.visual_files[0] || {}).__typename === "ImageFile" && { kind: "image", id: x.id, url: x.paths.image, w: x.visual_files[0].width || 0, h: x.visual_files[0].height || 0,
                   name: x.title || x.visual_files[0].basename || "Image " + x.id, file: x.visual_files[0].basename || "" }
           )
@@ -2693,6 +2719,17 @@ class Generator {
     this.recent.push(m);
     if (this.recent.length > 24) this.recent.shift();
     this.used = new Set(this.recent.map((x) => x.key));
+  }
+  // A spot near one of the scene's last starts (within 3 % of the scene, at least 6 s)
+  usedNear(s, t, dur) {
+    const r = Math.max(6, dur * 0.03);
+    return (this.spots.get(s.id) || []).some((u) => Math.abs(u - t) < r);
+  }
+  useSpot(s, t) {
+    const l = this.spots.get(s.id) || [];
+    l.push(t);
+    if (l.length > 8) l.shift();
+    this.spots.set(s.id, l);
   }
   varietyPenalty(m) {
     if (!this.S.variety) return 0;
@@ -2831,11 +2868,21 @@ class Generator {
         await withTimeout(once(v, "seeked"), 8000);
         if (v.readyState < 2) await withTimeout(once(v, "loadeddata"), 8000);
       };
-      let start = rand();
+      // A spot this scene hasn't been shown from lately (a few tries, then whatever comes)
+      const fresh = (t) => !this.usedNear(s, t, dur);
+      const freshRand = () => {
+        let t = rand();
+        for (let i = 0; i < 4 && !fresh(t); i++) t = rand();
+        return t;
+      };
+      let start = freshRand();
       let info = null;
+      let mo = null; // motion at the start (measured below), for clips that follow the music – see takeMedia
+      // Best moments: where the funscript (if any) is fast counts too
+      const heat = this.S.bestSpots && s.at == null ? await funscriptHeat(s) : null;
       // Your best moments (Versus): most of the time straight there – no need to look around
       const best = this.S.bestSpots && s.markers && s.markers.length ? await withTimeout(bestMarkers(), 8000).catch(() => null) : null;
-      const bestHere = best ? s.markers.filter((mk) => best.has(mk.id) && mk.seconds < dur - 2 && inSeq(mk.seconds)) : [];
+      const bestHere = best ? s.markers.filter((mk) => best.has(mk.id) && mk.seconds < dur - 2 && inSeq(mk.seconds) && fresh(mk.seconds)) : [];
       if (s.at != null) {
         start = Math.max(0, Math.min(s.at, dur - 1.5)); // a marker clip starts at its marker
       } else if (bestHere.length && Math.random() < 0.8) {
@@ -2846,13 +2893,16 @@ class Generator {
         // each for motion; big videos (above 1440p) and a low supply skip that – every seek costs.
         const big = v.videoWidth * v.videoHeight > 2560 * 1440;
         const n = this.ready.length < 2 || big ? 1 : 2;
-        const marks = (s.marks || []).filter((t) => t > 0 && t < dur - 3 && inSeq(t)).sort(() => Math.random() - 0.5).slice(0, 2);
-        const allSpots = await spriteSpots(s, dur).catch(() => null);
+        const marks = (s.marks || []).filter((t) => t > 0 && t < dur - 3 && inSeq(t) && fresh(t)).sort(() => Math.random() - 0.5).slice(0, 2);
+        let allSpots = await spriteSpots(s, dur, heat).catch(() => null);
+        // Spots shown lately go to the back (the order of the rest stays)
+        if (allSpots) allSpots = [...allSpots.filter((c) => fresh(c.t)), ...allSpots.filter((c) => !fresh(c.t))];
         let cands = seq && allSpots ? allSpots.filter((c) => inSeq(c.t)) : allSpots;
         if (cands && cands.length) cands = cands.slice(0, n);
         else {
           const m2 = this.ready.length < 2 || big ? 2 : 4;
-          cands = [...marks.map((t) => ({ t, bonus: 0.4 })), ...Array.from({ length: Math.max(0, m2 - marks.length) }, () => ({ t: rand(), bonus: 0 }))];
+          cands = [...marks.map((t) => ({ t, bonus: 0.4 })), ...Array.from({ length: Math.max(0, m2 - marks.length) }, () => ({ t: freshRand(), bonus: 0 }))];
+          if (heat) cands.forEach((c) => (c.bonus += 1.5 * heat(c.t)));
         }
         let best = -Infinity;
         // Clean cuts: a clip plays for a few beats from its start – a scene change in that stretch would
@@ -2891,11 +2941,14 @@ class Generator {
             best = sc;
             start = t0;
             info = a;
+            mo = cut ? 0 : motion(a, b);
           }
         }
       }
+      if (s.at == null) this.useSpot(s, start);
       await seek(start);
-      const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url, tagNames: s.tagNames };
+      const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url, tagNames: s.tagNames,
+        motion: mo, heat: heat ? heat(start) : null };
       // A marker with an end: the clip stays inside it (the scene would play on into something else) – see loop()
       if (s.at != null && s.end > s.at + 0.5) m.endAt = Math.min(s.end, dur - 0.1);
       m.sig = info || (await analyzeAsync(v, m.w, m.h));
@@ -2950,10 +3003,26 @@ class Generator {
     // Copies of one clip count once – else a few of them fill the choice and the other clips never come up
     const seen = new Set();
     cand = cand.filter((i) => !seen.has(this.ready[i].key) && seen.add(this.ready[i].key));
-    cand.slice(0, this.S.matchCut ? 8 : 5).forEach((i) => {
+    cand = cand.slice(0, this.S.matchCut ? 8 : 5);
+    // Best moments: calm music gets the calmer clips, loud parts and drops the ones where the most is going on.
+    // Ranked among the candidates (picture motion and funscript speed don't share a scale); unknown = in the middle
+    const rank = new Map();
+    if (this.S.bestSpots) {
+      const act = (m) => {
+        const v = [];
+        if (m.motion != null) v.push(Math.min(1, m.motion / 0.3));
+        if (m.heat != null) v.push(m.heat);
+        return v.length ? v.reduce((a, b) => a + b) / v.length : null;
+      };
+      const known = cand.map((i) => [i, act(this.ready[i])]).filter(([, a]) => a != null).sort((x, y) => x[1] - y[1]);
+      if (known.length >= 2) known.forEach(([i], n) => rank.set(i, n / (known.length - 1)));
+    }
+    const energy = this.st.energy || 0;
+    cand.forEach((i) => {
       const m = this.ready[i];
       let s = Math.abs(Math.log(m.w / m.h / aspect));
       if (outSig) s += 1.5 * matchDist(outSig, m.sig);
+      if (rank.size) s += 1.2 * Math.abs((rank.has(i) ? rank.get(i) : 0.5) - energy);
       s += this.varietyPenalty(m);
       if (s < score) {
         score = s;
