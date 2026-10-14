@@ -8,7 +8,7 @@ import { call, gql, store, setAfterSet, emit, t, wait } from "./core.js";
 // ---------- settings ----------
 export const settings = Object.assign({
   base: "", scan: true, quality: "hd", playq: "auto", fit: "auto", sound: true, volume: 1, autonext: false,
-  skipSeen: true, speed: 1, lang: "auto",
+  skipSeen: true, speed: 1, lang: "auto", glow: true, wide: true, space: "pause",
 }, store.get("settings", {}));
 delete settings.subs; delete settings.sync; // (Reddit and the RedGifs login of the older local version)
 export const saveSettings = () => store.set("settings", settings);

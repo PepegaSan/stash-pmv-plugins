@@ -1,6 +1,6 @@
 // The big placard next to the player and image viewer: details, rating, red dot, O counter, tags, actions.
 
-import { esc, icon, fmtDuration, fmtRes, fmtBytes, fmtDate, fmtAgo, invNo, starsHtml, ratingClick, ratingFromInput, ratingToast, toast, errorToast, store, plural, burst, pop } from "../ui.js";
+import { esc, icon, confirmDialog, fmtDuration, fmtRes, fmtBytes, fmtDate, fmtAgo, invNo, starsHtml, ratingClick, ratingFromInput, ratingToast, toast, errorToast, store, plural, burst, pop } from "../ui.js";
 import { t } from "../i18n.js";
 import { updateItem, setFavorite, favoriteTagId, addO, removeO } from "../api.js";
 import { app, setQueueCount } from "../main.js";
@@ -61,6 +61,7 @@ export function placardHtml(kind, x) {
     <div class="kb-plc">
       <p class="kb-plc-inv">${t({ scene: "Scene", image: "Image", gallery: "Gallery" }[kind])} #${x.id}${x.date ? `${t(", ")}${fmtDate(x.date)}` : ""}</p>
       <h2 class="kb-plc-title">${tierBadge(tierNow(kind, x.id))}${esc(title)}</h2>
+      ${x.studio ? `<div class="kb-plc-perfs kb-plc-studiorow"><a class="kb-plc-perf kb-plc-studio" href="#/studio/${x.studio.id}" title="${esc(t("Studio"))}">${x.studio.image_path && !/default=true/.test(x.studio.image_path) ? `<img alt="" loading="lazy" src="${esc(x.studio.image_path)}">` : icon("film")}<span>${esc(x.studio.name)}</span></a></div>` : ""}
       ${info.lines.filter(Boolean).map((l) => `<p class="kb-plc-meta">${esc(l)}</p>`).join("")}
       <div class="kb-plc-acts">
         <div data-rate>${starsHtml(x.rating100, true)}</div>
@@ -68,7 +69,7 @@ export function placardHtml(kind, x) {
         ${kind === "scene" ? `<button class="kb-plc-btn" data-advrate title="${t("Rate by several criteria – Stash's rating follows")}">★+ ${t("Detailed")}</button>` : ""}
         <button class="kb-plc-btn" data-o title="${t("O counter (O), right-click subtracts one")}">${icon("drop")}<span data-ocount>${x.o_counter || 0}</span></button>
       </div>
-      ${kind === "scene" && critOf("scene", x) ? `<div class="kb-critlist" title="${t("Detailed rating")}">${critOf("scene", x).map((c) => `<span class="kb-critchip"><b>${esc(c.name)}</b><i style="--v:${c.score * 20}%"></i><em>${c.score}</em></span>`).join("")}</div>` : ""}
+      ${kind === "scene" && critOf("scene", x) ? `<div class="kb-critlist" title="${t("Detailed rating")}">${critOf("scene", x).map((c) => `<span class="kb-critchip"><b>${esc(t(c.name))}</b><i style="--v:${c.score * 20}%"></i><em>${c.score}</em></span>`).join("")}</div>` : ""}
       ${kind === "scene" ? `<p class="kb-plc-meta">${x.play_count ? t("Watched {what}, last {when}", { what: plural(x.play_count, "time", "times"), when: fmtAgo(x.last_played_at) }) : t("Never watched to the end")}</p>` : ""}
       ${
         kind !== "gallery"
@@ -77,7 +78,7 @@ export function placardHtml(kind, x) {
                 const age = kind === "scene" && (perfFacts(p, x) || {}).atScene;
                 return `<span class="kb-plc-perfwrap"><a class="kb-plc-perf" href="#/performer/${p.id}" data-perfcard="${p.id}"><img alt="" loading="lazy" src="${esc(p.image_path || "")}"><span>${esc(p.name)}</span>${age ? `<em class="kb-plc-perfage">${age}</em>` : ""}</a><button type="button" class="kb-plc-perfx" data-perfrm="${p.id}" title="${t("Remove from this {what}", { what: t(kind) })}" aria-label="${t("Remove")}">×</button></span>`;
               })
-              .join("")}<button type="button" class="kb-plc-perf kb-plc-perfadd" data-perfadd title="${t("Add a performer")}">${icon("plus")}${(x.performers || []).length ? "" : `<span>${t("Performer")}</span>`}</button><div class="kb-tagpick kb-plc-perfpick" data-perfpick hidden></div></div>`
+              .join("")}<button type="button" class="kb-plc-perf kb-plc-perfadd" data-perfadd title="${t("Add a performer")}">${icon("plus")}${(x.performers || []).length ? "" : `<span>${t("Performer")}</span>`}</button><div class="kb-tagpick kb-plc-perfpick" data-perfpick hidden></div></div>${(x.performers || []).length ? `<p class="kb-hint kb-plc-holdhint">${t("Hold a performer to remove them.")}</p>` : ""}`
           : ""
       }
       ${tags.length ? `<div class="kb-chips kb-plc-tags">${tags.map((tg) => `<a class="kb-chip" href="#/tag/${tg.id}">${esc(tg.name)}</a>`).join("")}</div>` : ""}
@@ -184,6 +185,59 @@ function bindPerfCards(host, getItem) {
 // Binds the buttons; refresh() reloads the details and redraws the placard.
 export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder, music, cover, funscript, position, cut }) {
   bindPerfCards(host, getItem);
+  // Taking a performer off: always asks first. On touch screens the × is hidden (too easy to hit) – hold the card instead
+  async function removePerf(id) {
+    const x = getItem();
+    const p = x && (x.performers || []).find((q) => q.id === id);
+    if (!p) return;
+    const r = await confirmDialog({ title: t("Remove “{name}” from this {what}?", { name: p.name, what: t(kind) }), text: t("The performer itself stays – only the link to this {what} is removed.", { what: t(kind) }), ok: t("Remove"), danger: true });
+    if (!r.ok) return;
+    try {
+      await updateItem(kind, { id: x.id, performer_ids: (x.performers || []).filter((q) => q.id !== id).map((q) => q.id) });
+      toast(t("Removed"), "ok");
+      refresh && refresh();
+    } catch (err) {
+      errorToast(err, "Performer");
+    }
+  }
+  const coarse = () => matchMedia("(hover: none) and (pointer: coarse)").matches;
+  let hold = null;
+  let heldAt = 0;
+  const holdStop = () => {
+    if (!hold) return;
+    clearTimeout(hold.timer);
+    hold.card.classList.remove("is-holding");
+    hold = null;
+  };
+  host.addEventListener("pointerdown", (e) => {
+    holdStop();
+    const card = e.target.closest && e.target.closest("[data-perfcard]");
+    if (!card || e.pointerType === "mouse" || !coarse()) return;
+    hold = { card, id: card.dataset.perfcard, x: e.clientX, y: e.clientY, ready: false };
+    hold.timer = setTimeout(() => {
+      if (!hold) return;
+      hold.ready = true;
+      card.classList.add("is-holding");
+      navigator.vibrate && navigator.vibrate(25);
+    }, 600);
+  });
+  host.addEventListener("pointermove", (e) => {
+    if (hold && !hold.ready && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 10) holdStop();
+  });
+  host.addEventListener("pointerup", () => {
+    if (!hold) return;
+    const h = hold;
+    holdStop();
+    if (h.ready) {
+      heldAt = Date.now();
+      removePerf(h.id);
+    }
+  });
+  host.addEventListener("pointercancel", holdStop);
+  host.addEventListener("click", (e) => {
+    if (Date.now() - heldAt < 700 && e.target.closest("[data-perfcard]")) (e.preventDefault(), e.stopPropagation()); // (the release of a hold doesn't open the performer)
+  }, true);
+  host.addEventListener("contextmenu", (e) => coarse() && e.target.closest("[data-perfcard]") && e.preventDefault());
   host.addEventListener("click", async (e) => {
     const x = getItem();
     if (!x) return;
@@ -224,10 +278,7 @@ export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder,
       const rm = e.target.closest("[data-perfrm]");
       if (rm) {
         e.preventDefault();
-        const keep = (x.performers || []).filter((p) => p.id !== rm.dataset.perfrm);
-        await updateItem(kind, { id: x.id, performer_ids: keep.map((p) => p.id) });
-        toast(t("Removed"), "ok");
-        return refresh && refresh();
+        return removePerf(rm.dataset.perfrm);
       }
       if (e.target.closest("[data-perfadd]")) {
         const box = host.querySelector("[data-perfpick]");

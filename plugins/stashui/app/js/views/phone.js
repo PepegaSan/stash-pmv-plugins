@@ -71,7 +71,7 @@ export async function render(main) {
           ${roots.length > 1 ? `<label class="kb-form-row"><span>${t("Library folder")}</span><select class="kb-field" data-root>${roots.map((r) => `<option value="${esc(r)}"${r === saved.root ? " selected" : ""}>${esc(r)}</option>`).join("")}</select></label>` : `<p class="kb-hint"><b>${esc(roots[0] || "")}</b></p>`}
           <label class="kb-form-row"><span>${t("Subfolder")}</span><input class="kb-field" data-name value="${esc(saved.name || "Phone uploads")}" spellcheck="false"></label>
           <label class="kb-check"><input type="checkbox" data-scan${scanOn() ? " checked" : ""}> ${t("Scan the folder by itself when something arrives")}</label>
-          <div class="kb-phone-acts"><button type="button" class="kb-btn is-primary" data-start>${icon("phone")}${t("Start")}</button></div>
+          <div class="kb-phone-acts"><button type="button" class="kb-btn is-primary" data-start>${icon("phone")}${t("Start now")}</button></div>
           <p class="kb-hint">${t("It opens a small server on this PC for your home network only while you use it. Only people with the link (the QR code) can send files, and only photos and videos are accepted. Windows may ask once whether Python may use the network – allow it for private networks.")}</p>
         </section>`;
       body.querySelector("[data-scan]").onchange = (e) => store.set("phoneScan", e.target.checked);

@@ -109,6 +109,20 @@ Object.assign(nav, {
   toast,
   emitSettings: () => emit("settings", {}),
   setClear,
+  toggleFull,
+});
+
+// ---------- fullscreen (the whole page: the menu steps aside, the video gets all the room) ----------
+function toggleFull() {
+  const el = document.documentElement;
+  if (document.fullscreenElement) return document.exitFullscreen();
+  if (!el.requestFullscreen) return toast(t("Your browser can't go fullscreen here."), true);
+  el.requestFullscreen().catch(() => toast(t("Your browser can't go fullscreen here."), true));
+}
+document.addEventListener("fullscreenchange", () => {
+  const on = !!document.fullscreenElement;
+  document.documentElement.classList.toggle("is-full", on);
+  document.querySelectorAll(".cbtn.fs").forEach((b) => (b.innerHTML = ic(on ? "fullexit" : "full")));
 });
 
 // ---------- top bar (phones: tabs; wide screens: only the sort button) ----------
@@ -213,10 +227,16 @@ on("current", ({ F, g }) => {
   paintUpDown();
   if (F !== activeFeed()) return;
   const a = $("#ambient");
-  const set = (u) => { if (u && activeFeed() === F) { a.style.backgroundImage = `url("${u.replace(/"/g, "%22")}")`; a.classList.add("on"); } };
+  if (!settings.glow) return a.classList.remove("on");
+  // The glow is a big blurred picture: a new one is made after the swipe has come to rest – blurring it in the middle of
+  // the scrolling animation made the scrolling stutter
+  const set = (u) => { if (u && activeFeed() === F && F.nodes[F.cur] && F.nodes[F.cur].g === g) { a.style.backgroundImage = `url("${u.replace(/"/g, "%22")}")`; a.classList.add("on"); } };
   if (!g.poster) return;
-  if (isRgPic(g.poster) && imgViaBackend) imgData(g.poster).then(set); else set(g.poster);
+  clearTimeout(glowT);
+  glowT = setTimeout(() => (isRgPic(g.poster) && imgViaBackend ? imgData(g.poster).then(set) : set(g.poster)), 450);
 });
+let glowT = 0;
+on("settings", () => { if (!settings.glow) $("#ambient").classList.remove("on"); });
 
 // ---------- clear display: only the video ----------
 function setClear(on) {
@@ -230,9 +250,11 @@ $("#unclear").addEventListener("click", () => setClear(false));
 
 // ---------- keys ----------
 addEventListener("keydown", (e) => {
-  if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) { if (e.key === "Escape") e.target.blur(); return; }
+  // Only fields you type into keep the keys (a volume slider or a switch that was clicked last must not swallow ↑ ↓ and the space bar)
+  if (e.target.closest && e.target.closest("input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button]), textarea, select, [contenteditable]")) { if (e.key === "Escape") e.target.blur(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
+  if ((k === " " || k.startsWith("Arrow") || k === "PageDown" || k === "PageUp") && e.target.blur && e.target !== document.body && !(topLayer() && topLayer().kind === "modal")) e.target.blur(); // (a focused slider or button would also act on the key)
   if (k === "Escape") { if (layerCount()) closeTop(); else if (document.body.classList.contains("is-clear")) setClear(false); return; }
   const top = topLayer();
   if (top && top.kind === "modal") return;
@@ -243,13 +265,14 @@ addEventListener("keydown", (e) => {
   const n = F.node();
   if (k === "ArrowDown" || k === "j" || k === "PageDown") { e.preventDefault(); F.go(1); }
   else if (k === "ArrowUp" || k === "k" || k === "PageUp") { e.preventDefault(); F.go(-1); }
-  else if (k === " ") { e.preventDefault(); F.togglePlay(); }
+  else if (k === " ") { e.preventDefault(); if (settings.space === "next") F.go(e.shiftKey ? -1 : 1); else F.togglePlay(); }
   else if (k === "m") setMuted(!muted);
   else if (k === "l") F.like();
   else if (k === "s" || k === "d") F.save();
   else if (k === "ArrowRight") { e.preventDefault(); F.seek(5); }
   else if (k === "ArrowLeft") { e.preventDefault(); F.seek(-5); }
   else if (k === "c") setClear(!document.body.classList.contains("is-clear"));
+  else if (k === "z") toggleFull();
   else if (k === "f" && n && !n.g.stash) { const now = setFollow(n.g.user, !isFollowing(n.g.user)); toast(now ? t("Following @{u}", { u: n.g.user }) : t("Unfollowed @{u}", { u: n.g.user })); }
   else if (k === "p" && n) n.g.stash ? n.g.pid && openPerformer(n.g.pid, n.g.user, n.g.img) : openProfile(n.g.user);
   else if (k === "." && n) F.menu();

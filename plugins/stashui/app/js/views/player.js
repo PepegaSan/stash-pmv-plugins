@@ -221,14 +221,43 @@ export async function render(host, params, query = {}) {
     const want = caps.findIndex((c) => c.language_code === prefs.subs);
     setTimeout(() => setSubs(want));
   }
+  // Live transcodes (Stash's "resolution=" streams) don't know their length and can't be seeked: the bar uses the
+  // scene's known length, and a jump outside what is already loaded asks the stream to start at that second
+  // (start=<s>; the pictures then count from 0, `tcOff` adds the offset back). v.currentTime / v.duration are
+  // wrapped for this, so everything else in the player keeps working with real scene time.
+  const mediaProto = HTMLMediaElement.prototype;
+  const nativeTime = Object.getOwnPropertyDescriptor(mediaProto, "currentTime");
+  const nativeDur = Object.getOwnPropertyDescriptor(mediaProto, "duration");
+  let tcOff = 0;
+  const isLive = (i) => /[?&]resolution=/.test(sources[i] || "") && dur > 0;
+  const withStart = (u, sec) => u + (u.includes("?") ? "&" : "?") + "start=" + Math.floor(sec);
+  const inBuffer = (sec) => {
+    for (let k = 0; k < v.buffered.length; k++) if (sec >= v.buffered.start(k) && sec <= v.buffered.end(k) - 0.5) return true;
+    return false;
+  };
+  function loadAt(i, at, play) {
+    srcIdx = i;
+    tcOff = isLive(i) && at > 2 ? Math.floor(at) : 0;
+    v.src = tcOff ? withStart(sources[i], tcOff) : sources[i];
+    if (!tcOff && at > 0) v.currentTime = at;
+    if (play) v.play().catch(() => {});
+  }
+  Object.defineProperty(v, "currentTime", {
+    configurable: true,
+    get: () => nativeTime.get.call(v) + tcOff,
+    set: (x) => {
+      x = Number(x);
+      if (!isFinite(x)) return;
+      if (!isLive(srcIdx)) return nativeTime.set.call(v, x);
+      const local = x - tcOff;
+      if (local >= 0 && (inBuffer(local) || (tcOff === 0 && local < 1))) nativeTime.set.call(v, local);
+      else loadAt(srcIdx, Math.max(0, Math.min(x, dur - 1)), !v.paused);
+    },
+  });
+  Object.defineProperty(v, "duration", { configurable: true, get: () => (isLive(srcIdx) ? dur : nativeDur.get.call(v)) });
   function switchSource(i) {
     if (i === srcIdx) return;
-    const at = v.currentTime;
-    const playing = !v.paused;
-    srcIdx = i;
-    v.src = sources[i];
-    v.currentTime = at;
-    if (playing) v.play().catch(() => {});
+    loadAt(i, v.currentTime, !v.paused);
   }
   // Menu: quality, subtitles, speed (one button instead of three – the bar is full enough)
   function menuHtml() {
@@ -331,10 +360,7 @@ export async function render(host, params, query = {}) {
   });
   v.addEventListener("error", () => {
     if (srcIdx < sources.length - 1) {
-      const at = v.currentTime;
-      v.src = sources[++srcIdx];
-      v.currentTime = at;
-      v.play().catch(() => {});
+      loadAt(srcIdx + 1, v.currentTime, true);
     } else toast(t("This video can't be played here"), "error");
   });
   v.src = sources[srcIdx];
@@ -441,7 +467,7 @@ export async function render(host, params, query = {}) {
   }
   function paintBuffer() {
     if (!v.buffered.length || !v.duration) return;
-    $("[data-buf]").style.width = (v.buffered.end(v.buffered.length - 1) / v.duration) * 100 + "%";
+    $("[data-buf]").style.width = ((v.buffered.end(v.buffered.length - 1) + tcOff) / v.duration) * 100 + "%";
   }
   const posFrom = (e) => {
     const r = tl.getBoundingClientRect();
@@ -554,12 +580,22 @@ export async function render(host, params, query = {}) {
   syncPlay();
   const toggle = () => (v.paused ? v.play().catch(() => {}) : v.pause());
 
-  // Controls hide when idle
+  // Controls hide when idle: first they fade out (is-idle), but for a moment they still take clicks, so
+  // a click on a button that has just faded works and doesn't land on the picture (and pause it).
+  // Only then (is-gone) the picture gets the clicks again.
+  const IDLE_MS = 2600;
+  const GRACE_MS = 2500;
   let idle;
+  let gone;
   const wake = () => {
-    stage.classList.remove("is-idle");
+    stage.classList.remove("is-idle", "is-gone");
     clearTimeout(idle);
-    idle = setTimeout(() => !v.paused && stage.classList.add("is-idle"), 2600);
+    clearTimeout(gone);
+    idle = setTimeout(() => {
+      if (v.paused) return;
+      stage.classList.add("is-idle");
+      gone = setTimeout(() => stage.classList.add("is-gone"), GRACE_MS);
+    }, IDLE_MS);
   };
   stage.addEventListener("pointermove", wake);
   wake();
@@ -610,11 +646,44 @@ export async function render(host, params, query = {}) {
   };
   stage.addEventListener("pointerup", endSwipe);
   stage.addEventListener("pointercancel", endSwipe);
+  // Touch: holding a finger on the picture plays at 2× while it stays down, back to normal on release.
+  // A swipe (finger moves) cancels it, a boost cancels the swipe; the tap that ends it doesn't pause.
+  let boost = null;
+  const boostEnd = () => {
+    if (!boost) return;
+    clearTimeout(boost.timer);
+    if (boost.on) {
+      v.playbackRate = boost.prev;
+      swiped = Date.now();
+      flash("", false);
+    }
+    boost = null;
+  };
+  stage.addEventListener("pointerdown", (e) => {
+    boostEnd();
+    if (e.pointerType === "mouse" || (vr && vr.mode) || !(e.target === v || e.target.classList.contains("kb-screen"))) return;
+    boost = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, prev: v.playbackRate };
+    boost.timer = setTimeout(() => {
+      if (!boost || v.paused || (swipe && swipe.on)) return (boost = null);
+      swipe = null;
+      boost.on = true;
+      v.playbackRate = 2;
+      if (navigator.vibrate) navigator.vibrate(15);
+      flash("▸▸ 2×", true);
+    }, 450);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!boost || boost.on || e.pointerId !== boost.id) return;
+    if (Math.hypot(e.clientX - boost.x, e.clientY - boost.y) > 12) boostEnd();
+  });
+  ["pointerup", "pointercancel"].forEach((ev) => stage.addEventListener(ev, (e) => boost && e.pointerId === boost.id && boostEnd()));
+  stage.addEventListener("contextmenu", (e) => lastPointer !== "mouse" && (e.target === v || e.target.classList.contains("kb-screen")) && e.preventDefault());
 
   host.addEventListener("click", (e) => {
     const el = e.target;
     const woke = tapWoke;
     tapWoke = false;
+    wake(); // a click counts as activity: the bar stays and the countdown starts over
     if (Date.now() - swiped < 400 && (el === v || el.classList.contains("kb-screen"))) return;
     if (el.closest("[data-close]")) return closeOverlay();
     if (el.closest("[data-play]") || el.closest("[data-bigplay]")) return toggle();
@@ -664,7 +733,7 @@ export async function render(host, params, query = {}) {
       if (handy) handy.setLoop(prefs.mode === "one");
       paintMode();
       paintUpnext();
-      return toast(modeOf()[2], "ok");
+      return toast(t(modeOf()[2]), "ok");
     }
     const up = el.closest("[data-upgo]");
     if (up) return jump(Number(up.dataset.upgo));
@@ -876,13 +945,27 @@ export async function render(host, params, query = {}) {
     const c = await gql(`mutation { tagCreate(input: { name: "Highlight" }) { id } }`);
     return (markTagId = c.tagCreate.id);
   }
+  // Every main tag gets its own colour (the same tag always the same one) – on the timeline pin, the bar of a part and its row
+  const mkColor = (m) => {
+    const key = String((m.primary_tag && (m.primary_tag.name || m.primary_tag.id)) || m.title || "");
+    let h = 0;
+    for (const c of key) h = (h * 31 + c.charCodeAt(0)) % 360;
+    return `hsl(${(h * 47) % 360} 78% 58%)`;
+  };
   function paintMarks() {
     const box = $("[data-mks]");
     if (!box) return;
     const total = v.duration || dur || 1;
     const best = bestMarkersNow() || new Map();
-    box.innerHTML = (x.scene_markers || [])
-      .map((m) => `<button type="button" class="kb-tl-mk${best.has(m.id) ? " is-best" : ""}" data-mk="${m.seconds}" style="left:${(m.seconds / total) * 100}%" title="${esc((best.has(m.id) ? "★ " + t("Best moment") + " · " : "") + (m.title || (m.primary_tag || {}).name || t("Marker")) + " · " + fmtDuration(m.seconds))}"></button>`)
+    // a part with an end is drawn as a coloured bar over the timeline; the pin stays at its start
+    const bars = (x.scene_markers || [])
+      .slice()
+      .sort((a, b) => a.seconds - b.seconds)
+      .filter((m) => m.end_seconds > m.seconds)
+      .map((m, i) => `<i class="kb-tl-range${i % 2 ? " is-alt" : ""}" style="left:${(m.seconds / total) * 100}%;width:${((Math.min(m.end_seconds, total) - m.seconds) / total) * 100}%;--mk:${mkColor(m)}"></i>`)
+      .join("");
+    box.innerHTML = bars + (x.scene_markers || [])
+      .map((m) => `<button type="button" class="kb-tl-mk${best.has(m.id) ? " is-best" : ""}" data-mk="${m.seconds}" style="left:${(m.seconds / total) * 100}%;--mk:${mkColor(m)}" title="${esc((best.has(m.id) ? "★ " + t("Best moment") + " · " : "") + (m.title || (m.primary_tag || {}).name || t("Marker")) + " · " + fmtDuration(m.seconds))}"></button>`)
       .join("");
   }
   // the best moments arrive a moment later (standings from Stash) – then the marks again
@@ -903,7 +986,7 @@ export async function render(host, params, query = {}) {
       `${t("Markers")}<small class="kb-upsec-n">${list.length || ""}</small>`,
       list
         .map(
-          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${fmtDuration(m.seconds)}${m.end_seconds > m.seconds ? "–" + fmtDuration(m.end_seconds) : ""}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}${partTags(m)}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Edit the part (name, start, end, tags)")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
+          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}" data-mkid="${m.id}" style="--mk:${mkColor(m)}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${fmtDuration(m.seconds)}${m.end_seconds > m.seconds ? "–" + fmtDuration(m.end_seconds) : ""}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}${partTags(m)}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Edit the part (name, start, end, tags)")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
         )
         .join("") + `<div class="kb-mkadds"><button type="button" class="kb-btn is-ghost kb-mkadd" data-mkadd>${icon("plus")}${t("Add a marker here (B)")}</button><button type="button" class="kb-btn is-ghost kb-mkadd" data-mkpart title="${t("A part of the video with a start, an end and its own tags")}">${icon("tag")}${t("Add a part …")}</button></div>`
     );
@@ -957,6 +1040,37 @@ export async function render(host, params, query = {}) {
 
   paintMarkers();
   v.addEventListener("loadedmetadata", paintMarks);
+  // Hovering a marker in the list plays its preview next to it (the picture Stash made for it)
+  let mkPop = null;
+  const mkPopOff = () => {
+    if (mkPop) mkPop.remove();
+    mkPop = null;
+  };
+  host.addEventListener("mouseover", (e) => {
+    const row = e.target.closest && e.target.closest("[data-mkid]");
+    if (!row) return;
+    const m = (x.scene_markers || []).find((q) => q.id === row.dataset.mkid);
+    const src = m && (m.preview || m.screenshot);
+    if (!src || (mkPop && mkPop.dataset.for === m.id)) return;
+    mkPopOff();
+    mkPop = document.createElement("div");
+    mkPop.className = "kb-mkpop";
+    mkPop.dataset.for = m.id;
+    mkPop.innerHTML = `<img alt="" src="${esc(src)}">`;
+    document.body.appendChild(mkPop);
+    const place = () => {
+      if (!mkPop) return;
+      const r = row.getBoundingClientRect();
+      mkPop.style.left = Math.max(8, r.left - (mkPop.offsetWidth || 240) - 10) + "px";
+      mkPop.style.top = Math.max(8, Math.min(r.top, innerHeight - mkPop.offsetHeight - 8)) + "px";
+    };
+    place();
+    mkPop.querySelector("img").addEventListener("load", place); // (the height is known once the picture is there)
+  });
+  host.addEventListener("mouseout", (e) => {
+    if (mkPop && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest("[data-mkid]"))) mkPopOff();
+  });
+  host.addEventListener("click", mkPopOff);
   $("[data-mks]").addEventListener("click", (e) => {
     const b = e.target.closest("[data-mk]");
     if (!b) return;
@@ -1549,6 +1663,7 @@ export async function render(host, params, query = {}) {
   function flash(note, hold) {
     const f = $("[data-seekflash]");
     if (!f) return;
+    if (!note) return f.classList.remove("is-on"); // (empty note = hide)
     f.textContent = note;
     clearTimeout(flashT);
     if (hold) {
@@ -1584,7 +1699,7 @@ export async function render(host, params, query = {}) {
       const how = store.get("player", {}).wheel || "volume";
       if (how === "off" || e.ctrlKey || !e.deltaY || (e.target.closest && e.target.closest("[data-side], input, button, select, textarea, canvas"))) return;
       e.preventDefault();
-      const dir = e.deltaY < 0 ? 1 : -1;
+      const dir = (e.deltaY < 0 ? 1 : -1) * (store.get("player", {}).wheelRev ? -1 : 1);
       if ((how === "volume") !== e.shiftKey) {
         v.muted = false;
         v.volume = Math.max(0, Math.min(1, Math.round((v.volume + dir * 0.05) * 100) / 100));

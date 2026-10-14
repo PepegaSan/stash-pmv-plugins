@@ -1,6 +1,6 @@
 name: RedTok
 description: RedGifs as a TikTok-style feed – swipe through videos, follow creators and niches, like, and save the ones you want into your Stash library with one tap. Also plays your own Stash scenes as a feed. No account needed.
-version: 1.0.3
+version: 1.1.1
 url: https://github.com/anonym88312/stash-pmv-plugins
 
 # Backend: RedGifs for browsers that can't reach it themselves, downloads into your library, the backup file

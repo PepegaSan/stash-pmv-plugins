@@ -66,11 +66,12 @@ const titleOf = (kind, x) =>
   : kind === "marker" ? x.title || (x.primary_tag || {}).name || sceneName(x.scene)
   : x.title || (kind === "scene" ? (x.files[0] || {}).basename : ((x.visual_files || [])[0] || {}).basename) || "#" + x.id;
 const thumbOf = (kind, x) => (kind === "scene" ? x.paths.screenshot : kind === "image" ? x.paths.thumbnail || x.paths.image : kind === "marker" ? x.screenshot || (x.scene && x.scene.paths.screenshot) : x.image_path);
-// A moment (marker) plays from its start to its end – or 12 s when it has no end
+// A moment (marker) plays from its start to its end – at least "Moments play at least … seconds" (Match options)
 const markerSpan = (x) => {
   const dur = ((x.scene && x.scene.files[0]) || {}).duration || 0;
   const a = Math.max(0, x.seconds || 0);
-  let b = x.end_seconds > a + 1 ? x.end_seconds : a + 12;
+  const min = matchOpts().momentLen;
+  let b = Math.max(x.end_seconds > a + 1 ? x.end_seconds : 0, a + min);
   if (dur) b = Math.min(b, dur);
   return [a, b];
 };
@@ -112,7 +113,7 @@ const parseVs = (txt) => {
 };
 
 export function render(main, params = {}) {
-  const S = Object.assign({ kind: "scene", mode: "fair", tags: [] }, store.get("versusView", {}));
+  const S = Object.assign({ kind: "scene", mode: "fair", tags: [], xtags: [] }, store.get("versusView", {}));
   const saveView = () => store.set("versusView", S);
   // { scene: { id: [elo, wins, losses] }, image: …, performer: …, votes, day, dayVotes, bestStreak }
   // This browser keeps a copy (starts at once); Stash has the real thing – written a few seconds after
@@ -226,7 +227,10 @@ export function render(main, params = {}) {
 
   // ---------- Loading ----------
   function filter() {
-    return S.tags.length ? { tags: { value: S.tags, modifier: "INCLUDES", depth: 0 } } : {};
+    if (!S.tags.length && !S.xtags.length) return {};
+    const tags = { value: S.tags, modifier: "INCLUDES", depth: 0 };
+    if (S.xtags.length) tags.excludes = S.xtags;
+    return { tags };
   }
   // (moments have tags too – the same filter works)
   async function loadPool() {
@@ -272,7 +276,8 @@ export function render(main, params = {}) {
     body.innerHTML = `
       <div class="kb-vs-top">
         <div class="kb-seg" data-mode>${MODES.map(([m, l, h]) => `<button type="button" data-v="${m}" title="${esc(t(h))}">${t(l)}</button>`).join("")}</div>
-        <div class="kb-vs-tags" data-tags></div>
+        <div class="kb-vs-filter" data-tags></div>
+        <div class="kb-vs-filter kb-vs-xtags" data-xtags></div>
       </div>
       <div class="kb-vs-arena" data-arena><div class="kb-loading">${t("Loading …")}</div></div>
       <div class="kb-vs-foot">
@@ -300,6 +305,15 @@ export function render(main, params = {}) {
       placeholder: t("Tags (optional)"),
       onChange: (inc) => {
         S.tags = inc;
+        saveView();
+        reset();
+      },
+    });
+    tagPicker(body.querySelector("[data-xtags]"), {
+      include: S.xtags,
+      placeholder: t("Exclude tag"),
+      onChange: (inc) => {
+        S.xtags = inc;
         saveView();
         reset();
       },
@@ -359,7 +373,7 @@ export function render(main, params = {}) {
       montage = setInterval(() => {
         step = (step + 1) % SPOTS.length;
         vids.forEach((v) => v.dataset.dur && v.readyState >= 1 && (v.currentTime = Number(v.dataset.dur) * SPOTS[step]));
-      }, 4000);
+      }, matchOpts().jumpEvery * 1000);
       // Moments: their stretch over and over
       arena.querySelectorAll("video[data-from]").forEach((v) => {
         const a = Number(v.dataset.from);

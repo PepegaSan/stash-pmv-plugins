@@ -30,7 +30,7 @@ svg { width: 1em; height: 1em; fill: currentColor; flex: none; }
 img { -webkit-user-drag: none; }
 
 /* ---------- frame ---------- */
-#ambient { position: fixed; inset: -10%; z-index: 0; background: center / cover no-repeat; filter: blur(80px) brightness(.32) saturate(1.5); opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+#ambient { position: fixed; inset: -5%; z-index: 0; background: center / cover no-repeat; filter: blur(40px) brightness(.32) saturate(1.5); opacity: 0; transition: opacity .6s ease; pointer-events: none; }
 #ambient.on { opacity: 1; }
 #main { position: fixed; top: 0; bottom: var(--nav); left: var(--side); right: 0; z-index: 1; }
 .view { position: absolute; inset: 0; }
@@ -472,7 +472,15 @@ kbd { display: inline-block; min-width: 30px; padding: 3px 8px; border-radius: 6
 #side { display: none; }
 #bottom { display: none; }
 .badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font: 800 11px/18px system-ui, sans-serif; font-style: normal; text-align: center; }
+.cbtn.fs { display: none; } /* (fullscreen button: PCs only, see below) */
 @media (min-width: 761px) {
+  /* The card gets its size from the height of its slot, so it can grow (and animate) to a wide video's own shape */
+  .item { container-type: size; }
+  .card { --ch: 100cqh; width: calc(var(--ch) * 9 / 16); height: var(--ch); aspect-ratio: auto; max-width: calc(100cqw - 110px); transition: width .42s var(--ease), height .42s var(--ease); }
+  .card.is-wide { --cw: min(calc(100cqw - 110px), calc(var(--ch) * var(--ar))); width: var(--cw); height: calc(var(--cw) / var(--ar)); max-width: none; }
+  .cbtn.fs { display: grid; }
+  html.is-full { --side: 0px !important; }
+  html.is-full #side { display: none; }
   :root { --side: 72px; }
   #side { position: fixed; left: 0; top: 0; bottom: 0; z-index: 25; width: var(--side); display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 14px 10px; overflow-y: auto; border-right: 1px solid var(--line); background: rgba(0, 0, 0, .6); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); scrollbar-width: none; }
   .s-logo { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 0 8px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }

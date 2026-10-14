@@ -56,7 +56,7 @@ export function openMarkerEdit({ scene, marker, video, defaultTag, done }) {
     body: `
       <p class="kb-hint">${t("A part of this video with its own tags: set the start and the end (“Here” takes the spot you're watching), give it a main tag and more tags. It shows up in the marker list and on the timeline.")}</p>
       <label class="kb-form-row"><span>${t("Name")}</span><input class="kb-field" data-title value="${esc((marker && marker.title) || "")}" placeholder="${esc(t("Name (optional)"))}"></label>
-      ${row("from", t("Start"), fmtExact(start0))}
+      ${row("from", t("Start time"), fmtExact(start0))}
       ${row("to", t("End"), marker && marker.end_seconds ? fmtExact(marker.end_seconds) : "", t("(none)"))}
       <p class="kb-hint">${t("Exact to the frame: ↑ ↓ in a field (or the buttons – hold to repeat) change the time by one frame, with Shift by a second, with Alt by a tenth of a second. The video follows, so you see the frame. The keys , and . step the video itself.")}</p>
       <span class="kb-lab-t">${t("Main tag")} <small>${t("– the tag this part is filed under (needed)")}</small></span>

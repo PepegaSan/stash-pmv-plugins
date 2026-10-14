@@ -38,6 +38,7 @@ export const NAV = [
     { href: "tagger", label: "Scene tagger", icon: "tag", match: /^tagger/ },
     { href: "performer-tagger", label: "Performer tagger", icon: "person", match: /^performer-tagger/ },
     { href: "phone", label: "Phone upload", icon: "phone", match: /^phone/ },
+    { href: "sharing", label: "Sharing", icon: "share", match: /^sharing/, count: "share" },
     { href: "settings", label: "Settings", icon: "gear", match: /^settings/ },
     { href: "plugins", label: "Plugins", icon: "plug", match: /^plugins/ },
     { href: "whatsnew", label: "What's new", icon: "info", match: /^whatsnew/, count: "news" },

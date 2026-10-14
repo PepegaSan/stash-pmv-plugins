@@ -147,7 +147,7 @@ const PERF_CARD = "id disambiguation gender birthdate death_date country favorit
 
 export async function getScene(id) {
   // performers a second time: GraphQL merges the selections – only the player needs the details for the hover cards
-  const d = await gql(`query($id: ID!) { findScene(id: $id) { ${F_SCENE} performers { ${PERF_CARD} } scene_markers { id title seconds end_seconds primary_tag { id name } tags { id name } } sceneStreams { url mime_type label } captions { language_code caption_type } paths { caption } } }`, { id });
+  const d = await gql(`query($id: ID!) { findScene(id: $id) { ${F_SCENE} performers { ${PERF_CARD} } scene_markers { id title seconds end_seconds stream preview screenshot primary_tag { id name } tags { id name } } sceneStreams { url mime_type label } captions { language_code caption_type } paths { caption } } }`, { id });
   return d.findScene;
 }
 export async function getImage(id) {

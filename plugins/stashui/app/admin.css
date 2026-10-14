@@ -406,6 +406,13 @@ body.kb-embedded .kb-main { padding: 0; }
 .kb-dupe-path { overflow: hidden; color: var(--faint) !important; white-space: nowrap; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .kb-dupe-item .kb-btn { align-self: flex-start; margin-top: 4px; }
 .kb-dupe-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.kb-dupe-item.is-picked { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.kb-dupe-fail { color: var(--danger) !important; }
+.kb-dupe-itemacts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.kb-dupe-itemacts .kb-btn { margin-top: 0; }
+.kb-dupe-bulk { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--bg-3); border-radius: 8px; background: var(--bg-2); }
+.kb-dupe-bulk[hidden] { display: none; }
+.kb-dupe-bulk .kb-hint { flex: 1; min-width: 120px; margin: 0; }
 .kb-linkbtn { padding: 0; border: 0; color: var(--pink); font: inherit; text-decoration: underline; background: none; cursor: pointer; }
 .kb-more-wrap { display: flex; justify-content: center; margin: 18px 0; }
 

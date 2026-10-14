@@ -19,15 +19,20 @@ const nameOf = (s) => s.title || (s.files && s.files[0] && s.files[0].basename) 
 
 // perf: { id, name }; onUse(dataUrl) is called with the finished JPEG.
 // opts.canvas: cut out of this picture right away (e.g. the frame of a live cam) – no scene or image to pick
+// opts.square / opts.kind ("image" opens on the images) / opts.title / opts.maxSide: for a profile picture (perf = null: no performer to start from)
 export function openPhotoCutter(perf, onUse, opts = {}) {
+  perf = perf || { id: null, name: "" };
+  const RS = opts.square ? [RATIOS[2]] : RATIOS;
+  const MAXH = opts.maxSide || MAX_H;
+  const kind0 = opts.kind === "image" ? "image" : "scene";
   const wrap = document.createElement("div");
   wrap.innerHTML = `
     <div class="kb-scrim kb-dialog-scrim"></div>
     <div class="kb-dialog kb-cut" role="dialog" aria-modal="true" aria-label="${esc(t("Cut a photo from a scene"))}">
-      <h2>${opts.canvas ? t("Cut a photo from the cam") : t("Cut a photo from a scene")}</h2>
+      <h2>${esc(opts.title || (opts.canvas ? t("Cut a photo from the cam") : t("Cut a photo from a scene")))}</h2>
       <div class="kb-cut-find">
-        <span class="kb-cut-kinds" data-kinds><button type="button" class="kb-btn is-ghost is-sel" data-kind="scene">${t("Scenes")}</button><button type="button" class="kb-btn is-ghost" data-kind="image">${t("Images")}</button></span>
-        <input class="kb-field" data-q placeholder="${esc(t("Search all (empty = those with {name})", { name: perf.name }))}">
+        <span class="kb-cut-kinds" data-kinds><button type="button" class="kb-btn is-ghost${kind0 === "scene" ? " is-sel" : ""}" data-kind="scene">${t("Scenes")}</button><button type="button" class="kb-btn is-ghost${kind0 === "image" ? " is-sel" : ""}" data-kind="image">${t("Images")}</button></span>
+        <input class="kb-field" data-q placeholder="${esc(perf.id ? t("Search all (empty = those with {name})", { name: perf.name }) : t("Search your library"))}">
       </div>
       <div class="kb-cut-scenes" data-scenes><span class="kb-hint">${t("Loading …")}</span></div>
       <div class="kb-cut-stage" data-stage>
@@ -46,7 +51,7 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
       <div class="kb-cut-bar" data-sbar hidden>
         <button type="button" class="kb-btn" data-back>${t("Other frame")}</button>
         <label class="kb-cut-zoom">${t("Size")}<input type="range" min="10" max="100" value="80" data-zoom></label>
-        <span class="kb-cut-ratios" data-ratios>${RATIOS.map(([l], i) => `<button type="button" class="kb-btn is-ghost${i === 0 ? " is-sel" : ""}" data-ratio="${i}">${l}</button>`).join("")}</span>
+        <span class="kb-cut-ratios" data-ratios${RS.length < 2 ? " hidden" : ""}>${RS.map(([l], i) => `<button type="button" class="kb-btn is-ghost${i === 0 ? " is-sel" : ""}" data-ratio="${i}">${l}</button>`).join("")}</span>
         <canvas class="kb-cut-prev" data-prev></canvas>
         <button type="button" class="kb-btn is-primary" data-use>${t("Use as photo")}</button>
       </div>
@@ -77,7 +82,7 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
   wrap.querySelector(".kb-scrim").onclick = close;
 
   // ---- Scenes and images
-  let kind = "scene";
+  let kind = kind0;
   let scenes = []; // the list on show: scenes or images
   let timer;
   async function loadScenes() {
@@ -87,11 +92,11 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
     try {
       const f = { per_page: q ? 30 : 40, sort: "created_at", direction: "DESC" };
       if (q) f.q = q;
-      const d = await gql(img ? IMAGES_Q : SCENES_Q, { f, s: q ? undefined : { performers: { value: [perf.id], modifier: "INCLUDES" } } });
+      const d = await gql(img ? IMAGES_Q : SCENES_Q, { f, s: q || !perf.id ? undefined : { performers: { value: [perf.id], modifier: "INCLUDES" } } });
       scenes = img ? d.findImages.images : d.findScenes.scenes;
       box2.innerHTML = scenes.length
         ? scenes.map((s, i) => `<button type="button" class="kb-cut-scene${img ? " is-image" : ""}" data-i="${i}" title="${esc(nameOf(s))}"><img alt="" loading="lazy" src="${esc(img ? s.paths.thumbnail || s.paths.image : s.paths.screenshot || "")}"><span>${esc(nameOf(s))}</span></button>`).join("")
-        : `<span class="kb-hint">${q ? t("Nothing found.") : img ? t("No images with {name} yet – search for one above.", { name: perf.name }) : t("No scenes with {name} yet – search for one above.", { name: perf.name })}</span>`;
+        : `<span class="kb-hint">${q || !perf.id ? t("Nothing found.") : img ? t("No images with {name} yet – search for one above.", { name: perf.name }) : t("No scenes with {name} yet – search for one above.", { name: perf.name })}</span>`;
     } catch (e) {
       box2.innerHTML = `<span class="kb-hint">${esc(e.message)}</span>`;
     }
@@ -164,7 +169,7 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
   });
 
   // ---- The frame and the cut
-  let ratio = RATIOS[0][1];
+  let ratio = RS[0][1];
   let c = { x: 0, y: 0, w: 0, h: 0 }; // in picture pixels
   const showVideo = () => {
     $("[data-still]").hidden = true;
@@ -220,7 +225,7 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
   }
   function draw() {
     box.style.cssText = `left:${(c.x / canvas.width) * 100}%;top:${(c.y / canvas.height) * 100}%;width:${(c.w / canvas.width) * 100}%;height:${(c.h / canvas.height) * 100}%`;
-    const oh = Math.min(MAX_H, Math.round(c.h));
+    const oh = Math.min(MAXH, Math.round(c.h));
     prev.height = Math.min(120, oh);
     prev.width = Math.round(prev.height * ratio);
     prev.getContext("2d").drawImage(canvas, c.x, c.y, c.w, c.h, 0, 0, prev.width, prev.height);
@@ -229,7 +234,7 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
   $("[data-ratios]").addEventListener("click", (e) => {
     const b = e.target.closest("[data-ratio]");
     if (!b) return;
-    ratio = RATIOS[Number(b.dataset.ratio)][1];
+    ratio = RS[Number(b.dataset.ratio)][1];
     wrap.querySelectorAll("[data-ratio]").forEach((x) => x.classList.toggle("is-sel", x === b));
     fit(Number($("[data-zoom]").value) / 100, false);
   });
@@ -268,7 +273,7 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
   box.addEventListener("pointercancel", end);
 
   $("[data-use]").onclick = () => {
-    const h = Math.min(MAX_H, Math.round(c.h));
+    const h = Math.min(MAXH, Math.round(c.h));
     const out = document.createElement("canvas");
     out.height = h;
     out.width = Math.round(h * ratio);

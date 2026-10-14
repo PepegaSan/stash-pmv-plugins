@@ -18,6 +18,8 @@ export function av(url, name, cls = "") {
 }
 export const tick = () => `<i class="vtick" title="${esc(t("Verified"))}">${ic("verified")}</i>`;
 const fillOf = (g) => settings.fit === "fill" || (settings.fit === "auto" && g.h > g.w * 1.15);
+// A wide video (16:9 …) grows to its own shape when you scroll to it – on a PC, where there is room for it (Settings → Enlarge wide videos)
+const wideOf = (g) => settings.wide !== false && !isPhone() && g.w >= g.h * 1.2 && g.h > 0;
 
 // ---------- video elements ----------
 // Phones allow sound only for a <video> that a tap has started: the first tap "blesses" a few elements, and the
@@ -57,7 +59,7 @@ function itemHtml(g) {
   const save = g.stash
     ? `<button class="act" data-act="openstash" aria-label="${esc(t("Open in Stash"))}"><span class="ic">${ic("open")}</span><span class="n">${esc(t("Open"))}</span></button>`
     : `<button class="act save" data-act="dl" aria-label="${esc(t("Save to your library"))}"><span class="ic">${ic("down")}<i class="ring"></i></span><span class="n">${esc(t("Save"))}</span></button>`;
-  return `<div class="col"><div class="card${fillOf(g) ? " is-fill" : ""}">
+  return `<div class="col"><div class="card${fillOf(g) ? " is-fill" : ""}"${g.h > 0 && g.w >= g.h * 1.2 ? ` style="--ar:${(g.w / g.h).toFixed(4)}"` : ""}>
       ${img(g.poster || g.thumb, "bg")}
       ${img(g.poster || g.thumb, "poster") || '<img class="poster" alt="">'}
       <div class="shade"></div>
@@ -66,7 +68,7 @@ function itemHtml(g) {
       <div class="loading"><i></i></div>
       <div class="flash"></div>
       <div class="ctl ctl-l"><button class="cbtn vol" data-act="mute" aria-label="${esc(t("Sound"))}">${ic(muted ? "mute" : "vol")}</button><input class="volr" type="range" min="0" max="1" step="0.05" value="${settings.volume}" aria-label="${esc(t("Volume"))}"><span class="unmute" data-act="mute">${esc(t("Tap to unmute"))}</span></div>
-      <div class="ctl ctl-r"><span class="spd"${settings.speed === 1 ? " hidden" : ""}>${settings.speed}×</span><button class="cbtn" data-act="menu" aria-label="${esc(t("More options"))}">${ic("more")}</button></div>
+      <div class="ctl ctl-r"><button class="cbtn fs" data-act="full" aria-label="${esc(t("Fullscreen"))}" title="${esc(t("Fullscreen"))} (Z)">${ic("full")}</button><span class="spd"${settings.speed === 1 ? " hidden" : ""}>${settings.speed}×</span><button class="cbtn" data-act="menu" aria-label="${esc(t("More options"))}">${ic("more")}</button></div>
       <div class="info">
         <div class="who"><a href="#" data-act="profile">${g.stash ? "" : "@"}${esc(g.user)}</a>${g.verified ? tick() : ""}${g.date ? `<span class="when"> · ${esc(ago(g.date))}</span>` : ""}</div>
         <div class="desc">${g.desc ? `<span>${esc(g.desc)}</span> ` : ""}${tags}</div>
@@ -172,15 +174,22 @@ export function createFeed(host, S, opts = {}) {
     if (!F.nodes[i] || (i === F.cur && !force)) return;
     const prev = F.cur;
     F.cur = i;
+    F.nodes.forEach((n, k) => n.el.querySelector(".card").classList.toggle("is-wide", k === i && wideOf(n.g)));
     F.nodes.forEach((n, k) => { if (k < i - 1 || k > i + 2) release(n); });
     if (prev !== i && F.nodes[prev]) pause(F.nodes[prev]);
     const n = F.nodes[i];
     if (F.active) {
       ensure(n);
       play(n);
-      // the next two are warmed up (one only when the phone asks to save data)
-      prime(F.nodes[i + 1]);
-      if (!(navigator.connection && navigator.connection.saveData)) setTimeout(() => F.active && F.cur === i && prime(F.nodes[i + 2]), 300);
+      // The next two are warmed up (one only when the phone asks to save data) – but only once the swipe has come to
+      // rest: starting two more decoders while the page is still scrolling made the scrolling stutter on a PC
+      clearTimeout(F.settleT);
+      clearTimeout(F.settleT2);
+      F.settleT = setTimeout(() => {
+        if (!F.active || F.cur !== i) return;
+        prime(F.nodes[i + 1]);
+        if (!(navigator.connection && navigator.connection.saveData)) F.settleT2 = setTimeout(() => F.active && F.cur === i && prime(F.nodes[i + 2]), 300);
+      }, 380);
       clearTimeout(F.wt);
       F.wt = setTimeout(() => F.nodes[F.cur] === n && F.active && markWatched(n.g), 2500);
       emit("current", { F, g: n.g, i });
@@ -354,6 +363,7 @@ export function createFeed(host, S, opts = {}) {
         tapTimer = setTimeout(() => { tapTimer = 0; togglePlay(n); }, 230);
         return;
       case "mute": return setMuted(!muted);
+      case "full": return nav.toggleFull && nav.toggleFull();
       case "like": return like(n);
       case "dl": return save(n);
       case "openstash": return nav.openInStash(g);
@@ -506,7 +516,7 @@ export function createFeed(host, S, opts = {}) {
   F.seek = seek;
   F.node = () => F.nodes[F.cur] || null;
   F.menu = () => F.nodes[F.cur] && nav.openShare(F.nodes[F.cur].g, F);
-  F.refresh = () => { F.nodes.forEach((n) => { n.el.querySelector(".card").classList.toggle("is-fill", fillOf(n.g)); }); };
+  F.refresh = () => { F.nodes.forEach((n, k) => { const c = n.el.querySelector(".card"); c.classList.toggle("is-fill", fillOf(n.g)); c.classList.toggle("is-wide", k === F.cur && wideOf(n.g)); }); };
   return F;
 }
 

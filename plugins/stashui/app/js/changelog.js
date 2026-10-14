@@ -4,6 +4,127 @@
 
 export const CHANGES = [
   {
+    v: "3.95.1",
+    date: "2026-10-14",
+    items: [
+      ["ui", "Smoother scrolling in the Liquid glass look: the cards of long lists (scene cards, tag cards, performer cards, tier and extension badges, tagger rows) no longer carry their own blur filter – with hundreds of cards it was recalculated on every scrolled frame and could drop scrolling to about 15 fps. The glass look stays (translucent fill, light edge); the blur remains on the big panels.", "液态玻璃外观下滚动更流畅：长列表中的卡片（场景卡片、标签卡片、演员卡片、等级和扩展徽章、标记器行）不再各自带有模糊滤镜——卡片多达数百张时，每滚动一帧都要重新计算，可能使滚动降到约 15 帧。玻璃外观保留（半透明填充、浅色边缘）；大面板仍保留模糊。"],
+    ],
+  },
+  {
+    v: "3.95.0",
+    date: "2026-10-14",
+    items: [
+      ["ui", "Duplicates (pull request by Fixik071): a “Select …” menu ticks copies by a rule in every group – all but the highest resolution, all but the largest file, the oldest or the newest file – and “Delete selected (N)” removes them all after one question, in batches with progress (also the groups below “Show more”). It warns when every copy of a group is ticked. When Stash refuses a file (e.g. “file name too long”), the others still go and the failed ones stay ticked with the reason on their card. Replaces the simpler selection of 3.93.0.", "重复项（Fixik071 的拉取请求）：“选择 …”菜单按规则勾选每组中的副本——除最高分辨率外的全部、除最大文件外的全部、最旧或最新的文件——然后“删除所选 (N)”只需确认一次，分批删除并显示进度（包括“显示更多”下方的组）。若某组的所有副本都被勾选会给出警告。当 Stash 拒绝某个文件（如“文件名过长”）时，其余文件仍会删除，失败的保持勾选并在卡片上显示原因。取代 3.93.0 中较简单的选择方式。"],
+      ["ui", "Performer page (pull request by Fixik071): the performer's Stash IDs show up as links to their page on StashDB, ThePornDB and any other configured stash-box.", "演员页面（Fixik071 的拉取请求）：演员的 Stash ID 会显示为指向 StashDB、ThePornDB 及其他已配置 stash-box 上其页面的链接。"],
+      ["ui", "Player (pull request by AffordObedienceUntamed): the controls keep taking clicks for a moment after they fade out, and a click counts as activity – skipping 10 seconds every second or two no longer pauses the video by accident.", "播放器（AffordObedienceUntamed 的拉取请求）：控制栏淡出后仍会短暂接受点击，且点击算作操作——每隔一两秒跳过 10 秒时不再误暂停视频。"],
+      ["ui", "Versus (pull request by magz-hash): an “Exclude tag” field keeps scenes, images, performers or moments with certain tags out of the pool, and two new match options set how long moments play at least and how often scene previews jump to a new spot.", "对决（magz-hash 的拉取请求）：新增“排除标签”字段，可将带有某些标签的场景、图片、演员或片段排除在候选池之外；另有两个对决选项，设置片段至少播放多久以及场景预览多久跳到新位置。"],
+      ["pmv", "Clip speed follows the music (experimental, off by default; pull request by PepegaSan): fast, busy music gets clips with fast motion, calm music slow ones. The music's pace per beat is measured, and the fast and calm spots of each scene are found in Stash's scene previews. Also in Media Storm's copy of the beat analysis.", "片段速度跟随音乐（实验性，默认关闭；PepegaSan 的拉取请求）：快速、密集的音乐配快速运动的片段，平静的音乐配缓慢的片段。会测量每拍的音乐节奏，并在 Stash 的场景预览中找出每个场景的快慢位置。Media Storm 的节拍分析副本同步更新。"],
+    ],
+  },
+  {
+    v: "3.94.1",
+    date: "2026-10-14",
+    items: [
+      ["ui", "Scene cards now look like the cards of classic Stash: studio logo on the picture (top right), rating (bottom left), resolution and length (bottom right); below it the title, the date, a piece of the details and a row of small icon buttons with numbers – performers, tags, galleries (the mouse resting on one, or a click, opens the list) – plus plays, O counter and “organized”. Thanks to finn.", "场景卡片现在与经典 Stash 的卡片一致：图片上有工作室徽标（右上）、评分（左下）、分辨率和时长（右下）；下方是标题、日期、详情摘要，以及一排带数字的小图标按钮——演员、标签、图库（鼠标停留或点击即可打开列表）——还有播放次数、O 计数和“已整理”。感谢 finn。"],
+    ],
+  },
+  {
+    v: "3.94.0",
+    date: "2026-10-14",
+    items: [
+      ["ui", "Scenes can be shown as cards: next to the sound button there is a Tiles / Cards switch. A card has the picture (hover preview as before) with the title, studio, date, performers, tags, rating and file facts below it. The size slider sets the card width. Thanks to finn.", "场景可以显示为卡片：声音按钮旁新增“平铺/卡片”切换。卡片在图片（悬停预览同前）下方显示标题、工作室、日期、演员、标签、评分和文件信息。大小滑块调整卡片宽度。感谢 finn。"],
+      ["ui", "Tags can be shown as cards (List / Cards switch on the Tags page): the tag's picture or its initial, name and counts – and when the mouse rests on a card, a random marker of that tag plays over it. Thanks to redignium.", "标签可以显示为卡片（标签页上的“列表/卡片”切换）：显示标签的图片或首字母、名称和数量——鼠标停在卡片上时，会播放该标签的一个随机标记。感谢 redignium。"],
+      ["ui", "Tasks → Identify: bulk identify of your scenes by their fingerprints in your StashDB-style boxes and scrapers – choose the sources (tried from the top), what to fill in, keep or overwrite existing values, create missing performers/studios/tags, skip unclear matches, optionally only some folders. Needs the sources set up in classic Stash; only tested against the demo server here, not a real Stash. Thanks to finn.", "任务 → 识别：通过指纹在 StashDB 类站点和抓取器中批量识别场景——可选择来源（从上往下尝试）、要填写的内容、保留或覆盖已有值、创建缺失的演员/工作室/标签、跳过不确定的匹配，也可只处理部分文件夹。需要先在经典 Stash 中设置好来源；这里只在演示服务器上测试过，未在真实 Stash 上测试。感谢 finn。"],
+    ],
+  },
+  {
+    v: "3.93.0",
+    date: "2026-10-14",
+    items: [
+      ["ui", "Clip cutter: after saving, the clips now really get the original's performers, tags and studio (and the tag “Clip”). Before, the step was skipped quietly when Stash hadn't finished adding the new file – now it waits up to a minute for each clip and says so if a clip never showed up. Also fixes the Python “invalid escape sequence” warning in Stash's log. Thanks to tvzndro.", "剪辑裁切：保存后，剪辑现在确实会带上原视频的演员、标签和工作室（以及标签“Clip”）。此前如果 Stash 还没添加新文件，这一步会被悄悄跳过——现在每个剪辑最多等待一分钟，若仍未出现会明确提示。同时修复了 Stash 日志里 Python 的“无效转义序列”警告。感谢 tvzndro。"],
+      ["ui", "Duplicates: tick the copies you want to get rid of (checkbox on each one, or “Select all but the best” for every group at once) and delete them with a single question – no more three clicks per scene. Thanks to tvzndro.", "重复项：勾选要删除的副本（每个副本上有复选框，或用“选择除最佳外的全部”一次选中所有组），只需确认一次即可删除——不必再为每个场景点三次。感谢 tvzndro。"],
+      ["ui", "Sort order as the default: a “Make default” button next to the sort control of Scenes, Images, Galleries, Performers, Studios, Groups and Tags (and the list pages of a tag, performer or studio) – the page then opens with that sort every time (kept in this browser). Click again to remove it. Thanks to redignium.", "默认排序：场景、图片、图库、演员、工作室、群组和标签（以及标签、演员、工作室的列表页）的排序控件旁新增“设为默认”按钮——之后每次打开该页面都使用该排序（保存在此浏览器中）。再次点击可取消。感谢 redignium。"],
+      ["ui", "Scene cards can show the resolution (1080p, 720p …) next to the length: Settings → This interface → “Resolution on scene cards”. Thanks to redignium.", "场景卡片可以在时长旁显示分辨率（1080p、720p……）：设置 → 此界面 →“场景卡片上显示分辨率”。感谢 redignium。"],
+      ["ui", "The scene's info panel now shows the studio (logo and name, a link to the studio page). Thanks to finn.", "场景信息面板现在会显示工作室（徽标和名称，可链接到工作室页面）。感谢 finn。"],
+      ["ui", "Parts of a scene with a start and an end are drawn as coloured bars on the timeline – every main tag has its own colour (pins and rows in the list share it), and neighbouring parts alternate in shade so you can see where one ends and the next begins. In the marker list, hovering a marker shows its preview picture next to it. Thanks to redignium.", "带开始和结束的场景片段在时间轴上以彩色条显示——每个主标签有自己的颜色（图钉和列表中的行使用同一种颜色），相邻片段交替深浅，便于看出一个在哪里结束、下一个从哪里开始。在标记列表中悬停某个标记时，会在旁边显示其预览图。感谢 redignium。"],
+    ],
+  },
+  {
+    v: "3.92.2",
+    date: "2026-10-14",
+    items: [
+      ["ui", "Translations: the bubble that pops up in the corner when you switch the end-of-video mode (In order / Random order / Repeat …) is now translated, and so are the default criteria and groups of the detailed rating (Production Quality, Chemistry … Face, Body, Technique …) in the rating window, the scene and performer chips, the filter and the sort list. Names you typed yourself stay as they are. Thanks to ufousox007 for spotting it.", "翻译：切换视频结束方式（顺序播放/随机播放/循环…）时角落弹出的气泡现已翻译；详细评分的默认评分项和分组（制作质量、化学反应……脸蛋、身材、技巧等）在评分窗口、场景和演员标签、筛选及排序列表中也已翻译。您自己输入的名称保持不变。感谢 ufousox007 的发现。"],
+    ],
+  },
+  {
+    v: "3.92.1",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Performers on a scene, image or gallery: the red × now asks before it takes a performer off. On touch screens the × is gone – hold the performer's card (it turns red), let go, and the question comes. Thanks to ufousox007 for the report.", "场景、图片或图库中的演员：点击红色 × 现在会先确认再移除。触屏上不再显示 ×——按住演员卡片（变红）后松开，即会出现确认。感谢 ufousox007 的反馈。"],
+    ],
+  },
+  {
+    v: "3.92.0",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Phone player: holding a finger on the picture plays at 2× while it stays down (back to normal when you let go; swiping still seeks). “From the start” in the corner is a real button again (not just underlined text). Thanks to ufousox007 for the ideas.", "手机播放器：手指按住画面时以 2 倍速播放，松开恢复正常（滑动仍用于快进/快退）。角落里的“从头开始”重新成为真正的按钮（不再只是带下划线的文字）。感谢 ufousox007 的建议。"],
+      ["ui", "Performer editor on touch screens: the red Delete button has to be held for a moment (it fills up), then the usual confirmation comes – no more accidental taps.", "触屏上的演员编辑器：红色“删除”按钮需要按住片刻（会逐渐填满），然后才出现常规确认——不会再误触。"],
+      ["ui", "Videos that Stash transcodes live (quality menu): the bar now shows the scene's full length and you can jump anywhere – outside what is loaded, the stream is asked to start at that second (start=). Not verified against a real Stash yet.", "由 Stash 实时转码的视频（画质菜单）：进度条现在显示场景的完整时长并可跳到任意位置——超出已加载的部分时会请求从该秒开始的流（start=）。尚未在真实 Stash 上验证。"],
+      ["ui", "Settings → Player and previews: new switch “Reverse the wheel” – up = quieter / back, down = louder / forward.", "设置 → 播放器与预览：新增开关“反转滚轮方向”——向上 = 减小音量/后退，向下 = 增大音量/前进。"],
+    ],
+  },
+  {
+    v: "3.91.5",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Chinese (and the other languages): the “Start” button on the Tasks page, in the clip cutter, the marker editor, Phone upload and Sharing no longer reads “Home” – only the menu entry that leads to the start page keeps that word. Thanks to ufousox007 for spotting it.", "中文（及其他语言）：任务页、剪辑裁切、标记编辑、手机上传和共享中的“开始”按钮不再显示为“主页” – 只有通往起始页的菜单项仍使用该词。感谢 ufousox007 指出。"],
+    ],
+  },
+  {
+    v: "3.91.4",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Sharing: a new “Guide” tab explains how everything works, how to set up Tailscale (fixed address) and cloudflared (address changes, links can stop working) and what to keep in mind. A link in a Tailscale message (e.g. to allow Funnel) is clickable now.", "共享：新增“指南”标签页，说明各项功能、如何设置 Tailscale（固定地址）和 cloudflared（地址会变，链接可能失效）以及注意事项。Tailscale 消息中的链接（例如允许 Funnel）现在可以点击。"],
+    ],
+  },
+  {
+    v: "3.91.3",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Sharing: your profile picture can now be cut out of a picture or a scene frame of your library (square crop) – or uploaded as before. And typing in the search box when you choose what to send is no longer interrupted while the pictures below load.", "共享：头像现在可以从媒体库的图片或场景画面中裁剪（方形裁剪），也可以像以前一样上传。选择要发送的内容时，在搜索框输入不再被下方图片的加载打断。"],
+    ],
+  },
+  {
+    v: "3.91.2",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Sharing → Internet access: an “Install cloudflared” button (Windows) installs the Cloudflare tunnel program with Windows' own package manager, after a confirmation – so the internet button works without Tailscale.", "共享 → 互联网访问：新增“安装 cloudflared”按钮（Windows），确认后用 Windows 自带的包管理器安装 Cloudflare 隧道程序 – 这样没有 Tailscale 也能使用互联网按钮。"],
+    ],
+  },
+  {
+    v: "3.91.1",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Sharing → Internet access: when Tailscale is installed but not connected (message “NoState”), a Cloudflare tunnel is used instead if cloudflared is installed – otherwise you are told to open Tailscale and sign in.", "共享 → 互联网访问：如果已安装 Tailscale 但未连接（提示 “NoState”），且装有 cloudflared，就改用 Cloudflare 隧道 – 否则会提示你打开 Tailscale 并登录。"],
+    ],
+  },
+  {
+    v: "3.91.0",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Sharing (Manage → Sharing): give people a link and they send you photos, videos and messages – or use their links to send yours. Your name and picture, tags you like and don't want (checked when a file arrives and shown to the sender), permanent or expiring links you can switch off or delete any time, an inbox where nothing reaches your library before you accept it (blurred previews, accept, reject, block), saved links of others with a picker for what fits their taste, and a chat. Everything goes directly between the PCs – no server of ours. A button under “Public address” makes your links work from the internet (Tailscale Funnel or a Cloudflare tunnel, if installed) and switches it off again. Setup and security notes are in the README.", "共享（管理 → 共享）：把链接给别人，他们就能给你发照片、视频和消息 – 也可以用他们的链接发送你的内容。包括你的名字和头像、你喜欢和不想要的标签（文件到达时检查，并向发送者显示）、可随时关闭或删除的永久或限时链接、在你接受之前任何内容都不会进入媒体库的收件箱（模糊预览、接受、拒绝、屏蔽）、保存他人的链接并按其喜好挑选内容，以及聊天。一切都在电脑之间直接传输 – 没有我们的服务器。“公开地址”下的按钮可让链接从互联网访问（需已安装 Tailscale Funnel 或 Cloudflare 隧道），并可再次关闭。设置与安全说明见 README。"],
+    ],
+  },
+  {
+    v: "3.90.0",
+    date: "2026-10-12",
+    items: [
+      ["ui", "Russian (Русский): Stash UI is now also available in Russian, with the correct plural forms (1 сцена, 2 сцены, 5 сцен, 21 сцена). It follows Stash's own interface language, or pick it under Settings → This interface → Language. Thanks to Fixik071.", "俄语（Русский）：Stash UI 现已支持俄语，并带有正确的复数形式（1 сцена、2 сцены、5 сцен、21 сцена）。会跟随 Stash 自身的界面语言，也可在“设置 → 此界面 → 语言”中选择。感谢 Fixik071。"],
+      ["pmv", "PMV Generator 2.30.0: with “Best moments” the clips now follow the music – calm parts get calmer clips, loud parts and drops the busiest ones – scenes with a funscript count how fast it is at that spot, and spots a scene was just shown from are avoided. Thanks to PepegaSan.", "PMV Generator 2.30.0：开启“最佳时刻”后，片段会跟随音乐 – 平缓的部分用较平静的片段，响亮的部分和高潮用最激烈的片段；带 funscript 的场景还会参考该处的速度，并避开该场景刚用过的位置。感谢 PepegaSan。"],
+      ["pmv", "PMV Generator 2.30.0: RedGifs creators with their own tags – add a creator, then pick the tags to use from the ones they really use (all of them or any of them), and only their clips with those tags come. Thanks to PepegaSan.", "PMV Generator 2.30.0：RedGifs 创作者可附带自己的标签 – 添加创作者后，从其实际使用的标签中选择（全部或任一），就只会出现其带这些标签的片段。感谢 PepegaSan。"],
+    ],
+  },
+  {
     v: "3.89.1",
     date: "2026-10-12",
     items: [

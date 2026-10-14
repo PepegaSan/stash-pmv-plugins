@@ -292,4 +292,13 @@ export default {
   "{n} video left out": "Đã bỏ qua {n} video",
   "{n} videos left out": "Đã bỏ qua {n} video",
   "Most videos": "Nhiều video nhất",
+  "Glow behind the video": "Quầng sáng sau video",
+  "A soft coloured glow from the video's picture behind the page. Switch it off if scrolling feels slow.": "Quầng sáng màu dịu lấy từ hình của video, nằm sau trang. Hãy tắt nếu cuộn thấy chậm.",
+  "Fullscreen": "Toàn màn hình",
+  "Enlarge wide videos": "Phóng to video ngang",
+  "On a PC: a wide video (16:9 …) grows to its own shape when you scroll to it. Off: every video keeps the tall frame.": "Trên máy tính: video ngang (16:9 …) sẽ mở rộng theo đúng tỉ lệ của nó khi bạn cuộn tới. Tắt: mọi video giữ khung dọc.",
+  "Your browser can't go fullscreen here.": "Trình duyệt của bạn không thể chuyển sang toàn màn hình ở đây.",
+  "Space bar": "Phím cách",
+  "The arrow keys ↑ ↓ always go to the previous / next video.": "Phím mũi tên ↑ ↓ luôn chuyển tới video trước / sau.",
+  "Next video (Shift: previous)": "Video tiếp theo (Shift: video trước)",
 };
