@@ -28,7 +28,7 @@ export function openClipCut(x, video) {
     body: `
       <p class="kb-hint">${t("Play or scrub the video, press “Here” at the start and the end of a part, then “Add clip”. Save all clips as new videos – the original stays untouched.")}</p>
       <div class="kb-music-range">
-        <label class="kb-form-row"><span>${t("Start")}</span><span class="kb-music-t"><input class="kb-field" data-from value="0:00.0"><button type="button" class="kb-btn is-ghost" data-here="from">${t("Here")}</button></span></label>
+        <label class="kb-form-row"><span>${t("Start time")}</span><span class="kb-music-t"><input class="kb-field" data-from value="0:00.0"><button type="button" class="kb-btn is-ghost" data-here="from">${t("Here")}</button></span></label>
         <label class="kb-form-row"><span>${t("End")}</span><span class="kb-music-t"><input class="kb-field" data-to value="${fmt(Math.min(dur, 30))}"><button type="button" class="kb-btn is-ghost" data-here="to">${t("Here")}</button></span></label>
       </div>
       <div class="kb-cut-add"><button class="kb-btn is-primary" data-add>${icon("plus")}${t("Add clip")}</button><span class="kb-hint">${t("The whole video is {d}.", { d: esc(fmtDuration(dur)) })}</span></div>
@@ -176,11 +176,23 @@ async function intoStash(x, files, o) {
     const f = await gql(`query { findTags(tag_filter: { name: { value: "Clip", modifier: EQUALS } }, filter: { per_page: 1 }) { tags { id } } }`);
     tagId = f.findTags.tags[0] ? f.findTags.tags[0].id : (await gql(`mutation { tagCreate(input: { name: "Clip" }) { id } }`)).tagCreate.id;
   }
+  // The scan can still be working when its job is gone from the list – look for each new scene for up to a minute
+  // (comparing the file names loosely: case and accents' form don't matter), and say so if one never showed up
+  const norm = (n) => String(n).normalize("NFC").toLowerCase();
+  const missing = [];
   for (const f of files) {
     const base = f.split(/[\\/]/).pop();
-    const s = await gql(`query($f: SceneFilterType) { findScenes(scene_filter: $f, filter: { per_page: 5 }) { scenes { id files { path } } } }`, { f: { path: { value: base, modifier: "INCLUDES" } } });
-    const sc = s.findScenes.scenes.find((v) => v.files.some((fl) => fl.path.split(/[\\/]/).pop() === base));
-    if (!sc || !o.meta) continue;
+    let sc = null;
+    for (let i = 0; i < 30 && !sc; i++) {
+      const s = await gql(`query($f: SceneFilterType) { findScenes(scene_filter: $f, filter: { per_page: 10 }) { scenes { id files { path } } } }`, { f: { path: { value: base, modifier: "INCLUDES" } } });
+      sc = s.findScenes.scenes.find((v) => v.files.some((fl) => norm(fl.path.split(/[\\/]/).pop()) === norm(base)));
+      if (!sc) await new Promise((r) => setTimeout(r, 2000));
+    }
+    if (!sc) {
+      missing.push(base);
+      continue;
+    }
+    if (!o.meta) continue;
     const input = {
       id: sc.id,
       performer_ids: (x.performers || []).map((p) => p.id),
@@ -190,4 +202,5 @@ async function intoStash(x, files, o) {
     if (x.studio) input.studio_id = x.studio.id;
     await gql(`mutation($i: SceneUpdateInput!) { sceneUpdate(input: $i) { id } }`, { i: input });
   }
+  if (missing.length) throw new Error(t("Stash hasn't added {list} yet, so performers, tags and studio could not be applied. Scan the folder in Tasks and edit the scene by hand.", { list: missing.join(", ") }));
 }

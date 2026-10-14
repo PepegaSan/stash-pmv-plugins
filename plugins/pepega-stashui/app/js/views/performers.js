@@ -1,5 +1,6 @@
 // All performers as portrait cards: search, sort, gender, favorites only. Scrolling loads more.
 
+import { getDef, defButton } from "../defsort.js";
 import { esc, icon, debounce, errorToast, toast, plural, promptDialog, starsHtml, pop, burst } from "../ui.js";
 import { t, locale } from "../i18n.js";
 import { findPerformers, updatePerformer, createPerformer, gql, routeSignal } from "../api.js";
@@ -140,7 +141,9 @@ export async function render(main, params, query) {
     <div class="kb-perfgrid" data-list><div class="kb-loading">${t("Loading …")}</div></div>
     <div class="kb-perf-more" data-more></div>`;
   const $ = (s) => main.querySelector(s);
-  $("[data-sort]").value = query.sort || "name";
+  const dflt = getDef("performers").startsWith("crit:") ? "" : getDef("performers"); // (a detailed-rating sort is only known after the criteria are loaded)
+  $("[data-sort]").value = query.sort || dflt || "name";
+  defButton($("[data-sort]"), () => "performers", () => ($("[data-sort]").value.startsWith("crit:") ? "" : $("[data-sort]").value));
   $("[data-gender]").value = query.gender || "";
   let favOnly = query.fav === "1";
   let tiers = (query.tier || "").split(",").filter(Boolean);
@@ -152,9 +155,9 @@ export async function render(main, params, query) {
     .then((info) => {
       const names = info.names.filter((n) => info.have.has(n));
       const sel = $("[data-sort]");
-      sel.insertAdjacentHTML("beforeend", names.map((n) => `<option value="${esc("crit:" + n)}">${t("Detailed")}: ${esc(n)}</option>`).join(""));
-      if (query.sort && query.sort.startsWith("crit:") && !names.includes(query.sort.slice(5))) sel.insertAdjacentHTML("beforeend", `<option value="${esc(query.sort)}">${t("Detailed")}: ${esc(query.sort.slice(5))}</option>`);
-      sel.value = query.sort || "name";
+      sel.insertAdjacentHTML("beforeend", names.map((n) => `<option value="${esc("crit:" + n)}">${t("Detailed")}: ${esc(t(n))}</option>`).join(""));
+      if (query.sort && query.sort.startsWith("crit:") && !names.includes(query.sort.slice(5))) sel.insertAdjacentHTML("beforeend", `<option value="${esc(query.sort)}">${t("Detailed")}: ${esc(t(query.sort.slice(5)))}</option>`);
+      sel.value = query.sort || dflt || "name";
       $("[data-critopen]").hidden = !names.length && !crit;
       if (crit) $("[data-crittext]").textContent = critText(parseCrit(crit));
     })
@@ -279,7 +282,7 @@ export async function render(main, params, query) {
   io.observe($("[data-more]"));
 
   const reload = () => {
-    setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === "name" ? "" : $("[data-sort]").value, gender: $("[data-gender]").value, fav: favOnly ? "1" : "" });
+    setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === ((getDef("performers").startsWith("crit:") ? "" : getDef("performers")) || "name") ? "" : $("[data-sort]").value, gender: $("[data-gender]").value, fav: favOnly ? "1" : "" });
     load(true);
   };
   $("[data-q]").addEventListener("input", debounce(reload, 250));

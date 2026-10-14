@@ -68,6 +68,7 @@ const ROUTES = [
   { re: /^settings\/([^/?]+)$/, view: "settings", keys: ["section"] },
   { re: /^plugins$/, view: "plugins" },
   { re: /^phone$/, view: "phone" },
+  { re: /^sharing(?:\/(inbox|link|send|chat|guide))?$/, view: "sharing", keys: ["tab"] },
   { re: /^extern\/([a-z-]+)$/, view: "embed", keys: ["name"] },
   { re: /^p\/([^/?]+)(?:\/(.*))?$/, view: "xroute", keys: ["plugin", "rest"] }, // pages of extension plugins (ext.js addRoute)
   { re: /^scene\/(\d+)$/, view: "player", keys: ["id"], overlay: true },
@@ -154,6 +155,7 @@ const loaders = {
   settings: () => import("./views/settings.js"),
   plugins: () => import("./views/plugins.js"),
   phone: () => import("./views/phone.js"),
+  sharing: () => import("./views/sharing.js"),
   embed: () => import("./views/embed.js"),
   xroute: () => import("./views/xroute.js"),
   player: () => import("./views/player.js"),
@@ -593,7 +595,7 @@ export async function refreshCounts() {
     document.querySelectorAll("[data-count]").forEach((c) => {
       const k = c.dataset.count;
       if (k === "queue") c.textContent = (store.get("queue", []).length || "") + "";
-      else if (k === "jobs") return;
+      else if (k === "jobs" || k === "share") return;
       else c.textContent = s[k] != null ? fmtNum(s[k]) : "";
     });
     const foot = document.getElementById("rail-foot");
@@ -707,6 +709,7 @@ async function init() {
   route();
   import("./jobs.js").then((m) => m.watchJobs()).catch(() => {});
   import("./autobackup.js").then((m) => m.startAutoBackup()).catch(() => {}); // the settings of this browser are copied to Stash
+  setTimeout(() => import("./shareconn.js").then((m) => m.startBadge()).catch(() => {}), 4000); // Sharing: starts the receiver again (if it was used) and shows what is waiting
 }
 
 init();

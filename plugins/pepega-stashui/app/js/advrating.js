@@ -146,10 +146,10 @@ export async function openAdvRating(kind, item, { onChange } = {}) {
       .map((g) => {
         const cs = g.criteria.filter((x) => x.enabled);
         if (!cs.length) return "";
-        return `<section class="kb-adv-group"><h3 class="kb-fsp-h">${esc(g.name)}</h3>${cs
+        return `<section class="kb-adv-group"><h3 class="kb-fsp-h">${esc(t(g.name))}</h3>${cs
           .map((x) => {
             const s = scores[x.name];
-            return `<div class="kb-adv-row${s == null ? " is-unrated" : ""}" data-row="${esc(x.name)}" ${x.desc ? `title="${esc(x.desc)}"` : ""}><b>${esc(x.name)}</b>
+            return `<div class="kb-adv-row${s == null ? " is-unrated" : ""}" data-row="${esc(x.name)}" ${x.desc ? `title="${esc(t(x.desc))}"` : ""}><b>${esc(t(x.name))}</b>
               ${stars(s, x.name)}
               <button type="button" class="kb-adv-zero${s === 0 ? " is-on" : ""}" data-zero data-crit="${esc(x.name)}" title="${t("Rate 0")}">0</button>
               <button type="button" class="kb-adv-clear" data-clear="${esc(x.name)}" title="${t("Not rated")}" ${s == null ? "hidden" : ""}>×</button></div>`;
@@ -160,7 +160,7 @@ export async function openAdvRating(kind, item, { onChange } = {}) {
     const unrated = cfg.groups.reduce((s, g) => s + g.criteria.filter((x) => x.enabled && scores[x.name] == null).length, 0);
     const detail = res.groups.length
       ? `<details class="kb-adv-detail"><summary>${t("Score breakdown")}</summary>${res.groups
-          .map((g) => `<p><b>${esc(g.name)}</b> (× ${g.weight}): ${g.avg.toFixed(2)} / 5 <small>${g.items.map((i) => `${esc(i.name)} ${i.score}${i.weight !== 1 ? ` ×${i.weight}` : ""}`).join(" · ")}</small></p>`)
+          .map((g) => `<p><b>${esc(t(g.name))}</b> (× ${g.weight}): ${g.avg.toFixed(2)} / 5 <small>${g.items.map((i) => `${esc(t(i.name))} ${i.score}${i.weight !== 1 ? ` ×${i.weight}` : ""}`).join(" · ")}</small></p>`)
           .join("")}<p><b>${t("Overall")}:</b> ${res.overall.toFixed(2)} / 5 → ${esc(ratingText(res.rating))}</p></details>`
       : "";
     body.innerHTML = `<p class="kb-hint">${t("Rate each point from 1 to 5 (0 is allowed too). Stash's own rating follows – the weighted result of everything you rated.")}</p>

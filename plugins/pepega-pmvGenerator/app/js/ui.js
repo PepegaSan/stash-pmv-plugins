@@ -1,7 +1,7 @@
 // Small helpers for display, formatting, messages and dialogs.
 
 import { largeNow } from "./scale.js";
-import { t, locale, few } from "./i18n.js";
+import { t, locale, few, one as isOne } from "./i18n.js";
 
 export const esc = (s) =>
   String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -78,6 +78,8 @@ const ICONS = {
   cast: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 17a3.5 3.5 0 0 1 3.5 3.5M3.5 13.5a7 7 0 0 1 7 7M3.5 10a10.5 10.5 0 0 1 10.5 10.5"/><path d="M3.5 7V5.5A1.5 1.5 0 0 1 5 4h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 20h-3"/></g>',
   pip: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1.5"/></g><rect x="12" y="11.5" width="7" height="5.5" rx="1" fill="currentColor"/>',
   person: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c.6-3.9 3.5-6.2 7.2-6.2s6.6 2.3 7.2 6.2"/></g>',
+  share: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="m8 8 4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></g>',
+  chat: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></g>',
   phone: '<g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2" stroke-linecap="round"/></g>',
 };
 // An inline <svg> from an extension plugin: scripts removed, and the standard icon class added (without a size an
@@ -140,8 +142,8 @@ export function fmtAgo(iso) {
 export const fmtNum = (n) => Number(n || 0).toLocaleString(locale());
 // The unit words are translated too: plural(3, "scene", "scenes") → "3 scenes" / "3 个场景"
 export const plural = (n, one, many) => {
-  let word = t(n === 1 ? one : many);
-  if (n !== 1 && few(n) && t(many + "#few") !== many + "#few") word = t(many + "#few");
+  let word = t(isOne(n) ? one : many);
+  if (!isOne(n) && few(n) && t(many + "#few") !== many + "#few") word = t(many + "#few");
   return `${fmtNum(n)} ${word}`;
 };
 

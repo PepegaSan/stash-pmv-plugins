@@ -72,7 +72,9 @@ Called through Stash's `runPluginOperation` (interface: raw):
 import hashlib
 import json
 import os
+import re
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -690,13 +692,320 @@ def phone_stop(stash, args):
 
 
 
+# ---------- Sharing ----------
+# sharing.py (next to this file) is a small receiver: people with one of your sharing links send photos, videos and
+# messages to an inbox, you accept or reject them in Stash UI → Sharing. Data (settings, links, inbox, messages) lives
+# in <Stash folder>/stashui-sharing, so a plugin update doesn't touch it. Modes:
+#   share_status: {"mode": "share_status", "ensure": bool} → {"running", "publicPort", "adminPort", "token", "lan", "roots", "dir"}
+#                 (ensure = start the receiver if it isn't running)
+#   share_stop:   {"mode": "share_stop"} → {"running": false}
+#   share_accept: {"mode": "share_accept", "ids": [...], "root": "<library folder>", "name": "Shared"} → the receiver moves the
+#                 files into <root>/<name>/<sender> (checked to lie inside a library folder) → {"moved", "failed", "dirs", "folder"}
+SHARE_STATE = os.environ.get("STASHUI_SHARE_STATE") or os.path.join(tempfile.gettempdir(), "stashui-share.json")  # (the variable is for tests: a separate receiver)
+SHARE_V = 1
+
+
+def share_dir(conn):
+    c = {str(k).lower(): v for k, v in (conn or {}).items()}
+    base = str(c.get("dir") or "") or os.path.join(os.path.expanduser("~"), ".stash")
+    return os.path.join(base, "stashui-sharing")
+
+
+def share_load():
+    try:
+        with open(SHARE_STATE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def share_call(st, path, body=None, timeout=5):
+    url = f"http://127.0.0.1:{st['adminPort']}{path}?k={urllib.parse.quote(st['token'])}"
+    req = urllib.request.Request(url, json.dumps(body).encode() if body is not None else None, {"Content-Type": "text/plain"}, method="POST" if body is not None else "GET")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def share_ping(st):
+    try:
+        return share_call(st, "/admin/ping", timeout=2)
+    except Exception:  # noqa: BLE001 – not running / not answering
+        return None
+
+
+def port_free(p):
+    s = socket.socket()
+    try:
+        s.bind(("0.0.0.0", p))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
+def free_port():
+    s = socket.socket()
+    s.bind(("0.0.0.0", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+
+def share_info(st, roots, running, folder):
+    ips = lan_ips()
+    pub = (st or {}).get("publicPort")
+    return {
+        "running": running, "roots": roots, "dir": folder,
+        "publicPort": pub, "adminPort": (st or {}).get("adminPort"), "token": (st or {}).get("token", "") if running else "",
+        "lan": [f"http://{ip}:{pub}" for ip in ips] if running and pub else [],
+    }
+
+
+def share_stop_server(st):
+    if not st:
+        return
+    try:
+        share_call(st, "/admin/stop", {}, timeout=3)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        os.remove(SHARE_STATE)
+    except OSError:
+        pass
+
+
+def share_status(stash, args, conn):
+    roots, _ = libraries(stash)
+    folder = share_dir(conn)
+    st = share_load()
+    ping = share_ping(st) if st else None
+    if ping and ping.get("v") != SHARE_V:  # an older receiver: restart it (everything it knows is in files)
+        share_stop_server(st)
+        time.sleep(0.5)
+        st, ping = None, None
+    if not ping:
+        st = None
+    if not st and args.get("ensure"):
+        os.makedirs(folder, exist_ok=True)
+        pub = 8787
+        try:
+            with open(os.path.join(folder, "port.txt"), encoding="utf-8") as f:
+                pub = int(f.read().strip())
+        except (OSError, ValueError):
+            pass
+        if not port_free(pub):
+            pub = free_port()
+        with open(os.path.join(folder, "port.txt"), "w", encoding="utf-8") as f:
+            f.write(str(pub))
+        adm = free_port()
+        token = secrets.token_urlsafe(18)
+        flags = 0
+        if os.name == "nt":
+            flags = 0x00000008 | 0x00000200 | 0x08000000  # detached, own process group, no window
+        subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "sharing.py"), str(pub), str(adm), token, folder],
+                         creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
+                         start_new_session=(os.name != "nt"))
+        st = {"publicPort": pub, "adminPort": adm, "token": token}
+        for _ in range(60):
+            if share_ping(st):
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError("the sharing receiver didn't start")
+        with open(SHARE_STATE, "w", encoding="utf-8") as f:
+            json.dump(st, f)
+        ping = True
+    return share_info(st, roots, bool(st and ping), folder)
+
+
+def share_stop(stash, args, conn):
+    roots, _ = libraries(stash)
+    try:
+        share_net(stash, {"action": "stop"}, conn)  # the internet access goes with it
+    except Exception:  # noqa: BLE001
+        pass
+    share_stop_server(share_load())
+    return share_info(None, roots, False, share_dir(conn))
+
+
+def share_accept(stash, args, conn):
+    roots, _ = libraries(stash)
+    st = share_load()
+    if not st or not share_ping(st):
+        raise RuntimeError("sharing isn't running")
+    if not roots:
+        raise RuntimeError("Stash has no library folder yet")
+    root = os.path.realpath(str(args.get("root") or roots[0]))
+    if not inside(root, roots):
+        raise ValueError("the folder has to be inside a library folder of Stash")
+    name = str(args.get("name") or "Shared").replace(chr(92), "/").strip("/ ")
+    if not name or any(part in ("..", ".") for part in name.split("/")):
+        raise ValueError("bad folder name")
+    folder = os.path.realpath(os.path.join(root, *name.split("/")))
+    if not inside(folder, roots):
+        raise ValueError("the folder has to be inside a library folder of Stash")
+    os.makedirs(folder, exist_ok=True)
+    ids = [str(i) for i in (args.get("ids") or [])]
+    return share_call(st, "/admin/inbox", {"action": "move", "ids": ids, "folder": folder}, timeout=600)
+
+
+# Internet access for the receiver (Sharing → Public address → "Make reachable from the internet"): runs a program that is
+# already installed on this PC – Tailscale Funnel (a fixed address) or a Cloudflare quick tunnel (a new address every start) –
+# for the receiver's PUBLIC port only. Nothing is downloaded. State (which program, the address) is kept in <data>/net.json.
+#   share_net: {"mode": "share_net", "action": "status" | "start" | "stop", "provider": "tailscale" | "cloudflared" (optional)}
+#              → {"providers": {"tailscale": bool, "cloudflared": bool}, "running", "provider", "url"}
+TS_URL = re.compile(r"https://[A-Za-z0-9.-]+\.ts\.net")
+CF_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+
+
+def net_find(name):
+    found = shutil.which(name)
+    if found:
+        return found
+    if os.name == "nt":
+        sub = {"tailscale": "Tailscale\\tailscale.exe", "cloudflared": "cloudflared\\cloudflared.exe"}[name]
+        for var in ("ProgramFiles", "ProgramFiles(x86)"):
+            p = os.path.join(os.environ.get(var) or "", sub)
+            if os.environ.get(var) and os.path.isfile(p):
+                return p
+    return None
+
+
+def net_run(args, timeout):
+    flags = 0x08000000 if os.name == "nt" else 0  # no console window
+    r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, stdin=subprocess.DEVNULL, creationflags=flags)
+    return (r.stdout or "") + (r.stderr or "")
+
+
+def pid_alive(pid):
+    try:
+        if os.name == "nt":
+            return str(pid) in net_run(["tasklist", "/FI", f"PID eq {int(pid)}", "/NH"], 10)
+        os.kill(int(pid), 0)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def pid_kill(pid):
+    try:
+        if os.name == "nt":
+            net_run(["taskkill", "/PID", str(int(pid)), "/T", "/F"], 10)
+        else:
+            os.kill(int(pid), 15)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def share_net(stash, args, conn):
+    folder = share_dir(conn)
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, "net.json")
+    st = share_load()
+    if not st or not share_ping(st):
+        raise RuntimeError("sharing isn't running")
+    port = int(st["publicPort"])
+    progs = {"tailscale": net_find("tailscale"), "cloudflared": net_find("cloudflared")}
+    try:
+        with open(path, encoding="utf-8") as f:
+            cur = json.load(f)
+    except (OSError, ValueError):
+        cur = None
+
+    def alive(c):
+        if c.get("provider") == "tailscale" and progs["tailscale"]:
+            try:
+                return c["url"].lower() in net_run([progs["tailscale"], "funnel", "status"], 10).lower()
+            except Exception:  # noqa: BLE001
+                return False
+        return c.get("provider") == "cloudflared" and c.get("pid") and pid_alive(c["pid"])
+
+    if cur and not alive(cur):
+        cur = None
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    act = str(args.get("action") or "status")
+    if act == "install":  # cloudflared from Windows' own package manager (the official package, nothing else is downloaded by us)
+        if os.name != "nt" or not shutil.which("winget"):
+            raise RuntimeError("Installing from here needs Windows with winget – install cloudflared yourself (cloudflared releases on github.com/cloudflare)")
+        out = net_run(["winget", "install", "--id", "Cloudflare.cloudflared", "-e", "--silent", "--accept-source-agreements", "--accept-package-agreements"], 300)
+        progs["cloudflared"] = net_find("cloudflared")
+        if not progs["cloudflared"]:
+            raise RuntimeError("cloudflared wasn't found after installing – restart Stash and try again. " + re.sub(r"\s+", " ", out).strip()[-200:])
+    if act == "stop" and cur:
+        if cur["provider"] == "tailscale":
+            net_run([progs["tailscale"], "funnel", str(port), "off"], 20)
+        else:
+            pid_kill(cur["pid"])
+        cur = None
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    elif act == "start" and not cur:
+        want = str(args.get("provider") or "")
+        prov = want if want in progs and progs[want] else ("tailscale" if progs["tailscale"] else "cloudflared" if progs["cloudflared"] else "")
+        if not prov:
+            raise RuntimeError("neither Tailscale nor cloudflared is installed")
+        if prov == "tailscale":
+            problem = ""
+            try:
+                out = net_run([progs["tailscale"], "funnel", "--bg", str(port)], 30)
+                m = TS_URL.search(out)
+                if m:
+                    cur = {"provider": "tailscale", "url": m.group(0)}
+                else:
+                    text = re.sub(r"\s+", " ", out).strip()
+                    if re.search(r"NoState|NeedsLogin|Stopped|not running|logged out|connect", text, re.I):
+                        problem = "Tailscale isn't connected – open Tailscale, sign in and make sure it says Connected (" + text[:120] + ")"
+                    else:
+                        problem = text[:400] or "Tailscale Funnel didn't start"
+            except subprocess.TimeoutExpired:
+                problem = "Tailscale didn't answer – is it running and signed in?"
+            if not cur:
+                if not (progs["cloudflared"] and not want):  # no other way (or Tailscale was asked for): say why
+                    raise RuntimeError(problem)
+                prov = "cloudflared"  # Tailscale isn't usable right now: a Cloudflare tunnel does the same job (with a changing address)
+        if prov == "cloudflared":
+            log = os.path.join(folder, "cloudflared.log")
+            flags = 0
+            if os.name == "nt":
+                flags = 0x00000008 | 0x00000200 | 0x08000000
+            with open(log, "w", encoding="utf-8") as lf:
+                p = subprocess.Popen([progs["cloudflared"], "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"], stdin=subprocess.DEVNULL, stdout=lf, stderr=lf,
+                                     creationflags=flags, close_fds=True, start_new_session=(os.name != "nt"))
+            url = None
+            for _ in range(60):
+                time.sleep(0.5)
+                try:
+                    with open(log, encoding="utf-8", errors="replace") as lf:
+                        m = CF_URL.search(lf.read())
+                except OSError:
+                    m = None
+                if m:
+                    url = m.group(0)
+                    break
+                if p.poll() is not None:
+                    break
+            if not url:
+                pid_kill(p.pid)
+                raise RuntimeError("the Cloudflare tunnel didn't start")
+            cur = {"provider": "cloudflared", "url": url, "pid": p.pid}
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cur, f)
+    return {"providers": {k: bool(v) for k, v in progs.items()}, "canInstall": os.name == "nt" and bool(shutil.which("winget")), "running": bool(cur), "provider": (cur or {}).get("provider", ""), "url": (cur or {}).get("url", "")}
+
+
 # ---------- Cut clips (player → "Cut clips") ----------
 # {"mode": "clip_cut", "scene_id", "clips": [{"start", "end", "name"}], "precise": bool, "join": bool, "folder": "same"|"Clips"}
 #   → {"job"}: ffmpeg runs in its own process (the page may be closed); the page scans the new files into Stash itself.
 # {"mode": "clip_status", "job"} → {"state": "running"|"done"|"error", "i", "n", "files": [paths], "error"}
 
 CUT_DIR = tempfile.gettempdir()
-BAD_NAME = '<>:"/\|?*'
+BAD_NAME = r'<>:"/\|?*'
 
 
 def find_ffmpeg(stash):
@@ -871,6 +1180,14 @@ def main():
             out = phone_start(Stash(data.get("server_connection")), args)
         elif mode == "phone_stop":
             out = phone_stop(Stash(data.get("server_connection")), args)
+        elif mode == "share_status":
+            out = share_status(Stash(data.get("server_connection")), args, data.get("server_connection"))
+        elif mode == "share_net":
+            out = share_net(Stash(data.get("server_connection")), args, data.get("server_connection"))
+        elif mode == "share_stop":
+            out = share_stop(Stash(data.get("server_connection")), args, data.get("server_connection"))
+        elif mode == "share_accept":
+            out = share_accept(Stash(data.get("server_connection")), args, data.get("server_connection"))
         else:
             raise ValueError(f"unknown mode: {mode or '(empty)'}")
     except Exception as e:

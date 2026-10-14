@@ -33,7 +33,7 @@ export const parseCrit = (s) =>
     .map((x) => ({ name: x.slice(0, x.lastIndexOf(":")), min: Number(x.slice(x.lastIndexOf(":") + 1)) }))
     .filter((c) => c.name && c.min >= 0 && c.min <= 5);
 export const critStr = (list) => list.map((c) => `${c.name}:${c.min}`).join(",");
-export const critText = (list) => list.map((c) => `${c.name} ≥ ${c.min}`).join(", ");
+export const critText = (list) => list.map((c) => `${t(c.name)} ≥ ${c.min}`).join(", ");
 
 // ---------- Scores of one criterion: Map(id → 0–5) ----------
 const maps = {}; // "kind|name" → { at, map }
@@ -114,7 +114,7 @@ export async function openCritFilter(kind, value, onChange) {
         names
           .map((n) => {
             const m = (cur.find((c) => c.name === n) || {}).min;
-            return `<div class="kb-adv-row"><b>${esc(n)}</b><span class="kb-seg kb-critseg" data-n="${esc(n)}"><button type="button" data-min="" class="${m == null ? "is-on" : ""}">${t("any")}</button>${[1, 2, 3, 4, 5].map((i) => `<button type="button" data-min="${i}" class="${m === i ? "is-on" : ""}">≥ ${i}</button>`).join("")}</span></div>`;
+            return `<div class="kb-adv-row"><b>${esc(t(n))}</b><span class="kb-seg kb-critseg" data-n="${esc(n)}"><button type="button" data-min="" class="${m == null ? "is-on" : ""}">${t("any")}</button>${[1, 2, 3, 4, 5].map((i) => `<button type="button" data-min="${i}" class="${m === i ? "is-on" : ""}">≥ ${i}</button>`).join("")}</span></div>`;
           })
           .join("")
       : `<p class="kb-hint">${t("Nothing rated in detail yet – use “★+ Detailed” on a scene or performer first.")}</p>`;

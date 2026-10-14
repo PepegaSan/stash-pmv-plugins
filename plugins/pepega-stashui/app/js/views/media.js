@@ -17,6 +17,7 @@ import { studioPicker, studiosCache } from "./studiopicker.js";
 import { openEditor } from "./edit.js";
 import { loadStashFilters, stashFilter } from "../stashfilters.js";
 import { hasSources, extendPage, mountSlots, registerList } from "../ext.js";
+import { getDef, defButton } from "../defsort.js";
 import { openAdvFilter, parseAdv, advStr, advCount, andInto } from "../advfilter.js";
 
 export const KIND_NAME = { scene: ["Scene", "Scenes"], image: ["Image", "Images"], gallery: ["Gallery", "Galleries"] };
@@ -62,8 +63,16 @@ export function mediaBrowser(host, opts) {
   // opts: { kinds, query, base(kind) → { filter, tagId }, defaults, counts: {kind: n}, onCount(kind, n), persist }
   const kinds = opts.kinds;
   let kind = kinds.includes(opts.query.kind) ? opts.query.kind : opts.initialKind || kinds[0];
-  let st = readState(opts.query, kind, opts.defaults && opts.defaults[kind]);
+  // the sort order kept with "Make default" (per page and kind) beats the page's own default
+  const defKey = (k) => (opts.page || "list") + ":" + k;
+  const userDef = (k) => {
+    const [sort, dir] = getDef(defKey(k)).split("|");
+    return sort ? { sort, dir } : null;
+  };
+  const defaultsOf = (k) => Object.assign({}, opts.defaults && opts.defaults[k], userDef(k) || {});
+  let st = readState(opts.query, kind, defaultsOf(kind));
   let hang = null;
+  let defPaint = null;
   let sf = null; // a saved filter from Stash, applied on top: { id, name, kind, filter, skipped }
   let sfPending = null; // (being fetched)
   // The Stash filter is an AND on top of the filters set here
@@ -85,6 +94,7 @@ export function mediaBrowser(host, opts) {
         <button class="kb-btn" data-filter>${icon("filter")}<span>${t("Filter")}</span></button>
         <span class="kb-xtool" data-xtool></span>
         <span class="kb-spacer"></span>
+        ${kinds.includes("scene") ? `<span class="kb-seg" data-viewseg hidden title="${esc(t("How scenes are shown"))}"><button type="button" data-view="tiles">${t("Tiles")}</button><button type="button" data-view="cards">${t("Cards")}</button></span>` : ""}
         ${kinds.includes("scene") ? `<button type="button" class="kb-btn is-ghost" data-mute title="${t("Sound in hover previews")}"></button>` : ""}
         <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="130" max="480" step="10" data-rowh value="${rowH()}" aria-label="${t("Size")}"></label>
         ${opts.playlist ? `<select class="kb-field kb-plpick" data-plpick hidden title="${t("Your saved filters – the playlists made from this list")}" aria-label="${t("Saved filters")}"></select>` : ""}
@@ -132,6 +142,14 @@ export function mediaBrowser(host, opts) {
   });
 
   // Sound in the hover previews: the same switch as on the home page and in Settings → Player and previews
+  // Tiles (justified rows) or cards (picture with details) for scenes – kept in this browser
+  const cardsOn = () => kind === "scene" && !!store.get("sceneCards", false);
+  const paintView = () => {
+    const seg = $("[data-viewseg]");
+    if (!seg) return;
+    seg.hidden = kind !== "scene";
+    seg.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("is-on", (b.dataset.view === "cards") === !!store.get("sceneCards", false)));
+  };
   const paintMute = () => {
     const b = $("[data-mute]");
     if (!b) return;
@@ -152,22 +170,25 @@ export function mediaBrowser(host, opts) {
     sortSel.value = sorts.some(([k]) => k === st.sort) ? st.sort : sorts[0][0];
     // a sort by a criterion of the detailed rating (the entries are added when the criteria are known)
     if (String(st.sort).startsWith("crit:")) {
-      sortSel.insertAdjacentHTML("beforeend", `<option value="${esc(st.sort)}">${t("Detailed")}: ${esc(st.sort.slice(5))}</option>`);
+      sortSel.insertAdjacentHTML("beforeend", `<option value="${esc(st.sort)}">${t("Detailed")}: ${esc(t(st.sort.slice(5)))}</option>`);
       sortSel.value = st.sort;
     }
     if (critKinds(kind))
       critInfo(kind).then((info) => {
         const names = info.names.filter((n) => info.have.has(n));
         if (!names.length || $("[data-sort]") !== sortSel || !sortSel.isConnected) return;
-        sortSel.insertAdjacentHTML("beforeend", names.filter((n) => !sortSel.querySelector(`option[value="${CSS.escape("crit:" + n)}"]`)).map((n) => `<option value="${esc("crit:" + n)}">${t("Detailed")}: ${esc(n)}</option>`).join(""));
+        sortSel.insertAdjacentHTML("beforeend", names.filter((n) => !sortSel.querySelector(`option[value="${CSS.escape("crit:" + n)}"]`)).map((n) => `<option value="${esc("crit:" + n)}">${t("Detailed")}: ${esc(t(n))}</option>`).join(""));
         sortSel.value = st.sort;
       }).catch(() => {});
     st.sort = sortSel.value;
+    if (!defPaint) defPaint = defButton($("[data-dir]"), () => defKey(kind), () => (st.sort === "random" ? "" : st.sort + "|" + st.dir));
+    defPaint();
     $("[data-dir]").innerHTML = st.dir === "ASC" ? "↑" : "↓";
     $("[data-dir]").hidden = st.sort === "random";
     $("[data-filter]").classList.toggle("is-on", filterOpen);
     $("[data-play]").hidden = kind === "gallery";
     paintMute();
+    paintView();
     if ($("[data-plsave]")) $("[data-plsave]").hidden = kind === "gallery";
     renderFilters();
   }
@@ -375,6 +396,7 @@ export function mediaBrowser(host, opts) {
     };
     hang = new Hang(box, {
       rowHeight: rowH(),
+      cards: cardsOn,
       fetchPage: async (page) => {
         await ensureTiers(); // (the badge on the cards, and the tier filter)
         const ids = await restrictIds(kind, st); // tier and detailed-rating filters (and "sorted by a criterion": those that have it)
@@ -558,10 +580,16 @@ export function mediaBrowser(host, opts) {
       kind = k.dataset.kind;
       sf = null;
       paintSfNote();
-      st = readState({}, kind, opts.defaults && opts.defaults[kind]);
+      st = readState({}, kind, defaultsOf(kind));
       renderTools();
       pushSlots();
       return apply();
+    }
+    const vw = e.target.closest("[data-view]");
+    if (vw) {
+      store.set("sceneCards", vw.dataset.view === "cards");
+      paintView();
+      return hang && hang.layout();
     }
     if (e.target.closest("[data-mute]")) {
       store.set("previewSound", !store.get("previewSound", true));

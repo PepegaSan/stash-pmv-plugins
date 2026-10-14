@@ -1,6 +1,7 @@
 // Studios: all studios as logo cards (search, sorting), and one studio with its scenes, images and galleries
 // (including those of its sub-studios). Scrolling loads more.
 
+import { getDef, defButton } from "../defsort.js";
 import { esc, icon, debounce, errorToast, plural, starsHtml } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, routeSignal } from "../api.js";
@@ -47,7 +48,8 @@ async function renderList(main, query) {
     <div class="kb-perfgrid kb-studiogrid" data-list><div class="kb-loading">${t("Loading …")}</div></div>
     <div class="kb-perf-more" data-more></div>`;
   const $ = (s) => main.querySelector(s);
-  $("[data-sort]").value = query.sort || "name";
+  $("[data-sort]").value = query.sort || getDef("studios") || "name";
+  defButton($("[data-sort]"), () => "studios", () => $("[data-sort]").value);
   let page = 1;
   let total = 0;
   let loaded = 0;
@@ -97,7 +99,7 @@ async function renderList(main, query) {
   }
   io.observe($("[data-more]"));
   const reload = () => {
-    setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === "name" ? "" : $("[data-sort]").value });
+    setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === (getDef("studios") || "name") ? "" : $("[data-sort]").value });
     load(true);
   };
   $("[data-q]").addEventListener("input", debounce(reload, 300));

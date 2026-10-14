@@ -1,6 +1,7 @@
 // Groups (Stash's collections of scenes – formerly "movies"): all groups as poster cards, and one group with its
 // scenes (in the order of the group). Scrolling loads more.
 
+import { getDef, defButton } from "../defsort.js";
 import { esc, icon, debounce, errorToast, toast, confirmDialog, plural, fmtDate, starsHtml } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, routeSignal } from "../api.js";
@@ -46,7 +47,8 @@ async function renderList(main, query) {
     <div class="kb-perfgrid" data-list><div class="kb-loading">${t("Loading …")}</div></div>
     <div class="kb-perf-more" data-more></div>`;
   const $ = (s) => main.querySelector(s);
-  $("[data-sort]").value = query.sort || "name";
+  $("[data-sort]").value = query.sort || getDef("groups") || "name";
+  defButton($("[data-sort]"), () => "groups", () => $("[data-sort]").value);
   let page = 1;
   let total = 0;
   let loaded = 0;
@@ -96,7 +98,7 @@ async function renderList(main, query) {
   }
   io.observe($("[data-more]"));
   const reload = () => {
-    setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === "name" ? "" : $("[data-sort]").value });
+    setQuery({ q: $("[data-q]").value.trim(), sort: $("[data-sort]").value === (getDef("groups") || "name") ? "" : $("[data-sort]").value });
     load(true);
   };
   $("[data-new]").onclick = () => openGroupEditor(null, { name: $("[data-q]").value.trim(), onSaved: (id) => (location.hash = "#/group/" + id) });

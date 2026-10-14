@@ -175,7 +175,7 @@ export async function openPerformerEditor(id, opts = {}) {
       }).join("")}
       <section><h3 class="kb-pe-h">${t("Tags")}</h3><div data-tags></div></section>
       ${stashIds.length ? `<p class="kb-hint" data-sids>${t("Linked to {list}", { list: stashIds.map((s) => esc(s.endpoint.replace(/^https?:\/\//, "").split("/")[0])).join(", ") })}</p>` : ""}`,
-    foot: `<button class="kb-btn is-danger" data-del>${t("Delete performer")}</button><span class="kb-spacer"></span><button class="kb-btn" data-cancel>${t("Cancel")}</button><button class="kb-btn is-primary" data-save>${t("Save")}</button>`,
+    foot: `<button class="kb-btn is-danger kb-holddel" data-del><span class="kb-hd-click">${t("Delete performer")}</span><span class="kb-hd-hold">${t("Hold to delete")}</span></button><span class="kb-spacer"></span><button class="kb-btn" data-cancel>${t("Cancel")}</button><button class="kb-btn is-primary" data-save>${t("Save")}</button>`,
   });
   const el = d.el;
   el.classList.add("kb-pe");
@@ -367,7 +367,7 @@ export async function openPerformerEditor(id, opts = {}) {
       errorToast(e, "Save");
     }
   };
-  $("[data-del]").onclick = async () => {
+  const doDelete = async () => {
     const r = await confirmDialog({ title: t("Delete performer “{name}”?", { name: p.name }), text: t("The performer is removed from all scenes, images and galleries. The items themselves stay."), ok: t("Delete"), danger: true });
     if (!r.ok) return;
     try {
@@ -379,5 +379,20 @@ export async function openPerformerEditor(id, opts = {}) {
       errorToast(e, "Delete");
     }
   };
+  // Touch screens: a tap is too easy to hit by accident – the button must be held for a moment, then the usual question comes
+  const delBtn = $("[data-del]");
+  const touch = matchMedia("(hover: none) and (pointer: coarse)").matches;
+  if (!touch) delBtn.onclick = doDelete;
+  else {
+    let hold = 0;
+    const stop = () => (clearTimeout(hold), delBtn.classList.remove("is-holding"));
+    delBtn.addEventListener("pointerdown", () => {
+      delBtn.classList.add("is-holding");
+      hold = setTimeout(() => (stop(), navigator.vibrate && navigator.vibrate(30), doDelete()), 700);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => delBtn.addEventListener(ev, stop));
+    delBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+    delBtn.onclick = () => toast(t("Press and hold the button to delete."));
+  }
   if (opts.scrape && $("[data-sgo]")) search();
 }
