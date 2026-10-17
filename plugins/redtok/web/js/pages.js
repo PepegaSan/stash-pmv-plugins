@@ -4,10 +4,10 @@
 import { $, esc, t, tn, fmt, ago, mmss, ic, toast, nav, on, modal, pushLayer, closeLayer, closeLayers, copyText, hasHover, isPhone, store, LANGS, VERSION, img } from "./core.js";
 import {
   settings, saveSettings, makeSource, listSource, ORDERS, orderOf, rg, takeUsers, userOf, userPic, users,
-  liked, following, niches, hidden, nope, history, saved, doneSet, isFollowing, setFollow, followsNiche, setNiche, isHidden, setHidden, setNope,
-  unlikeMany, clearHistory, removeFromHistory, forgetDownloads, exportData, importData, stashPerformer, usingBackend,
+  liked, following, niches, hidden, nope, blocked, history, saved, doneSet, isFollowing, setFollow, followsNiche, setNiche, isHidden, setHidden, setNope,
+  isBlockedTag, setBlockedTag, stashMark, stashDelete, DELETE_TAG, unlikeMany, clearHistory, removeFromHistory, forgetDownloads, exportData, importData, stashPerformer, usingBackend,
 } from "./data.js";
-import { av, tick, setSpeed, setAutoNext, setFit, setMuted } from "./feed.js";
+import { av, tick, setSpeed, setAutoNext, setFit, setMuted, setFrame, frameName, FRAMES } from "./feed.js";
 import { enqueue, jobs, jobOf, isSaved, cancelQueued, retryFailed, clearFinished, activeJobs, ensureBase } from "./dl.js";
 import { call } from "./core.js";
 
@@ -624,11 +624,12 @@ export function openShare(g, F) {
   const row1 = g.stash
     ? round("copy", "copy", esc(t("Copy link")), "is-blue") + round("stash", "open", esc(t("Open in Stash")), "is-dark")
     : round("copy", "copy", esc(t("Copy link")), "is-blue") + round("rg", "open", esc(t("Open on RedGifs")), "is-red") + round("dl", saved ? "check" : "down", esc(saved ? t("Saved") : running ? t("Saving") : t("Save video")), saved ? "is-teal" : "is-green");
-  const row2 = () => (g.stash ? "" : round("nope", "eyeoff", esc(t("Not interested"))) + round("hide", "block", esc(t("Hide creator")))) +
+  const row2 = () => (g.stash ? round("mark", "eyeoff", esc(t("Mark for deletion"))) + round("del", "trash", esc(t("Delete from Stash"))) : round("nope", "eyeoff", esc(t("Not interested"))) + round("hide", "block", esc(t("Hide creator")))) +
     round("speed", "speed", `${esc(t("Speed"))} <b>${settings.speed}×</b>`) +
     round("auto", "autoscroll", `${esc(t("Auto scroll"))} <b>${esc(settings.autonext ? t("On") : t("Off"))}</b>`) +
     round("clear", "clear", esc(t("Clear display"))) +
     round("fit", "fit", `${esc(t("Picture"))} <b>${esc(fitLabel(settings.fit))}</b>`) +
+    (isPhone() ? "" : round("frame", "tune", `${esc(t("Player shape"))} <b>${esc(frameName(settings.frame))}</b>`)) +
     round("info", "info", esc(t("Details")));
   modal(`<h3 class="sh-t">${esc(t("Share to"))}</h3><div class="srowx">${row1}</div><div class="srowx is-2" data-r2>${row2()}</div><button class="btn is-ghost is-full" data-close>${esc(t("Cancel"))}</button>`, (m, close) => {
     m.addEventListener("click", (e) => {
@@ -646,6 +647,12 @@ export function openShare(g, F) {
         F && F.go(1);
         return toast(t("You'll see fewer videos like this"), false, { label: t("Undo"), fn: () => setNope(g.id, false) });
       }
+      if (a === "mark") {
+        close();
+        stashMark(g).then(() => { F && F.go(1); toast(t("Marked – find it under the tag “{t}” in Stash.", { t: DELETE_TAG })); }).catch((x) => toast(t("Couldn't mark: {e}", { e: x.message || x }), true));
+        return;
+      }
+      if (a === "del") { close(); return deleteSheet(g, F); }
       if (a === "hide") {
         close();
         setHidden(g.user, true);
@@ -654,10 +661,26 @@ export function openShare(g, F) {
       if (a === "speed") { setSpeed(SPEEDS[(SPEEDS.indexOf(settings.speed) + 1) % SPEEDS.length] || 1); return redraw(); }
       if (a === "auto") { setAutoNext(!settings.autonext); return redraw(); }
       if (a === "fit") { setFit(FITS[(FITS.indexOf(settings.fit) + 1) % FITS.length]); return redraw(); }
+      if (a === "frame") { nav.cycleFrame(); return redraw(); }
       if (a === "clear") { close(); return nav.setClear(true); }
       if (a === "info") { close(); return openDetails(g); }
     });
   }, { bottom: true, cls: "share" });
+}
+
+// delete a My Stash scene: the sheet names the scene, the red choices say what goes
+function deleteSheet(g, F) {
+  const go = (withFile) => stashDelete(g, withFile).then(() => { F && F.go(1); toast(t("Deleted")); }).catch((x) => toast(t("Couldn't delete: {e}", { e: x.message || x }), true));
+  actionSheet([
+    { icon: "trash", label: t("Delete the scene and its file"), bad: true, fn: () => go(true) },
+    { icon: "trash", label: t("Remove the scene from Stash, keep the file"), bad: true, fn: () => go(false) },
+  ], t("Delete “{n}”?", { n: g.desc || g.user }));
+}
+// block one of a video's tags or niches
+function blockSheet(g) {
+  const names = [...new Set([...(g.tags || []), ...(g.niches || []).map(nicheName)])].filter((x) => x && !isBlockedTag(x));
+  if (!names.length) return toast(t("Nothing left to block on this video"));
+  actionSheet(names.map((x) => ({ icon: "block", label: "#" + x, fn: () => { setBlockedTag(x, true); toast(t("Blocked #{t}", { t: x }), false, { label: t("Undo"), fn: () => setBlockedTag(x, false) }); } })), t("Which tag do you want to block?"));
 }
 
 // ---------- about one video: who, when, niches and tags ----------
@@ -676,9 +699,11 @@ export function openDetails(g) {
     <div class="facts">${facts.map(([k, v]) => `<span><small>${esc(k)}</small><b>${esc(v)}</b></span>`).join("")}</div>
     ${g.niches && g.niches.length ? `<h4 class="mh">${esc(t("Niches"))}</h4><div class="chips">${g.niches.map((n) => `<button class="chipb" data-dn="${esc(n)}">#${esc(nicheName(n))}</button>`).join("")}</div>` : ""}
     ${g.tags && g.tags.length ? `<h4 class="mh">${esc(t("Tags"))}</h4><div class="chips">${g.tags.map((x, k) => `<button class="chipb" data-dt="${esc(x)}"${g.tagIds ? ` data-tid="${esc(g.tagIds[k])}"` : ""}>#${esc(x)}</button>`).join("")}</div>` : ""}
+    ${(g.tags && g.tags.length) || (g.niches && g.niches.length) ? `<button class="btn is-ghost is-full" data-blocktag>${esc(t("Block a tag"))}</button>` : ""}
     <button class="btn is-ghost is-full" data-close>${esc(t("Close"))}</button>`, (m, close) => {
     m.addEventListener("click", (e) => {
       if (e.target.closest("[data-uf]")) return;
+      if (e.target.closest("[data-blocktag]")) { close(); return blockSheet(g); }
       if (e.target.closest("[data-who]")) { close(); return g.stash ? g.pid && openPerformer(g.pid, g.user, g.img) : openProfile(g.user); }
       const n = e.target.closest("[data-dn]");
       if (n) { close(); return openNiche(n.dataset.dn, nicheName(n.dataset.dn)); }
@@ -699,10 +724,13 @@ export function openSettings(focus) {
     ${sw("sound", t("Sound on"), t("Videos start with sound (your browser may want one tap first)."))}
     ${sel("space", t("Space bar"), t("The arrow keys ↑ ↓ always go to the previous / next video."), [["pause", t("Pause")], ["next", t("Next video (Shift: previous)")]])}
     ${sw("autonext", t("Auto scroll"), t("Go to the next video when one ends. Off: videos loop."))}
-    ${sw("skipSeen", t("Skip videos you've watched"), t("For You leaves out what you have already seen."))}
+    ${sw("skipSeen", t("Skip videos you've watched"), t("For You leaves out what you have already seen – also the ones you scrolled past quickly."))}
+    ${sw("skipSeenMore", t("Skip watched videos in Following, niches and search too"), t("Needs the switch above. Creator pages always show everything."))}
     ${sel("playq", t("Playback quality"), t("Auto plays the smaller file on phones – it starts much faster."), [["auto", t("Auto")], ["sd", t("Always SD")], ["hd", t("Always HD")]])}
     ${sel("fit", t("Picture"), t("Auto fills the screen with tall videos and shows wide ones whole."), [["auto", t("Auto")], ["fill", t("Fill the screen")], ["fit", t("Always whole")]])}
     ${sel("speed", t("Speed"), "", SPEEDS.map((x) => [x, x + "×"]))}
+    ${sel("frame", t("Player shape"), t("On a PC. Auto: tall frame, wide videos grow. Portrait: always tall. Landscape: always 16:9. Window: the video area fills the window. Key A switches."), FRAMES.map((m) => [m, frameName(m)]))}
+    ${sw("side", t("Show the sidebar"), t("On a PC. Key B hides or shows it – or use the button in the top left corner."))}
     ${sw("wide", t("Enlarge wide videos"), t("On a PC: a wide video (16:9 …) grows to its own shape when you scroll to it. Off: every video keeps the tall frame."))}
     ${sw("glow", t("Glow behind the video"), t("A soft coloured glow from the video's picture behind the page. Switch it off if scrolling feels slow."))}
     <h3 class="sh">${esc(t("Downloads"))}</h3>
@@ -713,6 +741,8 @@ export function openSettings(focus) {
     <h3 class="sh">${esc(t("Your feed"))}</h3>
     <div class="set is-col"><span class="st"><b>${esc(t("Hidden creators"))}</b><small>${esc(hidden.length ? t("Their videos never show up. Tap one to show it again.") : t("None. Hide a creator from a video's share menu."))}</small></span>${hidden.length ? `<div class="chips">${hidden.map((h) => `<button class="chipb is-x" data-unhide="${esc(h)}">@${esc(h)} ${ic("close")}</button>`).join("")}</div>` : ""}</div>
     <div class="set"><span class="st"><b>${esc(t("Not interested"))}</b><small>${esc(tn(nope.length, "{n} video left out", "{n} videos left out"))}</small></span>${nope.length ? `<button class="btn is-ghost is-sm" data-resetnope>${esc(t("Reset"))}</button>` : ""}</div>
+    <div class="set is-col"><span class="st"><b>${esc(t("Blocked tags"))}</b><small>${esc(blocked.length ? t("Videos with these tags or niches never show up. Tap one to unblock it.") : t("None yet. Add one below, or block a tag from a video's details."))}</small></span>${blocked.length ? `<div class="chips">${blocked.map((b) => `<button class="chipb is-x" data-unblock="${esc(b)}">#${esc(b)} ${ic("close")}</button>`).join("")}</div>` : ""}
+      <span class="setrow"><input type="text" data-blockin placeholder="${esc(t("Add a tag, e.g. gay"))}" spellcheck="false"><button class="btn" data-blockadd>${esc(t("Block"))}</button></span><small>${esc(t("RedGifs' own content preferences need an account, which RedTok doesn't use – block the tags you don't want here instead."))}</small></div>
     <h3 class="sh">${esc(t("Language"))}</h3>
     ${sel("lang", t("Language"), t("Automatic follows Stash UI or Stash."), LANGS.map(([c, l]) => [c, c === "auto" ? t("Automatic") : l]))}
     <h3 class="sh">${esc(t("Your data"))}</h3>
@@ -742,6 +772,7 @@ export function openSettings(focus) {
     if (k === "autonext") return setAutoNext(v);
     if (k === "speed") return setSpeed(v);
     if (k === "fit") return setFit(v);
+    if (k === "frame") return setFrame(v);
     settings[k] = v;
     saveSettings();
     nav.emitSettings();
@@ -756,6 +787,15 @@ export function openSettings(focus) {
         else toast(t("Couldn't find a library – type the folder"), true);
       } catch (x) { toast(String(x.message || x), true); }
       return;
+    }
+    const ub = e.target.closest("[data-unblock]");
+    if (ub) { setBlockedTag(ub.dataset.unblock, false); return paint(); }
+    if (e.target.closest("[data-blockadd]")) {
+      const inp = p.body.querySelector("[data-blockin]");
+      const v = inp.value.trim();
+      if (!v) return inp.focus();
+      setBlockedTag(v, true);
+      return paint();
     }
     const u = e.target.closest("[data-unhide]");
     if (u) { setHidden(u.dataset.unhide, false); return paint(); }
@@ -773,10 +813,11 @@ export function openSettings(focus) {
     if (e.target.closest("[data-clearw]")) return modalConfirm(t("Clear your watch history?"), t("For You will show videos you've seen again."), t("Clear"), () => { clearHistory(); paint(); toast(t("Cleared")); });
     if (e.target.closest("[data-forget]")) return modalConfirm(t("Forget the downloads list?"), t("The files stay on your disk. RedTok just forgets which ones it saved."), t("Forget"), () => { forgetDownloads(); paint(); toast(t("Forgotten")); });
   });
+  p.body.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("[data-blockin]")) p.body.querySelector("[data-blockadd]").click(); });
   const off = on("hidden", paint);
   p.cleanup(off);
 }
-export const KEYS = () => [["↑ ↓ / J K", t("Previous / next video")], [t("Space"), settings.space === "next" ? t("Next video") : t("Pause")], ["M", t("Sound")], ["L", t("Like")], ["S", t("Save")], ["← →", t("Back / forward 5 s")], ["F", t("Follow")], ["P", t("Profile")], ["C", t("Clear display")], ["Z", t("Fullscreen")], ["/", t("Search")], ["?", t("Shortcuts")]];
+export const KEYS = () => [["↑ ↓ / J K", t("Previous / next video")], [t("Space"), settings.space === "next" ? t("Next video") : t("Pause")], ["M", t("Sound")], ["L", t("Like")], ["S", t("Save")], ["← →", t("Back / forward 5 s")], ["F", t("Follow")], ["P", t("Profile")], ["C", t("Clear display")], ["Z", t("Fullscreen")], ["A", t("Player shape")], ["B", t("Sidebar")], ["/", t("Search")], ["?", t("Shortcuts")]];
 export function openKeys() {
   modal(`<h3>${esc(t("Keyboard shortcuts"))}</h3><div class="keys">${KEYS().map(([k, v]) => `<span><kbd>${esc(k)}</kbd>${esc(v)}</span>`).join("")}</div><div class="row"><button class="btn" data-close>${esc(t("Close"))}</button></div>`);
 }

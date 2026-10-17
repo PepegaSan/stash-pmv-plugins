@@ -472,15 +472,21 @@ kbd { display: inline-block; min-width: 30px; padding: 3px 8px; border-radius: 6
 #side { display: none; }
 #bottom { display: none; }
 .badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font: 800 11px/18px system-ui, sans-serif; font-style: normal; text-align: center; }
-.cbtn.fs { display: none; } /* (fullscreen button: PCs only, see below) */
+.cbtn.fs, .cbtn.frm, #sidetog { display: none; } /* (fullscreen, player shape, sidebar buttons: PCs only, see below) */
+#sidetog { position: fixed; left: calc(var(--side) + 10px); top: 10px; z-index: 26; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: rgba(22, 24, 35, .5); font-size: 20px; opacity: .55; transition: opacity .15s, background .15s, left .2s; }
+#sidetog:hover { opacity: 1; background: rgba(22, 24, 35, .85); }
+body.is-clear #sidetog, html.is-full #sidetog { display: none !important; }
 @media (min-width: 761px) {
   /* The card gets its size from the height of its slot, so it can grow (and animate) to a wide video's own shape */
   .item { container-type: size; }
   .card { --ch: 100cqh; width: calc(var(--ch) * 9 / 16); height: var(--ch); aspect-ratio: auto; max-width: calc(100cqw - 110px); transition: width .42s var(--ease), height .42s var(--ease); }
   .card.is-wide { --cw: min(calc(100cqw - 110px), calc(var(--ch) * var(--ar))); width: var(--cw); height: calc(var(--cw) / var(--ar)); max-width: none; }
-  .cbtn.fs { display: grid; }
-  html.is-full { --side: 0px !important; }
-  html.is-full #side { display: none; }
+  .cbtn.fs, .cbtn.frm, #sidetog { display: grid; }
+  /* Player shape: landscape = always 16:9, window = all the room (the rest of the card's size comes from above) */
+  html[data-frame="landscape"] .card { --cw: min(calc(100cqw - 110px), calc(var(--ch) * 16 / 9)); width: var(--cw); height: calc(var(--cw) * 9 / 16); max-width: none; }
+  html[data-frame="window"] .card { width: calc(100cqw - 110px); height: var(--ch); max-width: none; }
+  html.is-full, html.no-side { --side: 0px !important; }
+  html.is-full #side, html.no-side #side { display: none; }
   :root { --side: 72px; }
   #side { position: fixed; left: 0; top: 0; bottom: 0; z-index: 25; width: var(--side); display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 14px 10px; overflow-y: auto; border-right: 1px solid var(--line); background: rgba(0, 0, 0, .6); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); scrollbar-width: none; }
   .s-logo { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 0 8px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }

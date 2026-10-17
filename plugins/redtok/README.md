@@ -33,6 +33,7 @@ Open it from Stash UI's menu (it shows up there by itself) or with the **RedTok*
 
 | Version | What changed |
 |---|---|
+| 1.2.0 | **Player shape** (button top right of the video / key A / Settings): auto, portrait, landscape (16:9) or window; **sidebar on/off** (button top left / key B); skipping watched videos now also counts what you scrolled past, and can be extended to Following, niches and search; **blocked tags** (Settings, or from a video's details); My Stash: *Mark for deletion* (tag "RedTok: delete") and *Delete from Stash* in the video's menu. |
 | 1.0.3 | Search brings matching videos again: RedGifs no longer understood the old way of asking and answered with its trending videos. The search box now finds the words in tags and descriptions; a tapped #tag (or a suggested tag) shows exactly that tag. |
 | 1.0.2 | Videos start the moment you swipe: the next two are warmed up in advance (a muted play stopped on the first frame, so phones buffer them – preload alone isn't enough on Android/iOS), and the first frame replaces the poster as soon as it is decoded. |
 | 1.0.1 | Pictures (posters, grids, profile pictures) showed as broken boxes where Stash doesn't let plugin pages load pictures from other sites – they now come through the plugin's backend, a batch at a time. |
@@ -43,3 +44,7 @@ Open it from Stash UI's menu (it shows up there by itself) or with the **RedTok*
 **On a PC:** a wide video (16:9 …) grows to its own shape, with an animation, when you scroll to it (Settings → *Enlarge wide videos*), and a **fullscreen** button (top right of the video, or key **Z**) hides the menu and gives the video all the room.
 
 **Keys:** ↑ ↓ (or J K) always go to the previous / next video – also when a slider or button was clicked last. Settings → *Space bar* decides whether the space bar pauses (default) or goes to the next video (Shift + space: previous).
+
+**Your feed:** Settings → *Blocked tags* keeps videos with those tags or niches out (RedGifs' own content preferences need an account, which RedTok doesn't use). *Skip videos you've watched* also remembers videos you scrolled past quickly, and *…in Following, niches and search too* extends it beyond For You. In **My Stash**, the video's ⋯ menu has *Mark for deletion* (adds the tag "RedTok: delete" and hides the scene here; find them on that tag's page in Stash) and *Delete from Stash* (with or without the file).
+
+**Player shape and sidebar (PC):** key **A** (or the button in the video's top right corner, or Settings → *Player shape*) cycles auto → portrait → landscape → window; key **B** (or the round button in the top left corner) hides the sidebar.

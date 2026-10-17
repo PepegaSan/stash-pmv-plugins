@@ -3,7 +3,7 @@
 // grid …) – only the one on top plays, and only that one holds video elements beyond a few.
 
 import { $, esc, t, fmt, ago, mmss, ic, isPhone, nav, on, emit, img } from "./core.js";
-import { settings, saveSettings, isLiked, setLiked, isFollowing, setFollow, userPic, markWatched, refetchGif, stashStart, isHidden } from "./data.js";
+import { settings, saveSettings, isLiked, setLiked, isFollowing, setFollow, userPic, markWatched, markSeen, refetchGif, stashStart, isHidden } from "./data.js";
 import { enqueue, jobOf, isSaved } from "./dl.js";
 
 const feeds = new Set();
@@ -17,9 +17,12 @@ export function av(url, name, cls = "") {
   return `<span class="av ${cls}"><b>${esc(String(name || "?").replace(/^@/, "")[0] || "?")}</b>${img(url, "", ' loading="lazy"')}</span>`;
 }
 export const tick = () => `<i class="vtick" title="${esc(t("Verified"))}">${ic("verified")}</i>`;
-const fillOf = (g) => settings.fit === "fill" || (settings.fit === "auto" && g.h > g.w * 1.15);
+// The shape of the player on a PC (Settings → Player shape): auto = tall frame, wide videos grow; portrait; landscape (16:9); window (all the room)
+export const FRAMES = ["auto", "portrait", "landscape", "window"];
+const frameOf = () => (isPhone() ? "auto" : FRAMES.includes(settings.frame) ? settings.frame : "auto");
+const fillOf = (g) => settings.fit === "fill" || (settings.fit === "auto" && g.h > g.w * 1.15 && ["auto", "portrait"].includes(frameOf()));
 // A wide video (16:9 …) grows to its own shape when you scroll to it – on a PC, where there is room for it (Settings → Enlarge wide videos)
-const wideOf = (g) => settings.wide !== false && !isPhone() && g.w >= g.h * 1.2 && g.h > 0;
+const wideOf = (g) => frameOf() === "auto" && settings.wide !== false && !isPhone() && g.w >= g.h * 1.2 && g.h > 0;
 
 // ---------- video elements ----------
 // Phones allow sound only for a <video> that a tap has started: the first tap "blesses" a few elements, and the
@@ -68,7 +71,7 @@ function itemHtml(g) {
       <div class="loading"><i></i></div>
       <div class="flash"></div>
       <div class="ctl ctl-l"><button class="cbtn vol" data-act="mute" aria-label="${esc(t("Sound"))}">${ic(muted ? "mute" : "vol")}</button><input class="volr" type="range" min="0" max="1" step="0.05" value="${settings.volume}" aria-label="${esc(t("Volume"))}"><span class="unmute" data-act="mute">${esc(t("Tap to unmute"))}</span></div>
-      <div class="ctl ctl-r"><button class="cbtn fs" data-act="full" aria-label="${esc(t("Fullscreen"))}" title="${esc(t("Fullscreen"))} (Z)">${ic("full")}</button><span class="spd"${settings.speed === 1 ? " hidden" : ""}>${settings.speed}×</span><button class="cbtn" data-act="menu" aria-label="${esc(t("More options"))}">${ic("more")}</button></div>
+      <div class="ctl ctl-r"><button class="cbtn frm" data-act="frame" aria-label="${esc(t("Player shape"))}" title="${esc(t("Player shape"))} (A)">${ic("fit")}</button><button class="cbtn fs" data-act="full" aria-label="${esc(t("Fullscreen"))}" title="${esc(t("Fullscreen"))} (Z)">${ic("full")}</button><span class="spd"${settings.speed === 1 ? " hidden" : ""}>${settings.speed}×</span><button class="cbtn" data-act="menu" aria-label="${esc(t("More options"))}">${ic("more")}</button></div>
       <div class="info">
         <div class="who"><a href="#" data-act="profile">${g.stash ? "" : "@"}${esc(g.user)}</a>${g.verified ? tick() : ""}${g.date ? `<span class="when"> · ${esc(ago(g.date))}</span>` : ""}</div>
         <div class="desc">${g.desc ? `<span>${esc(g.desc)}</span> ` : ""}${tags}</div>
@@ -190,6 +193,8 @@ export function createFeed(host, S, opts = {}) {
         prime(F.nodes[i + 1]);
         if (!(navigator.connection && navigator.connection.saveData)) F.settleT2 = setTimeout(() => F.active && F.cur === i && prime(F.nodes[i + 2]), 300);
       }, 380);
+      clearTimeout(F.st);
+      F.st = setTimeout(() => F.nodes[F.cur] === n && F.active && markSeen(n.g), 700);
       clearTimeout(F.wt);
       F.wt = setTimeout(() => F.nodes[F.cur] === n && F.active && markWatched(n.g), 2500);
       emit("current", { F, g: n.g, i });
@@ -368,6 +373,7 @@ export function createFeed(host, S, opts = {}) {
       case "dl": return save(n);
       case "openstash": return nav.openInStash(g);
       case "share": case "menu": return nav.openShare(g, F);
+      case "frame": return nav.cycleFrame();
       case "details": return nav.openDetails(g);
       case "follow": {
         if (isFollowing(g.user)) return nav.openProfile(g.user);
@@ -564,6 +570,18 @@ export function setFit(mode) {
   feeds.forEach((F) => F.refresh());
 }
 export const fitOf = fillOf;
+export function setFrame(mode) {
+  settings.frame = FRAMES.includes(mode) ? mode : "auto";
+  saveSettings();
+  document.documentElement.dataset.frame = frameOf();
+  feeds.forEach((F) => F.refresh());
+}
+export const frameName = (m) => ({ auto: t("Auto"), portrait: t("Portrait"), landscape: t("Landscape"), window: t("Window") }[m] || m);
+export function cycleFrame() {
+  if (isPhone()) return;
+  setFrame(FRAMES[(FRAMES.indexOf(settings.frame) + 1) % FRAMES.length]);
+  nav.toast && nav.toast(t("Player shape: {s}", { s: frameName(settings.frame) }));
+}
 // the first touch or key anywhere gives the browser its "user activation": sound on
 export function unlockSound() {
   bless();

@@ -8,7 +8,7 @@ import { call, gql, store, setAfterSet, emit, t, wait } from "./core.js";
 // ---------- settings ----------
 export const settings = Object.assign({
   base: "", scan: true, quality: "hd", playq: "auto", fit: "auto", sound: true, volume: 1, autonext: false,
-  skipSeen: true, speed: 1, lang: "auto", glow: true, wide: true, space: "pause",
+  skipSeen: true, skipSeenMore: false, speed: 1, lang: "auto", glow: true, wide: true, space: "pause", frame: "auto", side: true,
 }, store.get("settings", {}));
 delete settings.subs; delete settings.sync; // (Reddit and the RedGifs login of the older local version)
 export const saveSettings = () => store.set("settings", settings);
@@ -158,6 +158,7 @@ export let following = store.get("following", []); // [{name, img}]
 export let niches = store.get("niches", []); // followed niches [{id, name, img}]
 export let hidden = store.get("hidden", []); // creators you never want to see
 export let nope = store.get("nope", []); // single videos you're not interested in
+export let blocked = store.get("blocked", []); // tags and niches you never want to see
 export let history = playable(store.get("watched", [])); // newest first, gifs
 export let saved = playable(store.get("saved", [])); // downloaded gifs, newest first
 export let doneSet = new Set(store.get("done", [])); // ids of everything downloaded (also older downloads without details)
@@ -205,15 +206,35 @@ export function setNope(id, on) {
   nope = on ? [...nope.filter((x) => x !== id), id].slice(-5000) : nope.filter((x) => x !== id);
   store.set("nope", nope);
 }
-// a video counts as watched after a couple of seconds on screen
+const norm1 = (s) => String(s || "").replace(/^#/, "").replace(/\s+/g, "").toLowerCase();
+export const isBlockedTag = (tag) => blocked.some((b) => norm1(b) === norm1(tag));
+export function setBlockedTag(tag, on) {
+  tag = String(tag || "").replace(/^#/, "").trim();
+  if (!tag) return;
+  blocked = on ? [...new Set([...blocked.filter((b) => norm1(b) !== norm1(tag)), tag])] : blocked.filter((b) => norm1(b) !== norm1(tag));
+  store.set("blocked", blocked);
+  emit("blocked", { tag, on });
+}
+// a video with one of your blocked tags (or in a blocked niche)
+export const hasBlocked = (g) => blocked.length > 0 && [...(g.tags || []), ...(g.niches || [])].some(isBlockedTag);
+// Seen = it was on screen for a moment (also when you scrolled past it); watched (the list in your profile) = a couple of seconds.
+// Skipping videos you've watched uses "seen", so fast scrolling doesn't bring them back.
 let seenTimer = 0;
+const flushSeen = () => { clearTimeout(seenTimer); seenTimer = 0; store.set("seen", [...seen].slice(-20000)); store.set("watched", history); };
+export function markSeen(g) {
+  if (!g || g.stash || seen.has(g.id)) return;
+  seen.add(g.id);
+  clearTimeout(seenTimer);
+  seenTimer = setTimeout(flushSeen, 1500);
+}
 export function markWatched(g) {
   if (!g || g.stash) return;
-  seen.add(g.id);
+  markSeen(g);
   history = [slim(g), ...history.filter((x) => x.id !== g.id)].slice(0, 500);
   clearTimeout(seenTimer);
-  seenTimer = setTimeout(() => { store.set("seen", [...seen].slice(-20000)); store.set("watched", history); }, 1500);
+  seenTimer = setTimeout(flushSeen, 1500);
 }
+addEventListener("pagehide", () => seenTimer && flushSeen());
 export function clearHistory() { history = []; seen = new Set(); store.set("watched", []); store.set("seen", []); emit("data", {}); }
 export function removeFromHistory(ids) { const s = new Set(ids); history = history.filter((g) => !s.has(g.id)); store.set("watched", history); emit("data", {}); }
 export function addSaved(g) {
@@ -356,10 +377,13 @@ export function makeSource(spec) {
   };
   const keep = (g) => {
     if (S.ids.has(g.id)) return false;
-    if (spec.t === "list" || spec.t === "stash") return true;
+    if (spec.t === "list") return true;
+    // scenes you marked for deletion stay out of My Stash (the tag's own page still shows them)
+    if (spec.t === "stash") return spec.tag || !nopeSet().has(g.id);
     if (spec.t !== "user" && isHidden(g.user)) return false;
     if (spec.t !== "user" && nopeSet().has(g.id)) return false;
-    if (spec.t === "foryou" && settings.skipSeen && seen.has(g.id)) return false;
+    if (spec.t !== "user" && hasBlocked(g)) return false;
+    if (settings.skipSeen && seen.has(g.id) && (spec.t === "foryou" || (settings.skipSeenMore && ["following", "search", "niche"].includes(spec.t)))) return false;
     return true;
   };
   // one more page; pages that came back empty after filtering are skipped (a few at most)
@@ -407,6 +431,20 @@ export async function refetchGif(id) {
   const d = await rg(`/gifs/${enc(id)}`, true);
   takeUsers(d);
   return norm(d.gif);
+}
+
+// ---------- My Stash: mark a scene for deletion, delete it ----------
+export const DELETE_TAG = "RedTok: delete";
+export async function stashMark(g) {
+  let id = ((await gql("query($n: String!) { findTags(tag_filter: { name: { value: $n, modifier: EQUALS } }) { tags { id } } }", { n: DELETE_TAG })).findTags.tags[0] || {}).id;
+  if (!id) id = (await gql("mutation($n: String!) { tagCreate(input: { name: $n }) { id } }", { n: DELETE_TAG })).tagCreate.id;
+  await gql("mutation($i: BulkSceneUpdateInput!) { bulkSceneUpdate(input: $i) { id } }", { i: { ids: [String(g.sceneId)], tag_ids: { ids: [String(id)], mode: "ADD" } } });
+  setNope(g.id, true);
+  return id;
+}
+export async function stashDelete(g, withFile) {
+  await gql("mutation($i: SceneDestroyInput!) { sceneDestroy(input: $i) }", { i: { id: String(g.sceneId), delete_file: !!withFile, delete_generated: true } });
+  setNope(g.id, true);
 }
 
 // ---------- backup ----------

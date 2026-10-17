@@ -4,7 +4,7 @@
 import { $, esc, t, tn, ic, toast, nav, on, emit, gql, store, closeLayers, closeTop, layerCount, topLayer, allLayers, pushLayer, closeLayer, isPhone, VERSION, initLang, modal, BLANK, isRgPic, useBackendPics, imgViaBackend } from "./core.js";
 import { settings, saveSettings, makeSource, ORDERS, orderOf, following, userPic, isFollowing, setFollow, imgData } from "./data.js";
 import { restoredN } from "./boot.js";
-import { createFeed, activeFeed, unlockSound, av, setMuted, muted } from "./feed.js";
+import { createFeed, activeFeed, unlockSound, av, setMuted, muted, setFrame, cycleFrame } from "./feed.js";
 import { jobs, activeJobs } from "./dl.js";
 import {
   openProfile, openNiche, openSearch, openSettings, openShare, openDetails, openPerformer, openStashTag, openNicheBrowser, openKeys,
@@ -110,7 +110,26 @@ Object.assign(nav, {
   emitSettings: () => emit("settings", {}),
   setClear,
   toggleFull,
+  cycleFrame,
+  toggleSide: () => { settings.side = settings.side === false; saveSettings(); applySide(); emit("settings", {}); },
 });
+
+// ---------- sidebar on / off (PC) and the player shape ----------
+document.body.insertAdjacentHTML("beforeend", '<button id="sidetog" type="button"></button>');
+function applySide() {
+  const off = settings.side === false;
+  document.documentElement.classList.toggle("no-side", off);
+  const b = $("#sidetog");
+  b.innerHTML = ic(off ? "menu" : "back");
+  const l = off ? t("Show the sidebar") : t("Hide the sidebar");
+  b.setAttribute("aria-label", l);
+  b.title = l + " (B)";
+}
+$("#sidetog").addEventListener("click", () => nav.toggleSide());
+applySide();
+setFrame(settings.frame);
+on("settings", () => { applySide(); document.documentElement.dataset.frame = isPhone() ? "auto" : settings.frame; });
+addEventListener("resize", () => { document.documentElement.dataset.frame = isPhone() ? "auto" : settings.frame; });
 
 // ---------- fullscreen (the whole page: the menu steps aside, the video gets all the room) ----------
 function toggleFull() {
@@ -273,6 +292,8 @@ addEventListener("keydown", (e) => {
   else if (k === "ArrowLeft") { e.preventDefault(); F.seek(-5); }
   else if (k === "c") setClear(!document.body.classList.contains("is-clear"));
   else if (k === "z") toggleFull();
+  else if (k === "a") cycleFrame();
+  else if (k === "b" && !isPhone()) nav.toggleSide();
   else if (k === "f" && n && !n.g.stash) { const now = setFollow(n.g.user, !isFollowing(n.g.user)); toast(now ? t("Following @{u}", { u: n.g.user }) : t("Unfollowed @{u}", { u: n.g.user })); }
   else if (k === "p" && n) n.g.stash ? n.g.pid && openPerformer(n.g.pid, n.g.user, n.g.img) : openProfile(n.g.user);
   else if (k === "." && n) F.menu();
