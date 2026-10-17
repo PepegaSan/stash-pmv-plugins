@@ -8,8 +8,10 @@ import { analyzeSong } from "./beats.js";
 const GW = 96; // measuring image for layout and cuts
 const GH = 54;
 
-// src: Blob (file or downloaded scene). onProgress(share, text). signal: AbortSignal
-export async function scanPmv(src, onProgress, signal) {
+// src: Blob (file or downloaded scene). onProgress(share, text). signal: AbortSignal.
+// motion(a, b, w): how far the action moved between two small gray frames (pixels of 64 per frame step, the
+// generator's speed measure) – with it every section gets the speed of the original's clip (clip speed follows the music)
+export async function scanPmv(src, onProgress, signal, motion = null) {
   onProgress(0, "Reading music …");
   const buf = await src.arrayBuffer();
   let song;
@@ -20,7 +22,7 @@ export async function scanPmv(src, onProgress, signal) {
   }
   if (signal && signal.aborted) throw abortErr();
   onProgress(0.1, "Looking through the PMV …");
-  const frames = await sampleFrames(src, (p) => onProgress(0.1 + 0.85 * p, "Looking through the PMV …"), signal);
+  const frames = await sampleFrames(src, (p) => onProgress(0.1 + 0.85 * p, "Looking through the PMV …"), signal, motion);
   onProgress(0.97, "Evaluating …");
   const tpl = buildTemplate(frames, song);
   onProgress(1, "Done");
@@ -29,7 +31,7 @@ export async function scanPmv(src, onProgress, signal) {
 
 // ---------- Sample frames ----------
 
-async function sampleFrames(blob, onProgress, signal) {
+async function sampleFrames(blob, onProgress, signal, motion = null) {
   const url = URL.createObjectURL(blob);
   const v = document.createElement("video");
   v.muted = true;
@@ -51,6 +53,14 @@ async function sampleFrames(blob, onProgress, signal) {
       v.onerror = () => rej(new Error("The browser can't play this video (format/codec)."));
     });
     const dur = v.duration;
+    // The speed of the action (with motion): measured on a small picture the way the generator measures its clips
+    // (64 px on the long side, in its own shape)
+    const vw = v.videoWidth || 16;
+    const vh = v.videoHeight || 9;
+    const sw = Math.max(8, Math.round(vw >= vh ? 64 : (64 * vw) / vh));
+    const sh = Math.max(8, Math.round(vw >= vh ? (64 * vh) / vw : 64));
+    const sg = motion && Object.assign(document.createElement("canvas"), { width: sw, height: sh }).getContext("2d", { willReadFrequently: true });
+    let prevSmall = null;
     v.playbackRate = 3;
     await new Promise((res, rej) => {
       let lastT = -1;
@@ -62,6 +72,17 @@ async function sampleFrames(blob, onProgress, signal) {
           g.drawImage(v, 0, 0, GW, GH);
           const f = measure(g.getImageData(0, 0, GW, GH).data, prevGray);
           f.t = t;
+          if (sg) {
+            sg.drawImage(v, 0, 0, sw, sh);
+            const px = sg.getImageData(0, 0, sw, sh).data;
+            const small = new Float32Array(sw * sh);
+            for (let i = 0, j = 0; i < small.length; i++, j += 4) small[i] = 0.299 * px[j] + 0.587 * px[j + 1] + 0.114 * px[j + 2];
+            if (prevSmall) {
+              f.mo = motion(prevSmall.gray, small, sw) / (t - prevSmall.t); // (px of 64 per second)
+              f.same = similarity(prevSmall.gray, small);
+            }
+            prevSmall = { gray: small, t };
+          }
           prevGray = f.gray;
           frames.push(f);
           if (frames.length > 1) frames[frames.length - 2].gray = null; // save memory
@@ -281,12 +302,13 @@ function buildTemplate(frames, song) {
     if (prevSeg && b - a < 4) [id, dir] = [prevSeg.layout, prevSeg.dir];
     segs.push({ t: frames[a].t, i: a, layout: id, dir });
   }
+  sectionSpeeds(frames, segs, song.duration);
   // 4. Events: layout change or cut of individual fields
   const events = [];
   segs.forEach((sg, k) => {
     const prev = segs[k - 1];
     if (!prev || prev.layout !== sg.layout || prev.dir !== sg.dir) {
-      events.push({ t: sg.t, type: "layout", layout: sg.layout, dir: sg.dir });
+      events.push({ t: sg.t, type: "layout", layout: sg.layout, dir: sg.dir, speed: sg.speed });
       return;
     }
     const f = frames[sg.i];
@@ -294,7 +316,7 @@ function buildTemplate(frames, song) {
     const ds = specs.map((sp) => regionDiff(f, sp));
     const top = Math.max(...ds);
     const groups = ds.map((d, gi) => (d > Math.max(0.07, top * 0.45) ? gi : -1)).filter((gi) => gi >= 0);
-    events.push({ t: sg.t, type: "cut", groups: groups.length === specs.length ? "all" : groups });
+    events.push({ t: sg.t, type: "cut", groups: groups.length === specs.length ? "all" : groups, speed: sg.speed });
   });
   flashes.forEach((fl) => events.push(Object.assign({ type: "flash" }, fl)));
   // 5. Snap to the beat (the sampling is coarser than the music)
@@ -316,7 +338,7 @@ function buildTemplate(frames, song) {
   return {
     song,
     events,
-    segs: segs.map((s, k) => ({ t: s.t, end: segs[k + 1] ? segs[k + 1].t : song.duration, layout: s.layout, dir: s.dir })),
+    segs: segs.map((s, k) => ({ t: s.t, end: segs[k + 1] ? segs[k + 1].t : song.duration, layout: s.layout, dir: s.dir, speed: s.speed })),
     stats: {
       cuts: events.filter((e) => e.type !== "flash").length,
       layoutChanges: events.filter((e) => e.type === "layout").length,
@@ -325,6 +347,77 @@ function buildTemplate(frames, song) {
       frames: frames.length,
     },
   };
+}
+
+// How alike two gray pictures are (correlation: 1 = the same picture, about 0 = nothing in common; a flat one, e.g.
+// black, is only like another flat one)
+function similarity(a, b) {
+  let ma = 0;
+  let mb = 0;
+  for (let i = 0; i < a.length; i++) (ma += a[i]), (mb += b[i]);
+  ma /= a.length;
+  mb /= b.length;
+  let s = 0;
+  let va = 0;
+  let vb = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] - ma;
+    const y = b[i] - mb;
+    s += x * y;
+    va += x * x;
+    vb += y * y;
+  }
+  return va && vb ? s / Math.sqrt(va * vb) : va === vb ? 1 : 0;
+}
+
+// How fast the original's clip moves in each section (frames with mo, see sampleFrames) → seg.speed, 0–1 as a share
+// of the PMV's time: 0 = as calm as its calmest parts, 1 = its fastest – the generator picks its clips the same way,
+// relative to your library. Measured per shot: sections not parted by a real change of scene belong together (a cut
+// the scan saw in fast motion within one clip isn't one – and a bit of a back-and-forth would catch only its fast or
+// its slow half). The median of its frame steps (not the one across its cut, none next to a flash: those aren't
+// motion); a short shot (few steps – unsure) leans on its neighbours
+function sectionSpeeds(frames, segs, dur) {
+  // A real change of scene between frame i-1 and i: the two pictures hardly look alike any more (within a clip most
+  // of the picture stays, even with fast motion in it)
+  const scene = (i) => !(frames[i] && frames[i].same >= 0.82);
+  const shotOf = [];
+  const shots = [];
+  segs.forEach((sg, k) => {
+    if (!k || scene(sg.i)) shots.push({ v: [], first: sg.i });
+    shotOf[k] = shots.length - 1;
+    const end = k + 1 < segs.length ? segs[k + 1].i : frames.length;
+    const sh = shots[shots.length - 1];
+    for (let i = Math.max(1, sg.i); i < end; i++) {
+      const f = frames[i];
+      if (f.mo != null && i !== sh.first && !f.flash && !frames[i - 1].flash) sh.v.push(f.mo);
+    }
+  });
+  const raw = shots.map((sh) => {
+    sh.v.sort((x, y) => x - y);
+    return { v: sh.v.length ? sh.v[sh.v.length >> 1] : null, n: sh.v.length };
+  });
+  const smooth = raw.map((r, k) => {
+    let s = 0;
+    let w = 0;
+    for (const [j, f] of [[k - 1, 0.5], [k, 1], [k + 1, 0.5]]) {
+      const q = raw[j];
+      if (q && q.v != null) (s += f * Math.min(q.n, 30) * q.v), (w += f * Math.min(q.n, 30));
+    }
+    return w ? s / w : null;
+  });
+  const known = smooth.find((x) => x != null);
+  if (known == null) return; // (not measured)
+  let last = known;
+  const byShot = smooth.map((x) => (x == null ? last : (last = x)));
+  const vals = segs.map((sg, k) => byShot[shotOf[k]]);
+  const lens = segs.map((sg, k) => Math.max(0, (k + 1 < segs.length ? segs[k + 1].t : dur) - sg.t));
+  const total = lens.reduce((a, b) => a + b, 0) || 1;
+  segs.forEach((sg, k) => {
+    let below = 0;
+    let same = 0;
+    vals.forEach((x, j) => (x < vals[k] ? (below += lens[j]) : x === vals[k] && (same += lens[j])));
+    sg.speed = (below + same / 2) / total;
+  });
 }
 
 function abortErr() {

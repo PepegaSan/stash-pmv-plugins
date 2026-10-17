@@ -649,6 +649,7 @@ export default {
     "Clip speed follows the music (experimental)": "Clip-Tempo folgt der Musik (experimentell)",
     "Fast, busy music gets clips with fast motion, calm music slow ones. Finds the fast and calm spots of each scene in Stash's scene previews (Tasks → Generate → Previews) – without them it measures the spot it takes": "Schnelle, dichte Musik bekommt Clips mit schneller Bewegung, ruhige Musik ruhige. Findet die schnellen und ruhigen Stellen jeder Szene in Stashs Szenen-Vorschauen (Aufgaben → Generieren → Vorschauen) – ohne sie wird die gewählte Stelle gemessen",
     "clip speed follows the music": "Clip-Tempo folgt der Musik",
+    "With “Clip speed follows the music” the clips follow how fast the original's clips move – calm where it is calm, fast where it is fast (the line in the timeline).": "Mit „Clip-Tempo folgt der Musik“ folgen die Clips dem Tempo der Clips im Original – ruhig, wo es ruhig ist, schnell, wo es schnell ist (die Linie in der Zeitleiste).",
   },
   patterns: [
     ["Couldn't load the creator's tags: (.+)", "Die Tags des Creators konnten nicht geladen werden: $1"],
@@ -756,5 +757,6 @@ export default {
     ["speed (\\d+) %", "Tempo $1 %"],
     ["on the beat ×(.+)", "im Takt ×$1"],
     ["Music pace (\\d+) % · (\\d+) scenes with a speed map", "Musiktempo $1 % · $2 Szenen mit Tempokarte"],
+    ["Original's pace (\\d+) % · (\\d+) scenes with a speed map", "Tempo des Originals $1 % · $2 Szenen mit Tempokarte"],
   ],
 };

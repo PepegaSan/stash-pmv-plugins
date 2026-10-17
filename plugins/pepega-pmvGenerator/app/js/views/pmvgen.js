@@ -412,6 +412,7 @@ export function render(main) {
       <section class="kb-card">
         <h2><span class="kb-pmvg-no">3</span>Style</h2>
         <p class="kb-hint kb-pmvg-tip" data-tplnote hidden>Template active: cuts, layouts and flashes come from the PMV. Here you choose the effects that are added at those moments.</p>
+        <p class="kb-hint kb-pmvg-tip" data-tplnote hidden>With “Clip speed follows the music” the clips follow how fast the original's clips move – calm where it is calm, fast where it is fast (the line in the timeline).</p>
         <div class="kb-pmvg-presets">
           <span class="kb-lab-t">Mood <small>– sets cutting, layouts and effects in one go</small></span>
           <div class="kb-chips" data-presets>${Object.entries(PRESETS).map(([k, p]) => `<button type="button" class="kb-chip kb-pmvg-preset" data-preset="${k}">${p.name}</button>`).join("")}</div>
@@ -1828,7 +1829,7 @@ export function render(main) {
     $("[data-livepane]").hidden = S.mode !== "live";
     if (S.mode === "plex") paintPlex();
     if (S.mode === "live") connectLive();
-    $("[data-tplnote]").hidden = !t;
+    main.querySelectorAll("[data-tplnote]").forEach((el) => (el.hidden = !t));
     main.querySelectorAll("[data-layouts], [data-seg=cut], [data-presets]").forEach((el) => el.classList.toggle("is-dim", t));
     if (t && !tpl && !scanAbort) listTemplates("");
     paintStart();
@@ -1921,7 +1922,8 @@ export function render(main) {
     progress(0, "Loading …");
     try {
       const blob = await getBlob();
-      const r = await scanPmv(blob, (p, text) => progress(0.1 + 0.9 * p, text), scanAbort.signal);
+      // (with the speed measure: how fast the original's clips move – clip speed follows the music then follows that)
+      const r = await scanPmv(blob, (p, text) => progress(0.1 + 0.9 * p, text), scanAbort.signal, actionMotion);
       if (!alive) return;
       if (r.song.beats.length < 8) throw new Error("Too few beats detected – does the video have music?");
       r.song.name = name;
@@ -2030,7 +2032,8 @@ export function render(main) {
 
 const LAYOUT_COLORS = { full: "#6d3a63", kaleido: "#b48cff", duo: "#8fe3ff", trim: "#ff3e8a", tri: "#ff9ec4", quad: "#ffd166" };
 
-// Timeline of a template: sections colored by layout, cuts on top, flashes at the bottom
+// Timeline of a template: sections colored by layout, cuts on top, flashes at the bottom; across the sections a line
+// for how fast the original's clips move (high = fast)
 function drawTimeline(canvas, tpl) {
   const c = canvas.getContext("2d");
   const { width: W, height: H } = canvas;
@@ -2042,6 +2045,18 @@ function drawTimeline(canvas, tpl) {
     c.fillRect((sg.t / d) * W, 22, Math.max(1, ((sg.end - sg.t) / d) * W - 1), H - 44);
   });
   c.globalAlpha = 1;
+  if (tpl.segs.some((sg) => sg.speed != null)) {
+    c.beginPath();
+    tpl.segs.forEach((sg, k) => {
+      if (sg.speed == null) return;
+      const y = 26 + (1 - sg.speed) * (H - 52);
+      c[k ? "lineTo" : "moveTo"]((sg.t / d) * W, y);
+      c.lineTo((sg.end / d) * W, y);
+    });
+    c.strokeStyle = "rgba(255, 255, 255, .9)";
+    c.lineWidth = 2;
+    c.stroke();
+  }
   tpl.events.forEach((ev) => {
     const x = (ev.t / d) * W;
     if (ev.type === "flash") {
@@ -2742,6 +2757,9 @@ class Generator {
     this.setBars();
     this.onClose = onClose;
     this.tpl = tpl || null;
+    // PMV as template: how fast the original's clips move, section by section ([{ t, speed }], see paceAt)
+    const tsp = tpl ? tpl.events.filter((ev) => ev.type !== "flash" && ev.speed != null).map((ev) => ({ t: ev.t, speed: ev.speed })) : [];
+    this.tplSpeed = tsp.length >= 4 ? tsp.sort((a, b) => a.t - b.t) : null;
     this.ti = 0;
     this.log = []; // sequence (cuts, layouts) – readable on the stage element for tests
     this.takes = []; // one recording per song ("One video per song"): { name, song, length, blob }
@@ -2973,7 +2991,7 @@ class Generator {
     };
     const fails = (this.failed || []).slice(-5).reverse();
     // (clip speed follows the music: how fast the music feels now, to hold against the clips' speed)
-    const pace = this.S.paceMatch && this.song ? `<div><small>Music pace ${Math.round(this.paceAt(this.now()) * 100)} % · ${speedMaps.size} scenes with a speed map</small></div>` : "";
+    const pace = this.S.paceMatch && this.song ? `<div><small>${this.tplSpeed ? "Original's pace" : "Music pace"} ${Math.round(this.paceAt(this.now()) * 100)} % · ${speedMaps.size} scenes with a speed map</small></div>` : "";
     box.innerHTML =
       pace +
       [...new Set(this.groups)].filter(Boolean).map(row).join("") +
@@ -3349,8 +3367,20 @@ class Generator {
     return p;
   }
 
-  // How fast the music feels at song time t (0–1): how busy it is and how loud; without that (live) the loudness
+  // How fast the music feels at song time t (0–1): how busy it is and how loud; without that (live) the loudness.
+  // PMV as template: how fast the original moves there instead (its clip in the section at t, 0 = as calm as its
+  // calmest parts, 1 = its fastest) – the new PMV is calm and fast where the original is
   paceAt(t) {
+    const T = this.tplSpeed;
+    if (T) {
+      let k = 0;
+      for (let lo = 0, hi = T.length - 1; lo <= hi; ) {
+        const mid = (lo + hi) >> 1;
+        if (T[mid].t <= t + 0.02) (k = mid), (lo = mid + 1);
+        else hi = mid - 1;
+      }
+      return T[k].speed;
+    }
     const B = this.song && this.song.beats;
     if (!B || !B.length) return 0.5;
     let lo = 0;
