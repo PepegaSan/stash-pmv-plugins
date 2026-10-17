@@ -753,5 +753,8 @@ export default {
     ["≥ (\\d+) min", "≥ $1 Min."],
     ["≤ (\\d+)p", "≤ $1p"],
     ["×(\\d+)", "×$1"],
+    ["speed (\\d+) %", "Tempo $1 %"],
+    ["on the beat ×(.+)", "im Takt ×$1"],
+    ["Music pace (\\d+) % · (\\d+) scenes with a speed map", "Musiktempo $1 % · $2 Szenen mit Tempokarte"],
   ],
 };
