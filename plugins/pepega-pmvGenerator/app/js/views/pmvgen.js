@@ -3682,6 +3682,8 @@ class Generator {
       // it comes on screen on a beat – and plays a little faster or slower).
       // Not with big videos (above 1440p: decoding them along costs too much)
       let tempo = null;
+      let pulse = null; // spacing of the motion's turns (video seconds) and one turn – onBeat keeps them on the beat
+      let turnAt = null;
       const SECS = 1.8;
       const sync = this.S.beatSync && this.song && this.song.bpm > 0;
       if ((sync || this.S.paceMatch) && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.rhythmBusy < 3) {
@@ -3717,6 +3719,8 @@ class Generator {
             const turn = r.turn - Math.floor((r.turn - start) / step) * step;
             if (s.at == null && turn < dur - 1) start = turn;
             tempo = rate;
+            pulse = step;
+            turnAt = turn;
           }
         } catch (e) {
           /* not measurable – the clip just isn't synced */
@@ -3726,7 +3730,7 @@ class Generator {
         await seek(start);
       }
       const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url, tagNames: s.tagNames,
-        motion: mo, heat: heat ? heat(start) : null, tempo, speed: spd };
+        motion: mo, heat: heat ? heat(start) : null, tempo, pulse, turnAt, speed: spd };
       // A marker with an end: the clip stays inside it (the scene would play on into something else) – see loop()
       if (s.at != null && s.end > s.at + 0.5) m.endAt = Math.min(s.end, dur - 0.1);
       m.sig = info || (await analyzeAsync(v, m.w, m.h));
@@ -3818,6 +3822,9 @@ class Generator {
     m.shownAt = performance.now();
     m.zoomDir = (this.zoomFlip = !this.zoomFlip) ? 1 : -1; // zoom-in entry: alternating strong/soft (always zooming in)
     if (m.kind === "video") {
+      // Motion on the beat: from here onBeat keeps the turns on it – the expectation starts on the turn grid
+      if (m.tempo && m.pulse) m.vExp = m.turnAt + Math.round((m.el.currentTime - m.turnAt) / m.pulse) * m.pulse;
+      m.sync = 1;
       m.el.playbackRate = (this.rate || 1) * (m.tempo || 1);
       m.el.play().catch(() => {});
       this.watchFrames(m);
@@ -4491,6 +4498,21 @@ class Generator {
     const minB = Math.max(0, Math.round(+S.minBeats || 0));
     const maxB = Math.max(0, Math.round(+S.maxBeats || 0));
     const beats = this.song.beats;
+    // Motion on the beat: hold the turns on it. The measured period is a touch off and play() starts late, so
+    // the phase drifts (~5 ms per beat per 1 % of error). Once per beat the clip's video time is compared with
+    // where the turn grid says it should be, and the playback is trimmed a little for the next beat – no image
+    // work. The error is folded to the nearest turn, so a marker clip's loop jump snaps back in too.
+    const gap = k > 0 ? beats[k] - beats[k - 1] : 60 / this.song.bpm;
+    for (const m of this.videos()) {
+      if (!m.tempo || !m.pulse || m.vExp == null || m.el.paused) continue;
+      m.vExp += gap * (this.rate || 1) * m.tempo;
+      let err = (m.el.currentTime - m.vExp) % m.pulse;
+      if (err > m.pulse / 2) err -= m.pulse;
+      else if (err < -m.pulse / 2) err += m.pulse;
+      m.vExp = m.el.currentTime - err; // whole pulses off (a loop jump) are carried, not fought
+      m.sync = Math.abs(err) < 0.01 ? 1 : Math.max(0.95, Math.min(1.05, 1 - err / (gap * (this.rate || 1) * m.tempo)));
+      m.el.playbackRate = (this.rate || 1) * (m.tempo || 1) * m.sync;
+    }
     const e = this.song.energy[k] || 0;
     const prev = this.song.energy[k - 4] || 0;
     // A drop counts once – otherwise the signal stays up for several beats in a row
@@ -4617,7 +4639,7 @@ class Generator {
     if (!hold && this.rateHold && now < this.rateHold) return;
     this.rateHold = hold ? now + hold * 1000 : 0;
     this.rate = rate;
-    this.videos().forEach((m) => (m.el.playbackRate = rate * (m.tempo || 1)));
+    this.videos().forEach((m) => (m.el.playbackRate = rate * (m.tempo || 1) * (m.sync || 1)));
   }
 
   // Hook a clip's audio into the mix (once per clip); goes through master, so into the recording too
