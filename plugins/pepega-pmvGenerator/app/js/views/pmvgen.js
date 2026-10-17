@@ -3582,7 +3582,7 @@ class Generator {
       const inSeq = (t) => !seq || (t >= seq.lo && t <= seq.hi);
       // (the scene timeline starts at the scene's start – but not in its intro)
       const head = introEnd(dur);
-      const rand = () => (seq ? Math.max(seq.lo, Math.min(head, seq.hi)) + Math.random() * Math.max(0, seq.hi - Math.max(seq.lo, head)) : dur > 10 ? dur * 0.08 + Math.random() * Math.max(0, dur * 0.84 - 4) : 0);
+      const rand = () => (seq ? Math.max(seq.lo, Math.min(head, seq.hi)) + Math.random() * Math.max(0, seq.hi - Math.max(seq.lo, head)) : dur > 10 ? head + Math.random() * Math.max(0, dur * 0.92 - 4 - head) : 0);
       const seek = async (t) => {
         v.currentTime = t;
         await withTimeout(once(v, "seeked"), 8000);
@@ -3737,8 +3737,11 @@ class Generator {
       }
       const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url, tagNames: s.tagNames,
         motion: mo, heat: heat ? heat(start) : null, tempo, pulse, turnAt, speed: spd };
-      // A marker with an end: the clip stays inside it (the scene would play on into something else) – see loop()
-      if (s.at != null && s.end > s.at + 0.5) m.endAt = Math.min(s.end, dur - 0.1);
+      // Where the clip turns back to its start (see loop()): a marker with an end – the clip stays inside it (the
+      // scene would play on into something else) – else just before the scene's end: the video would start over
+      // at 0, in its intro (a spot near the end, a clip that stays on for long, played faster on the beat)
+      const end = s.at != null && s.end > s.at + 0.5 ? Math.min(s.end, dur - 0.1) : dur - 0.4;
+      if (end > start + 0.5) m.endAt = end;
       m.sig = info || (await analyzeAsync(v, m.w, m.h));
       if (this.S.smartCrop) {
         m.focus = Object.assign({}, m.sig.focus);
@@ -4411,8 +4414,16 @@ class Generator {
     // (with "cut ahead of the beat" the cut is made a few ms early; the zoom pulse still sits on the real beat)
     const lead = (this.S.cutLead || 0) / 1000;
     while (this.bi < beats.length && beats[this.bi] - lead <= p) this.onBeat(this.bi++, t);
-    // A marker clip with an end loops inside its marker
-    for (const m of this.groups) if (m && m.endAt && m.kind === "video" && m.el.currentTime >= m.endAt) m.el.currentTime = m.start;
+    // A clip at its end turns back to its start (see prepareFrom) – with motion on the beat by whole pulses, so the
+    // turns stay on the beat. Also when the video got to its end first and started over at 0 (its intro)
+    for (const m of this.groups) {
+      if (!m || !m.endAt || m.kind !== "video") continue;
+      const ct = m.el.currentTime;
+      if (ct >= m.endAt) {
+        const back = m.pulse ? (ct - m.start) % m.pulse : 0;
+        m.el.currentTime = m.start + (back < m.endAt - m.start - 0.2 ? back : 0);
+      } else if (ct < m.start - 0.5) m.el.currentTime = m.start;
+    }
     if (this.tpl) {
       const evs = this.tpl.events;
       while (this.ti < evs.length && evs[this.ti].t <= t) this.applyEvent(evs[this.ti++], t);
