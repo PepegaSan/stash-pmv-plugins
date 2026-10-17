@@ -2086,6 +2086,10 @@ function layoutIcon(id) {
 // Best-looking spots of a scene from Stash's sprite sheet + VTT (the scrubbing thumbnails):
 // skin and contrast per picture, a bonus near your markers and where the funscript is fast → [{ t, score }], best first
 const spriteCache = new Map();
+// Where a scene's intro (studio logo, titles) is surely over: picked spots start after it – your markers may be in it.
+// 3 min → 15 s, 10 min → 24 s, longer → 30 s; short clips a tenth
+const introEnd = (dur) => (dur > 10 ? Math.min(30, Math.max(dur * 0.04, Math.min(15, dur * 0.1))) : 0);
+
 async function spriteSpots(s, dur, heat) {
   if (!s.sprite || !s.vtt) return null;
   if (spriteCache.has(s.key)) return spriteCache.get(s.key);
@@ -2103,7 +2107,7 @@ async function spriteSpots(s, dur, heat) {
     img.src = s.sprite;
     await withTimeout(img.decode(), 8000);
     const out = [];
-    const use = cues.filter((c) => c.t >= dur * 0.04 && c.t <= dur - 4); // not the very start (titles) or the end
+    const use = cues.filter((c) => c.t >= introEnd(dur) && c.t <= dur - 4); // not the intro or the very end
     const sigs = analyzeTiles(img, use.map((c) => c.r));
     for (const [i, c] of use.entries()) {
       const a = sigs[i];
@@ -3576,7 +3580,9 @@ class Generator {
       const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : s.dur;
       const seq = this.seqWindow(dur);
       const inSeq = (t) => !seq || (t >= seq.lo && t <= seq.hi);
-      const rand = () => (seq ? seq.lo + Math.random() * Math.max(0, seq.hi - seq.lo) : dur > 10 ? dur * 0.08 + Math.random() * Math.max(0, dur * 0.84 - 4) : 0);
+      // (the scene timeline starts at the scene's start – but not in its intro)
+      const head = introEnd(dur);
+      const rand = () => (seq ? Math.max(seq.lo, Math.min(head, seq.hi)) + Math.random() * Math.max(0, seq.hi - Math.max(seq.lo, head)) : dur > 10 ? dur * 0.08 + Math.random() * Math.max(0, dur * 0.84 - 4) : 0);
       const seek = async (t) => {
         v.currentTime = t;
         await withTimeout(once(v, "seeked"), 8000);
@@ -3604,7 +3610,7 @@ class Generator {
       let mapCands = null;
       if (Array.isArray(map)) {
         mapCands = map
-          .filter((x) => x.t < dur - 3 && inSeq(x.t))
+          .filter((x) => x.t >= head && x.t < dur - 3 && inSeq(x.t)) // (the preview starts at 0 – the intro's logo moves fast)
           .map((x) => ({ x, d: Math.abs((speedPct(x.speed) ?? 0.5) - goal) + (fresh(x.t) ? 0 : 0.5) + Math.random() * 0.12 }))
           .sort((a, b) => a.d - b.d);
       }
