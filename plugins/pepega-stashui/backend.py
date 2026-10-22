@@ -59,6 +59,11 @@ Called through Stash's `runPluginOperation` (interface: raw):
       args:   {"mode": "funscript_save_variant", "scene_id": "12", "label": "Soft", "content": "<funscript text>"}
       output: {"path", "name"}
 
+* mode "reveal": shows a file in the file manager of the computer Stash runs on (Explorer /select, Finder -R, xdg-open
+  on the folder). Only files inside a library folder.
+      args:   {"mode": "reveal", "path": "<full file path>"}
+      output: {"opened": true} or {"opened": false, "why": "outside" | "missing"}
+
 * modes "phone_status" / "phone_start" / "phone_stop": "Phone upload". phoneup.py (next to this file) is a small
   receiver in the home network: the phone opens its page (QR code in Stash UI), picks photos and videos from the
   gallery and they are written into one folder inside a library folder. One receiver at a time; its port, token and
@@ -80,6 +85,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -1041,7 +1047,14 @@ def clip_cut(stash, args):
         a, b = float(c.get("start")), float(c.get("end"))
         if not (a >= 0 and b > a):
             raise ValueError("a clip ends before it starts")
-        clips.append({"start": a, "end": b, "name": clean_name(c.get("name") or "")})
+        clip = {"start": a, "end": b, "name": clean_name(c.get("name") or "")}
+        cr = c.get("crop")
+        if cr:  # a part of the picture (fractions of the width/height), e.g. {"x": .2, "y": .1, "w": .5, "h": .5}
+            x0, y0, w0, h0 = (max(0.0, min(1.0, float(cr.get(k)))) for k in ("x", "y", "w", "h"))
+            if w0 < 0.02 or h0 < 0.02 or x0 + w0 > 1.0005 or y0 + h0 > 1.0005:
+                raise ValueError("the cropped area doesn't fit into the picture")
+            clip["crop"] = {"x": x0, "y": y0, "w": min(w0, 1 - x0), "h": min(h0, 1 - y0)}
+        clips.append(clip)
     if not clips or len(clips) > 100:
         raise ValueError("no clips")
     base, ext = os.path.splitext(os.path.basename(video))
@@ -1050,8 +1063,13 @@ def clip_cut(stash, args):
         folder = os.path.join(folder, "Clips")
         os.makedirs(folder, exist_ok=True)
     job = secrets.token_hex(4)
-    spec = {"job": job, "video": video, "ffmpeg": find_ffmpeg(stash), "clips": clips, "precise": bool(args.get("precise")), "join": bool(args.get("join")),
-            "folder": folder, "base": base, "ext": ".mp4"}
+    def even(n, fallback=0):
+        n = int(float(n or 0))
+        return n - n % 2 if n >= 2 else fallback
+
+    spec = {"job": job, "video": video, "ffmpeg": find_ffmpeg(stash), "clips": clips, "precise": bool(args.get("precise")) or any("crop" in c for c in clips),
+            "join": bool(args.get("join")), "folder": folder, "base": base, "ext": ".mp4",
+            "upscale": bool(args.get("upscale")), "ref_w": even(args.get("ref_w")), "ref_h": even(args.get("ref_h"))}
     path = os.path.join(CUT_DIR, f"stashui-cut-{job}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(spec, f)
@@ -1083,6 +1101,22 @@ def unique(path):
     return p
 
 
+def crop_filter(cr, spec, any_crop):
+    """ffmpeg -vf for a cropped (zoomed-in) clip: cut the area out (even sizes for H.264), optionally scale it back up to the
+    original's height. Clips that get joined must have one size: then every part (cropped or not) is fitted into the original size."""
+    if not cr and not (spec["join"] and any_crop):
+        return ""
+    f = []
+    if cr:
+        f.append("crop=trunc(iw*{w:.5f}/2)*2:trunc(ih*{h:.5f}/2)*2:trunc(iw*{x:.5f}/2)*2:trunc(ih*{y:.5f}/2)*2".format(**cr))
+    rw, rh = spec.get("ref_w") or 0, spec.get("ref_h") or 0
+    if spec["join"] and any_crop and rw and rh:
+        f.append(f"scale={rw}:{rh}:force_original_aspect_ratio=decrease:flags=lanczos,pad={rw}:{rh}:(ow-iw)/2:(oh-ih)/2,setsar=1")
+    elif cr and spec.get("upscale") and rh:
+        f.append(f"scale=-2:'if(lt(ih,{rh}),{rh},ih)':flags=lanczos")
+    return ",".join(f)
+
+
 def cut_job(spec_path):
     with open(spec_path, encoding="utf-8") as f:
         spec = json.load(f)
@@ -1107,6 +1141,9 @@ def cut_job(spec_path):
                 label = c["name"] or f"clip {i + 1}"
                 out = unique(os.path.join(spec["folder"], f"{spec['base']} - {label}{spec['ext']}"))
             cmd = [spec["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{c['start']:.3f}", "-i", spec["video"], "-t", f"{c['end'] - c['start']:.3f}", "-map", "0:v:0", "-map", "0:a?"]
+            vf = crop_filter(c.get("crop"), spec, any("crop" in k for k in spec["clips"]))
+            if vf:
+                cmd += ["-vf", vf]
             if spec["precise"]:
                 cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"]
             else:
@@ -1139,6 +1176,246 @@ def cut_job(spec_path):
         st["state"] = "error"
         st["error"] = str(e)
     save()
+
+
+# ---------- Match two videos by their sound (O video ↔ the video playing in its background) ----------
+# {"mode": "sync_audio", "scene_a": main video, "scene_b": O video} → {"offset", "score", "sure"}
+#   offset: the O video's own start lies this many seconds into the main video (negative: the O video started earlier and the
+#   main video is already running in it at its start). O time = main time − offset. Works on the loudness changes of the two
+#   soundtracks (beats, cuts), so it also works when the O video has voices and room noise over the music. Needs numpy.
+
+SYNC_RATE = 8000
+SYNC_HOP = 80  # 10 ms
+
+
+def sync_envelope(ffmpeg, path, max_sec):
+    import numpy as np
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-t", str(max_sec), "-i", path, "-vn", "-ac", "1", "-ar", str(SYNC_RATE), "-f", "s16le", "-"]
+    r = subprocess.run(cmd, capture_output=True, creationflags=0x08000000 if os.name == "nt" else 0)
+    if r.returncode != 0 or len(r.stdout) < SYNC_RATE * 4:
+        raise RuntimeError("no sound found in " + os.path.basename(path))
+    x = np.frombuffer(r.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+    win = 1024
+    n = (len(x) - win) // SYNC_HOP
+    if n < 100:
+        raise RuntimeError("too short")
+    hann = np.hanning(win).astype(np.float32)
+    lo, hi = int(60 * win / SYNC_RATE), int(2500 * win / SYNC_RATE)  # 60 Hz – 2.5 kHz
+    flux = np.zeros(n, dtype=np.float32)
+    prev = None
+    for a in range(0, n, 4000):
+        b = min(n, a + 4000)
+        idx = np.arange(a, b)[:, None] * SYNC_HOP + np.arange(win)[None, :]
+        mag = np.log1p(40.0 * np.abs(np.fft.rfft(x[idx] * hann, axis=1))[:, lo:hi])
+        d = np.diff(mag, axis=0, prepend=(mag[:1] if prev is None else prev[None, :]))
+        flux[a:b] = np.maximum(d, 0).sum(axis=1)
+        prev = mag[-1]
+    # a calm baseline: subtract a slow average, keep what stands out
+    k = 100
+    base = np.convolve(flux, np.ones(k, dtype=np.float32) / k, mode="same")
+    f = flux - base
+    f = np.maximum(f, 0)
+    s = f.std()
+    return f / s if s > 0 else f
+
+
+def sync_audio(stash, args):
+    try:
+        import numpy as np
+    except ImportError:
+        raise RuntimeError("numpy is needed for this (pip install numpy)")
+    ffmpeg = find_ffmpeg(stash)
+    va = scene_video(stash, str(args.get("scene_a") or ""))
+    vb = scene_video(stash, str(args.get("scene_b") or ""))
+    if not (os.path.isfile(va) and os.path.isfile(vb)):
+        raise ValueError("a video file can't be reached from here")
+    a = sync_envelope(ffmpeg, va, 900)
+    b = sync_envelope(ffmpeg, vb, 3600)
+    n = 1 << int(np.ceil(np.log2(len(a) + len(b))))
+    fa, fb = np.fft.rfft(a, n), np.fft.rfft(b, n)
+    corr = np.fft.irfft(fb * np.conj(fa), n)  # corr[l] = sum a[t] * b[t + l]
+    lags = np.concatenate([np.arange(0, len(b)), np.arange(-len(a) + 1, 0)])
+    vals = np.concatenate([corr[0:len(b)], corr[n - len(a) + 1:n]])
+    # an overlap shorter than 10 s says nothing
+    ov = np.minimum(len(a), len(b) - lags)
+    ov = np.where(lags < 0, np.minimum(len(b), len(a) + lags), ov)
+    vals = np.where(ov >= 1000, vals, -1e9)
+    i = int(np.argmax(vals))
+    best = float(vals[i])
+    ok = vals > -1e8
+    mean, sd = float(vals[ok].mean()), float(vals[ok].std() or 1.0)
+    # the next best peak far away from the best one
+    far = ok & (np.abs(lags - lags[i]) > 100)
+    second = float(vals[far].max()) if far.any() else mean
+    score = (best - mean) / sd
+    ratio = best / second if second > 0 else 99.0
+    return {"offset": round(-float(lags[i]) * SYNC_HOP / SYNC_RATE, 3), "score": round(score, 1), "ratio": round(ratio, 2), "sure": bool(score > 9 and ratio > 1.25)}
+
+
+def reveal(stash, args):
+    """Show a file in the computer's file manager (Explorer / Finder). Only files inside a library folder of Stash, and only
+    on the machine Stash runs on – otherwise {"opened": false, "why": ...} and the page copies the path instead."""
+    path = str(args.get("path") or "")
+    if not path:
+        raise ValueError("no path")
+    roots, _ = libraries(stash)
+    if not inside(path, roots):
+        return {"opened": False, "why": "outside"}
+    if not os.path.exists(path):
+        return {"opened": False, "why": "missing"}
+    real = os.path.realpath(path)
+    if os.name == "nt":
+        # as one raw command line: /select,"<path>" – a list would quote the whole "/select,<path>" argument, which Explorer
+        # misreads for paths with spaces or commas (it then opens some default folder instead of selecting the file)
+        subprocess.Popen('explorer /select,"' + os.path.normpath(real) + '"', creationflags=0x08000000, close_fds=True)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", real], close_fds=True)
+    else:
+        subprocess.Popen(["xdg-open", os.path.dirname(real)], close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"opened": True}
+
+
+def cover_of(images):
+    """The address of the cover picture of a stash-box scene: the widest landscape one, otherwise the first."""
+    best, best_w = "", -1
+    for im in images or []:
+        u = str((im or {}).get("url") or "")
+        if not re.match(r"^https?://", u, re.I):
+            continue
+        w, h = int(im.get("width") or 0), int(im.get("height") or 0)
+        k = (1 if w >= h else 0) * 100000 + min(w, 1600)
+        if k > best_w:
+            best, best_w = u, k
+    return best
+
+
+def box_image(stash, args):
+    """One cover picture of a stash-box as a data address (Stash's page policy blocks foreign pictures, so the plugin fetches it).
+    Only from a stash-box set up in Stash, and only from its own host (or a host of the same domain, https) – never an address
+    of the page's choosing."""
+    import base64
+    from urllib.parse import urlparse
+    endpoint = str(args.get("endpoint") or "").strip().rstrip("/")
+    url = str(args.get("url") or "").strip()
+    boxes = stash.gql("query { configuration { general { stashBoxes { endpoint } } } }")["configuration"]["general"].get("stashBoxes") or []
+    if not any(str(b.get("endpoint") or "").rstrip("/") == endpoint for b in boxes):
+        raise ValueError("This stash-box isn't set up in Stash")
+    eh, uh = (urlparse(endpoint).hostname or "").lower(), (urlparse(url).hostname or "").lower()
+    us = urlparse(url).scheme.lower()
+    dom = lambda h: ".".join(h.split(".")[-2:])
+    if us not in ("http", "https") or not uh or not (uh == eh or (us == "https" and dom(uh) == dom(eh) and not re.match(r"^[\d.]+$", uh))):
+        raise ValueError("picture not allowed")
+    req = urllib.request.Request(url, headers={"User-Agent": "Stash-UI-plugin", "Accept": "image/*"})
+    with urllib.request.urlopen(req, timeout=20) as res:
+        ctype = (res.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if not ctype.startswith("image/"):
+            raise ValueError("not a picture")
+        raw = res.read(3 * 1024 * 1024 + 1)
+    if len(raw) > 3 * 1024 * 1024:
+        raise ValueError("picture too big")
+    return {"data": "data:" + ctype + ";base64," + base64.b64encode(raw).decode()}
+
+
+def box_scenes(stash, args):
+    """One page (up to 100) of the scenes a stash-box (StashDB …) lists for a performer – the performer page uses it to
+    show which scenes the library is missing. The box is asked with the API key Stash has for it (read here, never sent
+    to the page) and only if it is one of the stash-boxes set up in Stash."""
+    endpoint = str(args.get("endpoint") or "").strip()
+    pid = str(args.get("performer") or "").strip()
+    page = max(1, int(args.get("page") or 1))
+    text = str(args.get("text") or "").strip()[:200]  # Discover: a free text search instead of one performer's scenes
+    sort = str(args.get("sort") or "DATE").upper()
+    if sort not in ("DATE", "TRENDING", "TITLE", "CREATED_AT", "UPDATED_AT"):
+        sort = "DATE"
+    direction = "ASC" if str(args.get("direction") or "").upper() == "ASC" else "DESC"
+    per_page = max(5, min(100, int(args.get("per_page") or 100)))
+    if not endpoint or not (pid or text or args.get("browse")):
+        raise ValueError("endpoint and performer (or a search text) needed")
+    boxes = stash.gql("query { configuration { general { stashBoxes { endpoint name api_key } } } }")["configuration"]["general"].get("stashBoxes") or []
+    box = next((b for b in boxes if str(b.get("endpoint") or "").rstrip("/") == endpoint.rstrip("/")), None)
+    if not box:
+        raise ValueError("This stash-box isn't set up in Stash (Settings → Metadata Providers)")
+    if not re.match(r"^https?://", endpoint, re.I):
+        raise ValueError("bad stash-box address")
+    headers = {"Content-Type": "application/json", "User-Agent": "Stash-UI-plugin"}
+    if box.get("api_key"):
+        headers["ApiKey"] = str(box["api_key"])
+    # the field names differ a little between stash-box versions: try the likely ones
+    base_f = [
+        "id title release_date duration studio { id name } performers { performer { id name } }",
+        "id title date duration studio { id name } performers { performer { id name } }",
+        "id title release_date studio { id name } performers { performer { id name } }",
+    ]
+    # first with the cover pictures, details and tags, then only the pictures, then without in case this stash-box doesn't know them
+    extras = [" images { url width height } details tags { name }", " images { url width height }", ""]
+    fields = [f + ex for ex in extras for f in base_f]
+    since = str(args.get("since") or "").strip()  # Discover: only scenes released after this day (YYYY-MM-DD)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", since):
+        since = ""
+    only_perf = [str(x)[:64] for x in (args.get("performers_in") or []) if x][:400]  # Discover: scenes with one of these (box) performers
+    plain = bool(args.get("_plain"))
+    last = None
+    empty = None
+    for fl in fields:
+        for variant in ("sorted", "plain", "minimal"):
+            ordered = variant == "sorted"
+            inp = {"page": page} if variant == "minimal" else {"page": page, "per_page": per_page}
+            if pid:
+                inp["performers"] = {"value": [pid], "modifier": "INCLUDES"}
+            elif only_perf and not plain:
+                inp["performers"] = {"value": only_perf, "modifier": "INCLUDES"}
+            if since and not plain:
+                inp["date"] = {"value": since, "modifier": "GREATER_THAN"}
+            if text:
+                inp["title" if args.get("_title") else "text"] = text
+            if ordered:
+                inp.update({"sort": sort, "direction": direction})
+            body = json.dumps({"query": "query($i: SceneQueryInput!) { queryScenes(input: $i) { count scenes { " + fl + " } } }", "variables": {"i": inp}}).encode()
+            req = urllib.request.Request(endpoint, body, headers, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=40) as res:
+                    d = json.load(res)
+            except urllib.error.HTTPError as e:
+                try:
+                    d = json.load(e)
+                except Exception:  # noqa: BLE001
+                    raise RuntimeError(f"{box.get('name') or endpoint}: HTTP {e.code}")
+            if d.get("errors"):
+                last = "; ".join(str(x.get("message", "")) for x in d["errors"])
+                if (since or only_perf) and not plain and re.search(r"SceneQueryInput|DateCriterion|\"date\"", last):
+                    return box_scenes(stash, dict(args, _plain=True))  # this box doesn't know the date / performer criteria
+                continue  # another field set / without the sort
+            q = (d.get("data") or {}).get("queryScenes") or {}
+            out = []
+            for x in q.get("scenes") or []:
+                out.append({
+                    "id": x.get("id"),
+                    "title": x.get("title") or "",
+                    "date": x.get("release_date") or x.get("date") or "",
+                    "duration": x.get("duration") or 0,
+                    "studio": (x.get("studio") or {}).get("name") or "",
+                    "performers": [((q2 or {}).get("performer") or {}).get("name") or "" for q2 in (x.get("performers") or [])],
+                    "performer_ids": [str(((q2 or {}).get("performer") or {}).get("id") or "") for q2 in (x.get("performers") or [])],
+                    "tags": [str((g or {}).get("name") or "") for g in (x.get("tags") or []) if g][:30],
+                    "details": str(x.get("details") or "")[:3000],
+                    "image": cover_of(x.get("images")),
+                })
+            res = {"count": q.get("count") or 0, "page": page, "scenes": out, "name": box.get("name") or "", "client": plain and bool(since or only_perf)}
+            if not out and res["count"] and variant != "minimal":
+                # says it has scenes but sent none: maybe the sort or the page size is the problem – try plainer questions
+                res["debug"] = json.dumps(d, ensure_ascii=False)[:400]
+                empty = res
+                continue
+            if not out and res["count"]:
+                res["debug"] = json.dumps(d, ensure_ascii=False)[:400]
+            return res
+        if empty:
+            return empty  # answered without an error, just with no scenes: other field names won't change that
+    if text and not args.get("_title"):
+        return box_scenes(stash, dict(args, _title=True))  # a stash-box without the `text` search: try the title filter
+    if (since or only_perf) and not plain:
+        return box_scenes(stash, dict(args, _plain=True))  # a stash-box without the date / performer criteria: the page filters instead
+    raise RuntimeError(f"{box.get('name') or endpoint}: {last or 'no answer'}")
 
 
 def main():
@@ -1174,6 +1451,14 @@ def main():
             out = clip_cut(Stash(data.get("server_connection")), args)
         elif mode == "clip_status":
             out = clip_status(None, args)
+        elif mode == "sync_audio":
+            out = sync_audio(Stash(data.get("server_connection")), args)
+        elif mode == "reveal":
+            out = reveal(Stash(data.get("server_connection")), args)
+        elif mode == "box_image":
+            out = box_image(Stash(data.get("server_connection")), args)
+        elif mode == "box_scenes":
+            out = box_scenes(Stash(data.get("server_connection")), args)
         elif mode == "phone_status":
             out = phone_status(Stash(data.get("server_connection")), args)
         elif mode == "phone_start":

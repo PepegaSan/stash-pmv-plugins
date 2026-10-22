@@ -4,12 +4,13 @@
 import { $, esc, t, tn, fmt, ago, mmss, ic, toast, nav, on, modal, pushLayer, closeLayer, closeLayers, copyText, hasHover, isPhone, store, LANGS, VERSION, img } from "./core.js";
 import {
   settings, saveSettings, makeSource, listSource, ORDERS, orderOf, rg, takeUsers, userOf, userPic, users,
-  liked, following, niches, hidden, nope, blocked, history, saved, doneSet, isFollowing, setFollow, followsNiche, setNiche, isHidden, setHidden, setNope,
-  isBlockedTag, setBlockedTag, stashMark, stashDelete, DELETE_TAG, unlikeMany, clearHistory, removeFromHistory, forgetDownloads, exportData, importData, stashPerformer, usingBackend,
+  liked, following, niches, hidden, nope, blocked, history, saved, doneSet, isFollowing, setFollow, followsNiche, setNiche, tagFollows, followsTag, setFollowTag, isHidden, setHidden, setNope,
+  algo, scanTaste, creatorTags, isBlockedTag, setBlockedTag, stashMark, stashDelete, DELETE_TAG, unlikeMany, clearHistory, removeFromHistory, forgetDownloads, exportData, importData, stashPerformer, usingBackend,
 } from "./data.js";
 import { av, tick, setSpeed, setAutoNext, setFit, setMuted, setFrame, frameName, FRAMES } from "./feed.js";
 import { enqueue, jobs, jobOf, isSaved, cancelQueued, retryFailed, clearFinished, activeJobs, ensureBase } from "./dl.js";
 import { call } from "./core.js";
+import { pull, push, lastSync } from "./sync.js";
 
 const enc = encodeURIComponent;
 export const nicheName = (slug) => String(slug || "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -205,12 +206,14 @@ function tabbed(p, host, list, active, mountTab) {
 // ---------- a creator ----------
 export function openProfile(name) {
   const p = openPage(`@${esc(name)}`, { right: `<button class="ph-b" data-pmore aria-label="${esc(t("More options"))}">${ic("more")}</button>` });
-  p.body.innerHTML = `<div class="phead is-center" data-user="${esc(String(name).toLowerCase())}"></div><div class="gbox"></div>`;
+  p.body.innerHTML = `<div class="phead is-center" data-user="${esc(String(name).toLowerCase())}"></div><div class="ptagbar" hidden></div><div class="gbox"></div>`;
   const head = p.body.querySelector(".phead");
-  let S = makeSource({ t: "user", name, order: "recent" });
+  let curTag = ""; // the tag of this creator the videos are narrowed to
+  const mk = (o) => makeSource({ t: "user", name, order: o, tag: curTag });
+  let S = mk("recent");
   const paint = () => {
     const u = userOf(name) || {};
-    const total = S.total != null ? S.total : u.gifs;
+    const total = curTag ? u.gifs : S.total != null ? S.total : u.gifs;
     const fol = isFollowing(name), hid = isHidden(name);
     head.innerHTML = `${av(u.profileImageUrl || userPic(name), name, "av-xl")}
       <h1>@${esc(name)}${u.verified ? tick() : ""}</h1>${u.name && u.name !== name ? `<div class="pname">${esc(u.name)}</div>` : ""}
@@ -220,11 +223,33 @@ export function openProfile(name) {
       ${u.description ? `<p class="bio">${esc(u.description)}</p>` : ""}`;
   };
   paint();
-  const grid = mountGrid(p.body.querySelector(".gbox"), S, { root: p.body, barHost: p.el, sorts: ORDERS.user, makeS: (o) => (S = makeSource({ t: "user", name, order: o })), feedTitle: "@" + name, onCount: paint, empty: { title: t("No videos"), icon: "film" } });
+  // tags of this creator (counted over their newest videos): a tap shows only the videos with that tag, like on RedGifs
+  let tg = null, allTags = false;
+  const paintTags = () => {
+    const bar = p.body.querySelector(".ptagbar");
+    if (!bar) return;
+    if (!tg || !tg.tags.length) return void (bar.hidden = true);
+    const list = allTags ? tg.tags : tg.tags.slice(0, 12);
+    if (curTag && !list.some(([x]) => x === curTag)) list.push([curTag, (tg.tags.find(([x]) => x === curTag) || [0, 0])[1]]);
+    bar.hidden = false;
+    bar.innerHTML = `<button class="chipb${curTag ? "" : " is-on"}" data-ptag="">${esc(t("All"))}</button>${list.map(([x, n]) => `<button class="chipb${curTag === x ? " is-on" : ""}" data-ptag="${esc(x)}">#${esc(x)}${n ? ` <small>${n}</small>` : ""}</button>`).join("")}${tg.tags.length > 12 ? `<button class="chipb is-more" data-ptagmore>${esc(allTags ? t("Fewer tags") : t("Show all tags"))}</button>` : ""}${tg.total && tg.seen < tg.total ? `<small class="ptagnote">${esc(t("Tags from their newest {n} videos", { n: tg.seen }))}</small>` : ""}`;
+  };
+  creatorTags(name).then((r) => { tg = r; paintTags(); }).catch(() => {});
+  const grid = mountGrid(p.body.querySelector(".gbox"), S, { root: p.body, barHost: p.el, sorts: ORDERS.user, makeS: (o) => (S = mk(o)), feedTitle: "@" + name, onCount: paint, empty: { title: t("No videos"), icon: "film" } });
   p.cleanup(() => grid.destroy());
   p.cleanup(on("follow", ({ name: n }) => String(n).toLowerCase() === String(name).toLowerCase() && paint()));
   p.cleanup(on("hidden", paint));
   p.el.addEventListener("click", (e) => {
+    const tb = e.target.closest("[data-ptag]");
+    if (tb) {
+      if (tb.dataset.ptag === curTag) return;
+      curTag = tb.dataset.ptag;
+      S = mk(orderOf(grid.S.spec));
+      grid.attach(S);
+      paintTags();
+      return paint();
+    }
+    if (e.target.closest("[data-ptagmore]")) { allTags = !allTags; return paintTags(); }
     if (e.target.closest("[data-pf]")) {
       const now = setFollow(name, !isFollowing(name));
       return toast(now ? t("Following @{u}", { u: name }) : t("Unfollowed @{u}", { u: name }));
@@ -328,7 +353,17 @@ export function openSearch(q0 = "", tab0 = "videos", exact0 = false) {
   const p = openPage("");
   p.head.querySelector("h2").outerHTML = `<form class="searchbox is-head" role="search">${ic("search")}<input type="search" enterkeyhint="search" placeholder="${esc(t("Search"))}" autocomplete="off" spellcheck="false" value="${esc(q0)}"><button type="submit" class="sb-go">${esc(t("Search"))}</button></form>`;
   const form = p.head.querySelector("form"), inp = form.querySelector("input");
-  p.body.innerHTML = `<div class="sugg" data-sugg></div><div class="results" data-res hidden></div>`;
+  p.body.innerHTML = `<div class="tagbar" data-tagbar hidden></div><div class="sugg" data-sugg></div><div class="results" data-res hidden></div>`;
+  // a tapped #tag: its name and a button to follow it (its videos then come in For You and Following)
+  const tagbar = p.body.querySelector("[data-tagbar]");
+  let barTag = "";
+  const paintBar = () => {
+    tagbar.hidden = !barTag;
+    if (!barTag) return;
+    const f = followsTag(barTag);
+    tagbar.innerHTML = `<b>#${esc(barTag)}</b><button type="button" class="btn ${f ? "" : "is-red"}" data-ft>${ic(f ? "check" : "plus")}${esc(f ? t("Following") : t("Follow"))}</button>`;
+  };
+  p.cleanup(on("tagfollows", paintBar));
   const sugg = p.body.querySelector("[data-sugg]"), res = p.body.querySelector("[data-res]");
   let seq = 0, timer = 0, tabs = null, query = "";
   p.cleanup(() => tabs && tabs.destroy());
@@ -368,6 +403,8 @@ export function openSearch(q0 = "", tab0 = "videos", exact0 = false) {
     sugg.hidden = true;
     res.hidden = false;
     res.innerHTML = "";
+    barTag = exact ? q : "";
+    paintBar();
     if (tabs) tabs.destroy();
     tabs = tabbed(p, res, [{ id: "videos", label: t("Videos") }, { id: "creators", label: t("Creators") }, { id: "niches", label: t("Niches") }, { id: "stash", label: t("My Stash") }], tab || "videos", (id, box) => {
       if (id === "videos") return mountGrid(box, makeSource({ t: "search", q, exact, order: "trending" }), { root: p.body, barHost: p.el, sorts: ORDERS.search, makeS: (o) => makeSource({ t: "search", q, exact, order: o }), feedTitle: exact ? "#" + q : q, empty: { icon: "search", title: t("No results"), text: t("Try another word.") } });
@@ -380,6 +417,10 @@ export function openSearch(q0 = "", tab0 = "videos", exact0 = false) {
   inp.addEventListener("focus", () => { if (!res.hidden) { res.hidden = true; sugg.hidden = false; suggest(); } });
   form.addEventListener("submit", (e) => { e.preventDefault(); const q = inp.value.trim(); if (q) results(q, "videos"); });
   p.body.addEventListener("click", (e) => {
+    if (e.target.closest("[data-ft]") && barTag) {
+      const now = setFollowTag(barTag, !followsTag(barTag));
+      return toast(now ? t("Following #{t}", { t: barTag }) : t("Unfollowed #{t}", { t: barTag }));
+    }
     const x = e.target.closest("[data-delh]");
     if (x) { store.set("history", recent().filter((h) => h !== x.dataset.delh)); return showStart(); }
     if (e.target.closest("[data-clearh]")) { store.set("history", []); return showStart(); }
@@ -438,33 +479,43 @@ function pagedList(box, root, pathOf, pick, row, emptyText, cls) {
 // ---------- Explore (main view) ----------
 export function mountExplore(view) {
   const p = pageShell(view, esc(t("Explore")), { back: false });
-  p.body.innerHTML = `<button class="searchbox is-fake" data-xsearch>${ic("search")}<span>${esc(t("Search creators, niches and tags"))}</span></button><div class="xchips" data-chips></div><div class="gbox"></div>`;
+  p.body.innerHTML = `<button class="searchbox is-fake" data-xsearch>${ic("search")}<span>${esc(t("Search creators, niches and tags"))}</span></button><div class="xbar"><button class="xarr is-l" data-xarr="-1" tabindex="-1">‹</button><div class="xchips" data-chips></div><button class="xarr is-r" data-xarr="1" tabindex="-1">›</button></div><div class="gbox"></div>`;
   const chipsBox = p.body.querySelector("[data-chips]");
+  const xbar = p.body.querySelector(".xbar");
+  // (the strip scrolls sideways; make that visible and usable with a mouse: edge fade, arrows, wheel)
+  const edges = () => { xbar.classList.toggle("can-l", chipsBox.scrollLeft > 4); xbar.classList.toggle("can-r", chipsBox.scrollLeft + chipsBox.clientWidth < chipsBox.scrollWidth - 4); };
+  chipsBox.addEventListener("scroll", edges, { passive: true });
+  chipsBox.addEventListener("wheel", (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && chipsBox.scrollWidth > chipsBox.clientWidth) { chipsBox.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  if (window.ResizeObserver) new ResizeObserver(edges).observe(chipsBox);
   let pop = [], grid = null, cur = "trending";
   const base = [["trending", "Trending"], ["latest", "New"], ["top7", "Top this week"], ["top28", "Top this month"], ["top", "Top of all time"]];
   const paintChips = () => {
-    const mine = niches.map((n) => ["n:" + n.id, "#" + n.name]);
+    const mine = [...tagFollows.map((tg) => ["t:" + tg, "#" + tg]), ...niches.map((n) => ["n:" + n.id, "#" + n.name])];
     const others = pop.filter((n) => !followsNiche(n.id)).map((n) => ["n:" + n.id, "#" + (n.name || nicheName(n.id))]);
     chipsBox.innerHTML = [...base.map(([v, l]) => [v, t(l)]), ...mine, ...others].map(([v, l]) => `<button class="chipb${v === cur ? " is-on" : ""}" data-x="${esc(v)}">${esc(l)}</button>`).join("") + `<button class="chipb is-more" data-allniches>${esc(t("All niches"))} ›</button>`;
+    requestAnimationFrame(edges);
   };
   const show = (v) => {
     cur = v;
     paintChips();
     if (grid) grid.destroy();
-    const label = v.startsWith("n:") ? "#" + ((niches.find((n) => n.id === v.slice(2)) || pop.find((n) => n.id === v.slice(2)) || {}).name || nicheName(v.slice(2))) : t((base.find((b) => b[0] === v) || [, ""])[1]);
-    const S = v.startsWith("n:") ? makeSource({ t: "niche", slug: v.slice(2), order: "hot" }) : makeSource({ t: "search", order: v });
+    const label = v.startsWith("t:") ? "#" + v.slice(2) : v.startsWith("n:") ? "#" + ((niches.find((n) => n.id === v.slice(2)) || pop.find((n) => n.id === v.slice(2)) || {}).name || nicheName(v.slice(2))) : t((base.find((b) => b[0] === v) || [, ""])[1]);
+    const S = v.startsWith("t:") ? makeSource({ t: "search", q: v.slice(2), exact: true, order: "trending" }) : v.startsWith("n:") ? makeSource({ t: "niche", slug: v.slice(2), order: "hot" }) : makeSource({ t: "search", order: v });
     grid = mountGrid(p.body.querySelector(".gbox"), S, { root: p.body, barHost: view, feedTitle: label, selectable: false });
   };
   paintChips();
   show("trending");
   rg("/niches/search?query=&order=subscribers&count=20&page=1").then((d) => { pop = (d.niches || []).map((n) => ({ id: n.id, name: n.name })); paintChips(); }).catch(() => {});
   view.addEventListener("click", (e) => {
+    const ar = e.target.closest("[data-xarr]");
+    if (ar) return chipsBox.scrollBy({ left: Number(ar.dataset.xarr) * Math.max(240, chipsBox.clientWidth * 0.7), behavior: "smooth" });
     if (e.target.closest("[data-xsearch]")) return openSearch();
     if (e.target.closest("[data-allniches]")) return openNicheBrowser();
     const c = e.target.closest("[data-x]");
     if (c && c.dataset.x !== cur) { show(c.dataset.x); c.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" }); }
   });
   on("niches", paintChips);
+  on("tagfollows", paintChips);
   return { top: () => p.body.scrollTo({ top: 0, behavior: "smooth" }) };
 }
 
@@ -491,12 +542,16 @@ export function mountMe(view) {
       return null;
     }
     if (id === "niches") {
-      box.innerHTML = `<div class="gbar"><button class="btn" data-allniches>${ic("search")}${esc(t("Find niches"))}</button></div>${niches.length ? `<div class="ngrid">${niches.map((n) => nicheTile({ id: n.id, name: n.name, thumbnail: n.img })).join("")}</div>` : `<div class="gempty">${ic("tag")}<b>${esc(t("No niches followed"))}</b><span>${esc(t("Follow niches and For You shows more of them."))}</span></div>`}`;
+      box.innerHTML = `<div class="gbar"><button class="btn" data-allniches>${ic("search")}${esc(t("Find niches"))}</button></div>${tagFollows.length ? `<h3 class="mh">${esc(t("Your tags"))}</h3><div class="chips" data-mytags>${tagFollows.map((tg) => `<button class="chipb" data-ftag="${esc(tg)}">#${esc(tg)}</button>`).join("")}</div>` : ""}${niches.length ? `<div class="ngrid">${niches.map((n) => nicheTile({ id: n.id, name: n.name, thumbnail: n.img })).join("")}</div>` : `<div class="gempty">${ic("tag")}<b>${esc(t("No niches followed"))}</b><span>${esc(t("Follow niches and For You shows more of them."))}</span></div>`}`;
       return null;
     }
   });
+  // (followed or unfollowed a tag while another page was on top: the list shows the new state when it is the open tab)
+  on("tagfollows", () => { const b = view.querySelector(".ptab.is-on"); if (b && b.dataset.tab === "niches" && view.isConnected) tabs.show("niches"); });
   view.addEventListener("click", (e) => {
     if (e.target.closest("[data-set]")) return nav.openSettings();
+    const ftg = e.target.closest("[data-ftag]");
+    if (ftg) return nav.openSearch(ftg.dataset.ftag, "videos", true);
     const g = e.target.closest("[data-go]");
     if (g) return tabs.show(g.dataset.go);
     if (e.target.closest("[data-playliked]")) return liked.length && nav.openFeed(listSource(liked.slice().reverse()), 0, t("Liked"));
@@ -643,9 +698,9 @@ export function openShare(g, F) {
       if (a === "dl") { close(); return saved ? toast(t("Already saved")) : running ? toast(t("Already downloading")) : enqueue([g]); }
       if (a === "nope") {
         close();
-        setNope(g.id, true);
+        setNope(g.id, true, g);
         F && F.go(1);
-        return toast(t("You'll see fewer videos like this"), false, { label: t("Undo"), fn: () => setNope(g.id, false) });
+        return toast(t("You'll see fewer videos like this"), false, { label: t("Undo"), fn: () => setNope(g.id, false, g) });
       }
       if (a === "mark") {
         close();
@@ -684,6 +739,29 @@ function blockSheet(g) {
 }
 
 // ---------- about one video: who, when, niches and tags ----------
+// why the For You algorithm picked it: [kind, name] from algo.js
+const whyText = ([k, v]) => k === "t" ? t("Because you like #{t}", { t: algo.nameOf("t:" + v) })
+  : k === "n" ? t("Because you like #{t}", { t: nicheName(v) })
+  : k === "u" ? t("You like videos from @{u}", { u: v })
+  : k === "x" ? t("Something different to try")
+  : k === "f" ? t("New on RedGifs")
+  : k === "r" ? t("Trending right now") : t("Picked for you");
+
+// what the algorithm learned, as chips you can tap away (Settings → Your feed)
+function tasteHtml() {
+  const chip = (key, label) => `<button class="chipb is-x is-taste" data-forgetf="${esc(key)}">${esc(label)} ${ic("close")}</button>`;
+  const lab = (key) => (key[0] === "u" ? "@" + key.slice(2) : key[0] === "n" ? "#" + nicheName(key.slice(2)) : "#" + algo.nameOf(key));
+  const withKey = (pre, list) => list.map(([k, w]) => [pre + k, w]);
+  const likes = [...withKey("t:", algo.top("t:", 12)), ...withKey("n:", algo.top("n:", 10))].sort((a, b) => b[1] - a[1]).slice(0, 16);
+  const people = withKey("u:", algo.top("u:", 8));
+  const less = [...withKey("t:", algo.worst("t:", 6)), ...withKey("n:", algo.worst("n:", 4)), ...withKey("u:", algo.worst("u:", 4))].sort((a, b) => a[1] - b[1]);
+  const empty = !likes.length && !people.length && !less.length;
+  return `<div class="set is-col"><span class="st"><b>${esc(t("What RedTok learned"))}</b><small>${esc(empty ? t("Nothing yet – watch, like and skip a few videos and this fills up.") : t("The strongest come first. Tap one to forget it."))}</small></span>
+    ${likes.length ? `<small class="tl">${esc(t("Topics you like"))}</small><div class="chips">${likes.map(([k]) => chip(k, lab(k))).join("")}</div>` : ""}
+    ${people.length ? `<small class="tl">${esc(t("Creators you like"))}</small><div class="chips">${people.map(([k]) => chip(k, lab(k))).join("")}</div>` : ""}
+    ${less.length ? `<small class="tl">${esc(t("Fewer of these"))}</small><div class="chips">${less.map(([k]) => chip(k, lab(k))).join("")}</div>` : ""}
+    <span class="setrow"><button class="btn is-sm" data-scan>${esc(t("Scan my likes, downloads and follows"))}</button>${empty ? "" : `<button class="btn is-ghost is-sm" data-forgetall>${esc(t("Forget what RedTok learned"))}</button>`}</span></div>`;
+}
 export function openDetails(g) {
   const facts = [
     g.views ? [g.stash ? t("Plays") : t("Views"), fmt(g.views)] : null,
@@ -697,6 +775,7 @@ export function openDetails(g) {
   modal(`<div class="dhead" data-who>${av(pic, g.user)}<span><b>${g.stash ? "" : "@"}${esc(g.user)}${g.verified ? tick() : ""}</b><small>${esc(g.stash ? g.studio || t("My Stash") : t("Creator"))}</small></span>${g.stash ? "" : `<button class="btn ${isFollowing(g.user) ? "" : "is-red"} is-sm" data-uf="${esc(g.user)}">${esc(isFollowing(g.user) ? t("Following") : t("Follow"))}</button>`}</div>
     ${g.desc ? `<p class="ddesc">${esc(g.desc)}</p>` : ""}
     <div class="facts">${facts.map(([k, v]) => `<span><small>${esc(k)}</small><b>${esc(v)}</b></span>`).join("")}</div>
+    ${g.why ? `<div class="dwhy"><small>${esc(t("Why you see this"))}</small><b>${esc(whyText(g.why))}</b></div>` : ""}
     ${g.niches && g.niches.length ? `<h4 class="mh">${esc(t("Niches"))}</h4><div class="chips">${g.niches.map((n) => `<button class="chipb" data-dn="${esc(n)}">#${esc(nicheName(n))}</button>`).join("")}</div>` : ""}
     ${g.tags && g.tags.length ? `<h4 class="mh">${esc(t("Tags"))}</h4><div class="chips">${g.tags.map((x, k) => `<button class="chipb" data-dt="${esc(x)}"${g.tagIds ? ` data-tid="${esc(g.tagIds[k])}"` : ""}>#${esc(x)}</button>`).join("")}</div>` : ""}
     ${(g.tags && g.tags.length) || (g.niches && g.niches.length) ? `<button class="btn is-ghost is-full" data-blocktag>${esc(t("Block a tag"))}</button>` : ""}
@@ -737,8 +816,18 @@ export function openSettings(focus) {
     <div class="set is-col" data-focus="base"><span class="st"><b>${esc(t("Download folder"))}</b><small>${esc(t("Videos go into a folder per creator in here. Put it inside your Stash library, then Stash finds them."))}</small></span>
       <span class="setrow"><input type="text" data-k="base" value="${esc(settings.base)}" placeholder="${esc(t("e.g. D:\\Videos\\RedGifs"))}" spellcheck="false"><button class="btn" data-detect>${esc(t("Suggest"))}</button></span></div>
     ${sel("quality", t("Download quality"), "", [["hd", t("HD (original)")], ["sd", t("SD (smaller)")]])}
+    ${sw("bg", t("Keep downloading in the background"), t("Stash carries on downloading, scanning and filling in the details when you close this page. Needs the plugin reloaded after an update – until then the page downloads itself, as before."))}
     ${sw("scan", t("Scan into Stash"), t("After downloading, Stash scans the folders that got new videos."))}
+    ${sw("meta", t("Fill in date and creator"), t("Once Stash has the new videos, RedTok sets their date, the creator as the studio and the RedGifs link. Needs this page to stay open for a minute."))}
+    ${sw("metaTags", t("Add RedGifs tags as Stash tags"), t("Off by default: it can add many new tags to your Stash tag list. On: the tags RedGifs shows for a saved video are put on its scene (missing ones are created)."))}
+    ${sw("metaPerf", t("Add the creator as a performer"), t("Off by default. On: the creator becomes a performer in Stash (created if missing, with their RedGifs link) and is put on the scene."))}
     <h3 class="sh">${esc(t("Your feed"))}</h3>
+    ${sw("algo", t("Smart For You"), t("For You learns from what you watch, like, save and skip, and picks the next videos from several places: your niches, #tags and creators, what's trending or new, and things to try. Off: the older, simple mix."))}
+    ${sw("learn", t("Learn from what I watch"), t("Watching a video to the end or twice counts for it, skipping it at once counts against it. Likes, saves and follows always count. Off: only those teach it."))}
+    ${sel("explore", t("Try new things"), t("How often For You shows something outside your usual taste."), [["low", t("Rarely")], ["mid", t("Sometimes")], ["high", t("Often")]])}
+    ${tasteHtml()}
+    <div class="set is-col"><span class="st"><b>${esc(t("Tags you follow"))}</b><small>${esc(tagFollows.length ? t("Their videos show up in For You. Tap one to stop following.") : t("None. Open a #tag (tap it under a video) and press Follow."))}</small></span>${tagFollows.length ? `<div class="chips">${tagFollows.map((x) => `<button class="chipb is-x" data-untagf="${esc(x)}">#${esc(x)} ${ic("close")}</button>`).join("")}</div>` : ""}</div>
+    ${sw("followTags", t("Include followed #tags in Following"), t("Off: Following only shows the creators you follow – the #tags you follow feed For You. On: their newest videos are mixed into Following (popular tags can fill it)."))}
     <div class="set is-col"><span class="st"><b>${esc(t("Hidden creators"))}</b><small>${esc(hidden.length ? t("Their videos never show up. Tap one to show it again.") : t("None. Hide a creator from a video's share menu."))}</small></span>${hidden.length ? `<div class="chips">${hidden.map((h) => `<button class="chipb is-x" data-unhide="${esc(h)}">@${esc(h)} ${ic("close")}</button>`).join("")}</div>` : ""}</div>
     <div class="set"><span class="st"><b>${esc(t("Not interested"))}</b><small>${esc(tn(nope.length, "{n} video left out", "{n} videos left out"))}</small></span>${nope.length ? `<button class="btn is-ghost is-sm" data-resetnope>${esc(t("Reset"))}</button>` : ""}</div>
     <div class="set is-col"><span class="st"><b>${esc(t("Blocked tags"))}</b><small>${esc(blocked.length ? t("Videos with these tags or niches never show up. Tap one to unblock it.") : t("None yet. Add one below, or block a tag from a video's details."))}</small></span>${blocked.length ? `<div class="chips">${blocked.map((b) => `<button class="chipb is-x" data-unblock="${esc(b)}">#${esc(b)} ${ic("close")}</button>`).join("")}</div>` : ""}
@@ -746,6 +835,7 @@ export function openSettings(focus) {
     <h3 class="sh">${esc(t("Language"))}</h3>
     ${sel("lang", t("Language"), t("Automatic follows Stash UI or Stash."), LANGS.map(([c, l]) => [c, c === "auto" ? t("Automatic") : l]))}
     <h3 class="sh">${esc(t("Your data"))}</h3>
+    ${sw("syncDev", t("Sync between devices"), t("Follows, niches, #tags, likes, saved, hidden and blocked are kept in Stash and shared with every device that opens this Stash with this switch on. The newer change wins; watch history and settings stay on each device.") + (lastSync() ? " " + t("Last synced: {time}", { time: new Date(lastSync()).toLocaleTimeString() }) : ""))}
     <div class="set is-col"><span class="st"><b>${esc(t("{a} liked · {b} followed · {c} watched · {d} saved", { a: liked.length, b: following.length, c: history.length, d: Math.max(saved.length, doneSet.size) }))}</b><small>${esc(t("All of it stays in this browser. A copy goes to a backup file next to Stash, so another browser or device gets it back by itself."))}</small></span>
       <span class="setrow"><button class="btn" data-export>${ic("down")}${esc(t("Export"))}</button><label class="btn">${ic("backup")}${esc(t("Import"))}<input type="file" accept=".json,application/json" data-import hidden></label><button class="btn is-ghost" data-clearw>${esc(t("Clear watch history"))}</button><button class="btn is-ghost" data-forget>${esc(t("Forget downloads list"))}</button></span></div>
     <h3 class="sh">${esc(t("Keyboard"))}</h3>
@@ -776,6 +866,15 @@ export function openSettings(focus) {
     settings[k] = v;
     saveSettings();
     nav.emitSettings();
+    if (k === "syncDev" && v) {
+      try {
+        const n = await pull();
+        await push();
+        if (n) { toast(t("Synced – reloading")); return setTimeout(() => location.reload(), 700); }
+        toast(t("Sync is on"));
+      } catch (x) { toast(t("Sync didn't work – {e}", { e: String((x && x.message) || x) }), true); }
+      return paint();
+    }
     if (k === "lang") { toast(t("Reloading…")); setTimeout(() => location.reload(), 500); }
     else toast(t("Saved"));
   });
@@ -788,6 +887,22 @@ export function openSettings(focus) {
       } catch (x) { toast(String(x.message || x), true); }
       return;
     }
+    const sc = e.target.closest("[data-scan]");
+    if (sc) {
+      return modalConfirm(t("Scan your likes, downloads and follows?"), t("RedTok reads your likes, saved videos, downloads, follows, followed niches and #tags again, asks RedGifs for the tags of older likes and downloads that have none, and looks at some top videos of the creators you follow. What it learned from watching so far is replaced. This can take a minute."), t("Scan"), async () => {
+        sc.disabled = true;
+        try {
+          const r = await scanTaste((n, m) => { sc.textContent = t("Scanning… {n} of {m}", { n, m }); });
+          paint();
+          toast(r.stopped ? t("RedGifs asks to slow down – try again in a minute") : t("Scanned {a} videos and {b} creators", { a: r.videos, b: r.creators }), r.stopped);
+        } catch (x) { sc.disabled = false; paint(); toast(String((x && x.message) || x), true); }
+      });
+    }
+    const ff = e.target.closest("[data-forgetf]");
+    if (ff) { algo.forget(ff.dataset.forgetf); return paint(); }
+    if (e.target.closest("[data-forgetall]")) return modalConfirm(t("Forget what RedTok learned?"), t("Your likes, follows and saves stay – For You starts from them again."), t("Forget"), () => { algo.reset(); algo.bootstrap({ liked, saved, history, following, niches, tagFollows }); paint(); toast(t("Forgotten")); });
+    const utf = e.target.closest("[data-untagf]");
+    if (utf) { setFollowTag(utf.dataset.untagf, false); return paint(); }
     const ub = e.target.closest("[data-unblock]");
     if (ub) { setBlockedTag(ub.dataset.unblock, false); return paint(); }
     if (e.target.closest("[data-blockadd]")) {

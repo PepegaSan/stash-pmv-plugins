@@ -17,6 +17,7 @@
   animation: kb-fade .2s ease;
 }
 .kb-stage.has-panel { grid-template-columns: minmax(0, 1fr) min(380px, 34vw); }
+.kb-stage.is-stepping { animation: none; } /* next picture: the frame is replaced in place, no fade over the page (that was the flicker) */
 .kb-screen { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; }
 .kb-video { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .kb-slowmo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; pointer-events: none; }
@@ -157,12 +158,20 @@
   transform: translateX(-50%);
   pointer-events: none;
 }
-.kb-tl-peek-img { border: 2px solid var(--paper); border-radius: 3px; box-shadow: 0 10px 26px rgba(0, 0, 0, .6); }
-.kb-tl-peek span { padding: 2px 7px; border-radius: 3px; color: var(--ink); font: 600 12px/1.3 var(--f-label); background: var(--paper); }
+.kb-tl-peek-img { box-sizing: content-box; border: 2px solid var(--paper); border-radius: 3px; box-shadow: 0 10px 26px rgba(0, 0, 0, .6); background-color: #000; }
+.kb-tl-peek span { white-space: nowrap; padding: 2px 7px; border-radius: 3px; color: var(--ink); font: 600 12px/1.3 var(--f-label); background: var(--paper); }
 
 /* Image viewer */
 .kb-canvas { position: absolute; inset: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; overflow: hidden; touch-action: none; } /* one cell the size of the screen – so max-width/height 100 % mean the screen, not the picture */
 .kb-img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; transition: transform .12s ease-out; user-select: none; }
+/* page turning in the image viewer (Settings → Player): the new picture comes in */
+@keyframes kb-in-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kb-in-slide { from { opacity: .55; transform: translateX(calc(var(--dir, 1) * 7%)); } to { opacity: 1; transform: none; } }
+@keyframes kb-in-zoom { from { opacity: .55; transform: scale(.94); } to { opacity: 1; transform: none; } }
+.kb-img.kb-in-fade { animation: kb-in-fade .28s ease-out; }
+.kb-img.kb-in-slide { animation: kb-in-slide .26s cubic-bezier(.2, .8, .2, 1); }
+.kb-img.kb-in-zoom { animation: kb-in-zoom .3s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .kb-img.kb-in-fade, .kb-img.kb-in-slide, .kb-img.kb-in-zoom { animation: none; } }
 .kb-stage.is-zoomed .kb-canvas { cursor: grab; }
 .kb-stage.is-zoomed .kb-canvas:active { cursor: grabbing; }
 .kb-nav-arrow {
@@ -773,3 +782,7 @@ html.kb-glass .kb-pmvg-take { border-color: var(--glass-edge); border-radius: 14
 .kb-pmvg-lsrow > span { display: inline-flex; align-items: center; gap: 8px; }
 .kb-pmvg-lsrow select { width: auto; min-width: 150px; }
 html.kb-glass .kb-pmvg-lsrow select { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .25); }
+
+/* A–B loop: the repeated part on the timeline (an open A is just a line) */
+.kb-tl-loop { position: absolute; top: 0; bottom: 0; min-width: 2px; border-left: 2px solid var(--pink-2, var(--pink)); border-right: 2px solid var(--pink-2, var(--pink)); background: color-mix(in srgb, var(--pink) 30%, transparent); pointer-events: none; }
+.kb-tl-loop.is-open { border-right: 0; background: none; }

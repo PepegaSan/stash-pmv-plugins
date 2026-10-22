@@ -27,8 +27,9 @@ export function dateOf(text) {
   return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-export function openEditor(kind, pieces, { onSaved, onDeleted } = {}) {
-  if (pieces.length === 1) return editOne(kind, pieces[0].id, { onSaved, onDeleted });
+// quick: opened with a key on a card – the page behind stays as it is and the tags field has the cursor
+export function openEditor(kind, pieces, { onSaved, onDeleted, quick } = {}) {
+  if (pieces.length === 1) return editOne(kind, pieces[0].id, { onSaved, onDeleted, quick });
   return editMany(kind, pieces, { onSaved });
 }
 
@@ -56,7 +57,7 @@ function starInput(host, value, onChange) {
   paint();
 }
 
-async function editOne(kind, id, { onSaved, onDeleted }) {
+async function editOne(kind, id, { onSaved, onDeleted, quick }) {
   let x;
   try {
     x = await GET[kind](id);
@@ -71,6 +72,7 @@ async function editOne(kind, id, { onSaved, onDeleted }) {
   const state = { rating100: x.rating100 || 0, tags: tagIds, fav: isFav };
 
   const d = openDrawer({
+    light: quick,
     title: t(TITLES[kind][0]),
     body: `
       ${kind === "scene" ? '<section class="kb-pe-scrape" data-scrape></section>' : ""}
@@ -93,6 +95,7 @@ async function editOne(kind, id, { onSaved, onDeleted }) {
   if (kind === "scene") el.classList.add("kb-pe");
   starInput(el.querySelector("[data-stars]"), state.rating100, (v) => (state.rating100 = v));
   const picker = tagPicker(el.querySelector("[data-tags]"), { include: tagIds, allowCreate: true, placeholder: t("Search or create a tag") });
+  if (quick) el.querySelector("[data-tags] input").focus();
   knowPerformers(x.performers);
   const perfs = perfPicker(el.querySelector("[data-perfs]"), { include: (x.performers || []).map((p) => p.id), modes: false, allowCreate: true, placeholder: t("Search or create a performer") });
   const studio = studioPicker(el.querySelector("[data-studio]"), { include: x.studio ? [x.studio.id] : [], names: x.studio ? { [x.studio.id]: x.studio.name } : {}, create: createStudio, placeholder: t("Search or create a studio") });
@@ -190,10 +193,14 @@ export async function deleteWithConfirm(kind, id, then) {
   }
 }
 
-function editMany(kind, pieces, { onSaved }) {
+// Tags (and rating) of one or more items in the small "add / remove" form – also for a single one (the T key on a card)
+export const openQuickTags = (kind, pieces, opts = {}) => editMany(kind, pieces, opts);
+
+function editMany(kind, pieces, { onSaved, quick }) {
   const ids = pieces.map((p) => p.id);
   const state = { rating100: undefined, add: [], remove: [], organized: "" };
   const d = openDrawer({
+    light: quick,
     title: t("Edit {what}", { what: plural(ids.length, UNITS[kind][0], UNITS[kind][1]) }),
     body: `
       <p class="kb-hint">${t("Only what you change here is applied to all selected items. Everything else stays as it is.")}</p>
@@ -208,6 +215,7 @@ function editMany(kind, pieces, { onSaved }) {
   });
   const el = d.el;
   const addP = tagPicker(el.querySelector("[data-add]"), { allowCreate: true, placeholder: t("Search or create a tag") });
+  if (quick) el.querySelector("[data-add] input").focus();
   const rmP = tagPicker(el.querySelector("[data-rm]"), { placeholder: t("Search tag") });
   const addPerf = perfPicker(el.querySelector("[data-padd]"), { modes: false, allowCreate: true, placeholder: t("Search or create a performer") });
   const rmPerf = perfPicker(el.querySelector("[data-prm]"), { modes: false, placeholder: t("Search performer") });

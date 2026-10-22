@@ -12,6 +12,11 @@ const UNIT = { scene: ["scene", "scenes"], image: ["image", "images"], gallery: 
 const walls = new Set();
 let bar = null;
 
+// "Continue watching" on the home page: scenes you took off the list stay off until you watch them again (the resume
+// point changes) – kept here in the browser, Stash's own watch history is left alone
+const hideKey = (p) => Math.round((p.resume || 0) * 1000);
+export const resumeHidden = (p) => store.get("resumeHidden", {})[p.id] === hideKey(p);
+
 export function track(h) {
   walls.add(h);
   const prev = h.opts.onSelect;
@@ -58,6 +63,7 @@ export function refresh() {
     <button class="kb-btn" data-b="unfav">${t("Remove favorite")}</button>
     ${kinds.size === 1 ? `<button class="kb-btn" data-b="edit">${icon("edit")}${t("Edit")}</button>` : ""}
     ${canQueue ? `<button class="kb-btn" data-b="genprev" title="${t("Makes the missing hover previews, timeline images and thumbnails of just these items")}">${t("Generate previews")}</button>` : ""}
+    ${sel.some((x) => x.h.opts.resumeWall) ? `<button class="kb-btn" data-b="unresume" title="${t("Takes the scenes off the Continue watching list – until you watch them again. Your watch history stays.")}">${t("Remove from Continue watching")}</button>` : ""}
     ${canQueue ? `<button class="kb-btn" data-b="queue">${icon("queue")}${t("Add to queue")}</button>` : ""}
     <button class="kb-btn is-danger" data-b="delete">${icon("trash")}${t("Delete")}</button>
     <span class="kb-spacer"></span>
@@ -89,6 +95,18 @@ async function onClick(e) {
         sel.forEach(({ h, p }) => h.update(Object.assign({}, p, { fav: on })));
         toast(on ? t("{what} marked as favorite", { what: plural(sel.length, "item", "items") }) : t("Favorites removed"), "ok");
         return;
+      }
+      case "unresume": {
+        const mine = sel.filter((x) => x.h.opts.resumeWall);
+        const hid = store.get("resumeHidden", {});
+        mine.forEach(({ p }) => (hid[p.id] = hideKey(p)));
+        store.set("resumeHidden", hid);
+        const gone = new Map();
+        mine.forEach(({ h, p }) => (gone.get(h) || gone.set(h, []).get(h)).push(p.kind + ":" + p.id));
+        gone.forEach((keys, h) => h.remove(keys));
+        window.dispatchEvent(new Event("stash:library-changed"));
+        toast(t("{what} taken off Continue watching", { what: plural(mine.length, "scene", "scenes") }), "ok");
+        return refresh();
       }
       case "genprev": {
         const groups = byKind(sel);

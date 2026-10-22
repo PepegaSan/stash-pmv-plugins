@@ -12,6 +12,19 @@ export async function render(host, params) {
   const ctx = app.context || {};
   const prefs = store.get("viewer", { panel: false, interval: 5 });
   let x = await getImage(params.id);
+  // The new picture is loaded before it is drawn: the old one stays until then – no blank flash between two images
+  if (x && x.paths && x.paths.image && !(x.visual_files[0] && x.visual_files[0].__typename === "VideoFile")) {
+    await new Promise((res) => {
+      const pre = new Image();
+      pre.onload = pre.onerror = () => res();
+      pre.src = x.paths.image;
+      setTimeout(res, 2500);
+    });
+  }
+  // How the picture comes in (Settings → Player): fade, slide in from the side you are going to, zoom or none
+  const anim = prefs.anim || "fade";
+  const dirIn = app.viewerDir || 0;
+  app.viewerDir = 0;
   if (!x) {
     host.innerHTML = `<div class="kb-stage"><div class="kb-empty"><b>${t("This image no longer exists")}</b><button class="kb-btn" data-close>${t("Close")}</button></div></div>`;
     host.querySelector("[data-close]").onclick = closeOverlay;
@@ -54,6 +67,17 @@ export async function render(host, params) {
   const $ = (s) => host.querySelector(s);
   const img = $(".kb-img");
   const canvas = $("[data-canvas]");
+  // Stepping from one picture to the next: the frame (bars, panel) just stays – it must not fade in again, and the
+  // controls keep their state (hidden stays hidden). A plain fade of the already loaded picture would only dip to dark.
+  const stepping = !!dirIn;
+  if (stepping) {
+    stage.classList.add("is-stepping");
+    if (app.viewerIdle) stage.classList.add("is-idle");
+  }
+  if (anim !== "none" && !(stepping && anim === "fade")) {
+    img.style.setProperty("--dir", dirIn || 1);
+    img.classList.add("kb-in-" + (anim === "slide" && !dirIn ? "fade" : anim)); // (opened from a list: no side to come from)
+  }
 
   const L = list();
   const pos = posNow();
@@ -90,18 +114,52 @@ export async function render(host, params) {
   }, { passive: false });
   canvas.addEventListener("dblclick", (e) => setZoom(zoom > 1 ? 1 : 2.5, e.clientX, e.clientY));
   let drag = null;
+  let swipe = null; // a mouse / pen drag with the picture not zoomed: turns the page like a swipe
   canvas.addEventListener("pointerdown", (e) => {
-    if (zoom <= 1) return;
+    if (zoom <= 1) {
+      if (e.pointerType === "touch" || e.button !== 0 || list().length < 2) return; // (touch: see below)
+      swipe = { x: e.clientX, y: e.clientY, moved: false };
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
     drag = { x: e.clientX, y: e.clientY, tx, ty };
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener("pointermove", (e) => {
+    if (swipe) {
+      const dx = e.clientX - swipe.x;
+      if (Math.abs(dx) > 8) swipe.moved = true;
+      if (swipe.moved) {
+        img.style.transition = "none";
+        img.style.transform = `translateX(${dx * 0.6}px)`;
+        img.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 900));
+      }
+      return;
+    }
     if (!drag) return;
     tx = drag.tx + e.clientX - drag.x;
     ty = drag.ty + e.clientY - drag.y;
     apply();
   });
-  canvas.addEventListener("pointerup", () => (drag = null));
+  const endSwipe = (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x;
+    const dy = e.clientY - swipe.y;
+    const was = swipe;
+    swipe = null;
+    img.style.transition = "";
+    img.style.opacity = "";
+    apply();
+    if (was.moved && Math.abs(dx) > 90 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+  };
+  canvas.addEventListener("pointerup", (e) => {
+    drag = null;
+    endSwipe(e);
+  });
+  canvas.addEventListener("pointercancel", (e) => {
+    drag = null;
+    endSwipe(e);
+  });
 
   // Swipe on touch devices
   let touch = null;
@@ -130,6 +188,7 @@ export async function render(host, params) {
     if (inQueue) store.set("queuePos", i);
     if (it.kind === "scene") return go("scene/" + it.id, true);
     slideKeep = !!slideTimer;
+    app.viewerDir = dir;
     go("image/" + it.id, true);
   }
 
@@ -186,7 +245,7 @@ export async function render(host, params) {
     idle = setTimeout(() => stage.classList.add("is-idle"), 2400);
   };
   stage.addEventListener("pointermove", wake);
-  wake();
+  if (!(stepping && app.viewerIdle)) wake();
 
   // ---------- Placard ----------
   const side = $("[data-side]");
@@ -227,6 +286,7 @@ export async function render(host, params) {
     else if (k === "z") setZoom(zoom > 1 ? 1 : 2.5);
     else if (k === "f") fullscreen();
     else if (k === "i") $("[data-panel]").click();
+    else if (k === "e") $("[data-edit]") && $("[data-edit]").click(); // edit
     else if (k === "delete") $("[data-delete]") && $("[data-delete]").click(); // asks first
     else if (k === "h") plc.fav().catch((err) => errorToast(err, "Favorite"));
     else if (k === "o") plc.o(1).catch((err) => errorToast(err, "O counter"));
@@ -242,6 +302,8 @@ export async function render(host, params) {
 
   return () => {
     document.removeEventListener("keydown", onKey);
+    clearTimeout(idle);
+    app.viewerIdle = stage.classList.contains("is-idle"); // (the next picture keeps it)
     app.slideshowRunning = slideKeep && !!slideTimer;
     clearInterval(slideTimer);
     if (isVid) {

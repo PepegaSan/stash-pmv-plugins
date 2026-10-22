@@ -4,7 +4,7 @@ import { tierNow } from "../tiers.js";
 import { largeNow } from "../scale.js";
 import { tierBadge } from "../versusx.js";
 import { critOf } from "../ratingx.js";
-import { esc, icon, errorToast, toast, plural, starsHtml, ratingClick, ratingFromInput, ratingToast, fmtDate, pop, burst, store } from "../ui.js";
+import { esc, icon, errorToast, toast, plural, starsHtml, ratingClick, ratingFromInput, ratingToast, fmtDate, pop, burst, store, editKey } from "../ui.js";
 import { t } from "../i18n.js";
 import { getPerformer, updatePerformer, gql } from "../api.js";
 import { openPerformerEditor } from "./perfedit.js";
@@ -36,6 +36,7 @@ async function stashIdLinks(id) {
 }
 
 import { mountSlots } from "../ext.js";
+import { mountPerfPanel } from "./perfstats.js";
 
 export async function render(main, params, query) {
   const p = await getPerformer(params.id);
@@ -75,11 +76,13 @@ export async function render(main, params, query) {
         <p class="kb-sub">${[p.scene_count ? plural(p.scene_count, "scene", "scenes") : "", p.image_count ? plural(p.image_count, "image", "images") : "", p.gallery_count ? plural(p.gallery_count, "gallery", "galleries") : ""].filter(Boolean).join(t(", ")) || t("Nothing with this performer yet")}</p>
         <div class="kb-plc-acts">
           <div data-rate>${starsHtml(p.rating100, true)}</div>
-          <button class="kb-plc-btn${p.favorite ? " is-on" : ""}" data-fav><span class="kb-dotmini"></span>${p.favorite ? t("Favorite") : t("Add to favorites")}</button>
+          <button class="kb-plc-btn${p.favorite ? " is-on" : ""}" data-fav><span class="kb-dotmini"></span>${p.favorite ? t("Remove from favorites") : t("Add to favorites")}</button>
           <button class="kb-plc-btn" data-advrate title="${t("Rate by several criteria – Stash's rating follows")}">★+ ${t("Detailed")}</button>
           ${p.o_counter ? `<span class="kb-plc-btn is-static" title="${t("O counter")}">${icon("drop")}${p.o_counter}</span>` : ""}
           <button class="kb-plc-btn" data-edit>${icon("edit")}${t("Edit")}</button>
           <button class="kb-plc-btn" data-addmedia title="${t("Link scenes, images and galleries to this performer")}">${icon("plus")}${t("Add scenes and images")}</button>
+          <button class="kb-plc-btn" data-pstats title="${t("What the library holds of this performer: scenes per year, watch time, rating, tags …")}">${icon("chart")}${t("Statistics")}</button>
+          <button class="kb-plc-btn" data-pmiss title="${t("Scenes this performer has on StashDB (or another stash-box) that the library doesn't have")}">${icon("search")}${t("Missing scenes")}</button>
         </div>
         ${facts.length ? `<dl class="kb-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` : ""}
         ${critOf("performer", p) ? `<div class="kb-critlist" title="${t("Detailed rating")}">${critOf("performer", p).map((c) => `<span class="kb-critchip"><b>${esc(t(c.name))}</b><i style="--v:${c.score * 20}%"></i><em>${c.score}</em></span>`).join("")}</div>` : ""}
@@ -89,6 +92,7 @@ export async function render(main, params, query) {
         ${p.details ? `<p class="kb-lead kb-perf-details">${esc(p.details)}</p>` : ""}
       </div>
     </header>
+    <section class="kb-pst-panel" data-perfpanel hidden></section>
     <div data-taglink></div>
     <section data-browser></section>`;
   stashIdLinks(p.id).then((list) => {
@@ -214,7 +218,7 @@ export async function render(main, params, query) {
       await updatePerformer({ id: p.id, favorite: on });
       p.favorite = on;
       btn.classList.toggle("is-on", on);
-      btn.innerHTML = `<span class="kb-dotmini"></span>${on ? t("Favorite") : t("Add to favorites")}`;
+      btn.innerHTML = `<span class="kb-dotmini"></span>${on ? t("Remove from favorites") : t("Add to favorites")}`;
       const heart = btn.querySelector(".kb-dotmini");
       if (on) {
         pop(heart, 1.8);
@@ -238,7 +242,11 @@ export async function render(main, params, query) {
     setQuery({ edit: "" });
     edit(true);
   }
+  const offKey = editKey(main);
+  const offPanel = mountPerfPanel(main, p);
   return () => {
+    offKey();
+    offPanel();
     xhead.destroy();
     b.destroy();
   };

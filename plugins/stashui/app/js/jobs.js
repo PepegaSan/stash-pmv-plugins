@@ -9,10 +9,11 @@ const listeners = new Set();
 const CHANGES_LIBRARY = /scan|clean|delet|import|migrat/i; // Stash's job descriptions are always English
 let last = new Map();
 export let jobs = [];
+export let finished = []; // what ended during this visit: {id, description, at, state: done | cancelled}, newest first
 
 export function onJobs(fn) {
   listeners.add(fn);
-  fn(jobs);
+  fn(jobs, finished);
   return () => listeners.delete(fn);
 }
 
@@ -27,6 +28,7 @@ async function poll() {
     last.forEach((j, id) => {
       if (!now.has(id)) {
         toast(t("Done: {what}", { what: j.description }), "ok");
+        finished = [{ id, description: j.description, at: Date.now(), state: j.status === "STOPPING" || j.status === "CANCELLED" ? "cancelled" : "done" }, ...finished].slice(0, 8);
         if (CHANGES_LIBRARY.test(j.description || "")) changed = true;
       }
     });
@@ -38,7 +40,7 @@ async function poll() {
     });
     last = now;
     setJobCount(jobs.filter((j) => j.status === "RUNNING" || j.status === "READY").length);
-    listeners.forEach((fn) => fn(jobs));
+    listeners.forEach((fn) => fn(jobs, finished));
     if (jobs.length) next = 1000;
   } catch (e) { /* Stash briefly unreachable */ }
   schedule(document.hidden ? Math.max(next, 5000) : next);

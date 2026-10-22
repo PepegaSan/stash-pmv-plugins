@@ -7,8 +7,9 @@ import { t } from "../i18n.js";
 import { gql } from "../api.js";
 import { runBackend } from "../interactive.js";
 import { parseTime } from "../audiox.js";
+import { createCropper } from "../cropbox.js";
 
-const fmt = (sec) => {
+export const fmt = (sec) => {
   sec = Math.max(0, sec || 0);
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
@@ -20,8 +21,10 @@ export function openClipCut(x, video) {
   const dur = (x.files[0] || {}).duration || 0;
   const key = "clipDraft." + x.id;
   let clips = store.get(key, []); // [{ start, end, name }]
-  const opts = Object.assign({ precise: true, join: false, folder: "same", meta: true }, store.get("clipOpts", {}));
+  const opts = Object.assign({ precise: true, join: false, folder: "same", meta: true, upscale: false }, store.get("clipOpts", {}));
   let stopAt = null;
+  let cropper = null; // the crop rectangle on the picture while "Crop / zoom in" is on
+  const cropKey = "cropRect." + x.id;
 
   const d = openDrawer({
     title: t("Cut clips"),
@@ -31,7 +34,19 @@ export function openClipCut(x, video) {
         <label class="kb-form-row"><span>${t("Start time")}</span><span class="kb-music-t"><input class="kb-field" data-from value="0:00.0"><button type="button" class="kb-btn is-ghost" data-here="from">${t("Here")}</button></span></label>
         <label class="kb-form-row"><span>${t("End")}</span><span class="kb-music-t"><input class="kb-field" data-to value="${fmt(Math.min(dur, 30))}"><button type="button" class="kb-btn is-ghost" data-here="to">${t("Here")}</button></span></label>
       </div>
-      <div class="kb-cut-add"><button class="kb-btn is-primary" data-add>${icon("plus")}${t("Add clip")}</button><span class="kb-hint">${t("The whole video is {d}.", { d: esc(fmtDuration(dur)) })}</span></div>
+      ${
+        video
+          ? `<div class="kb-crop-sec">
+        <label class="kb-cut-opt"><input type="checkbox" data-cropon><span><b>${t("Crop / zoom in")}</b> ${t("– drag the frame on the picture to choose the part that is kept; the clip is saved as that part only")}</span></label>
+        <div class="kb-crop-tools" data-croptools hidden>
+          <div class="kb-crop-asp" data-asps>${[["0", "Free"], ["video", "Like the video"], ["1.7778", "16:9"], ["0.5625", "9:16"], ["1", "1:1"], ["0.8", "4:5"]].map(([v, l]) => `<button type="button" class="kb-chip" data-asp="${v}">${/^\d/.test(l) ? l : t(l)}</button>`).join("")}</div>
+          <div class="kb-crop-row"><button type="button" class="kb-btn is-ghost" data-zoomprev>${icon("search")}${t("Preview the zoom")}</button><button type="button" class="kb-btn is-ghost" data-cropreset>${t("Whole picture")}</button><span class="kb-hint" data-cropinfo></span></div>
+          <label class="kb-cut-opt"><input type="checkbox" data-upscale${opts.upscale ? " checked" : ""}><span>${t("Scale the part up to the height of the original (sharpness is not added)")}</span></label>
+        </div>
+      </div>`
+          : ""
+      }
+      <div class="kb-cut-add"><button class="kb-btn is-primary" data-add>${icon("plus")}${t("Add clip")}</button><button class="kb-btn is-ghost" data-whole title="${esc(t("Start at 0:00, end at the end of the video"))}">${t("Whole video")}</button><button class="kb-btn is-ghost" data-mkclips title="${esc(t("Make clips from the markers of this video – with their own end, or a length you choose"))}">${t("Clips from markers")}</button><span class="kb-hint">${t("The whole video is {d}.", { d: esc(fmtDuration(dur)) })}</span></div>
       <div class="kb-cut-list" data-list></div>
       <div class="kb-cut-opts">
         <label class="kb-cut-opt"><input type="radio" name="kb-cut-q" value="fast" data-q${opts.precise ? "" : " checked"}><span><b>${t("Fast")}</b> ${t("– no re-encoding, same quality; the start snaps to the nearest earlier keyframe (can be a second or two off)")}</span></label>
@@ -42,7 +57,10 @@ export function openClipCut(x, video) {
       </div>
       <div class="kb-job-bar" data-barwrap hidden><i data-bar style="width:0%"></i></div>
       <p class="kb-hint" data-note></p>`,
-    onClose: () => video && video.removeEventListener("timeupdate", onTime),
+    onClose: () => {
+      video && video.removeEventListener("timeupdate", onTime);
+      cropper && cropper.destroy();
+    },
     foot: `<button class="kb-btn is-ghost" data-clear>${t("Clear list")}</button><span class="kb-spacer"></span><button class="kb-btn is-primary" data-save>${icon("download")}${t("Save clips")}</button>`,
   });
   const el = d.el;
@@ -60,7 +78,7 @@ export function openClipCut(x, video) {
       ? clips
           .map(
             (c, i) => `<div class="kb-cut-row" data-i="${i}">
-              <b>${i + 1}</b><span class="kb-cut-time">${fmt(c.start)} – ${fmt(c.end)} <small>${fmt(c.end - c.start)}</small></span>
+              <b>${i + 1}</b><span class="kb-cut-time">${fmt(c.start)} – ${fmt(c.end)} <small>${fmt(c.end - c.start)}</small>${c.crop ? `<em class="kb-cut-crop" title="${esc(t("This clip is saved as a part of the picture"))}">${icon("crop")}${Math.round(c.crop.w * 100)} × ${Math.round(c.crop.h * 100)} %</em>` : ""}</span>
               <input class="kb-field" data-name placeholder="${esc(t("Name (optional)"))}" value="${esc(c.name || "")}">
               <button class="kb-btn is-icon is-ghost" data-play title="${esc(t("Play this clip"))}">${icon("play")}</button>
               <button class="kb-btn is-icon is-ghost" data-edit title="${esc(t("Back into the start/end fields to change"))}">${icon("edit")}</button>
@@ -77,7 +95,9 @@ export function openClipCut(x, video) {
     const a = parseTime($("[data-from]").value);
     const b = parseTime($("[data-to]").value);
     if (!(a >= 0) || !(b > a) || (dur && a >= dur)) return toast(t("Start/end don't fit – the end must be after the start"), "error");
-    clips.push({ start: a, end: dur ? Math.min(b, dur) : b, name: "" });
+    const clip = { start: a, end: dur ? Math.min(b, dur) : b, name: "" };
+    if (cropper && $("[data-cropon]").checked) clip.crop = cropper.get();
+    clips.push(clip);
     keep();
     paintList();
     // the next clip starts where this one ended
@@ -119,6 +139,56 @@ export function openClipCut(x, video) {
     }
   };
   video && video.addEventListener("timeupdate", onTime);
+  $("[data-mkclips]").onclick = () => import("./markerclips.js").then((m) => m.openMarkerClips({ sceneId: x.id }));
+  $("[data-whole]").onclick = () => {
+    $("[data-from]").value = fmt(0);
+    $("[data-to]").value = fmt(dur);
+  };
+
+  // ---- Crop / zoom in ----
+  const cropOn = $("[data-cropon]");
+  if (cropOn) {
+    const info = () => {
+      const r = cropper.get();
+      const w = video.videoWidth || (x.files[0] || {}).width || 0;
+      const h = video.videoHeight || (x.files[0] || {}).height || 0;
+      $("[data-cropinfo]").textContent = w ? t("Result: {w} × {h} pixels", { w: Math.round(r.w * w), h: Math.round(r.h * h) }) : "";
+      store.set(cropKey, r);
+    };
+    cropOn.onchange = () => {
+      if (cropOn.checked && !cropper) {
+        cropper = createCropper(video, store.get(cropKey, null));
+        cropper.onChange(info);
+      }
+      $("[data-croptools]").hidden = !cropOn.checked;
+      if (cropper) {
+        cropper.show(cropOn.checked);
+        if (!cropOn.checked) cropper.zoom(false);
+        if (cropOn.checked) (cropper.set({}, true), info());
+      }
+      $("[data-zoomprev]").classList.toggle("is-on", false);
+    };
+    $("[data-asps]").onclick = (e) => {
+      const b = e.target.closest("[data-asp]");
+      if (!b || !cropper) return;
+      cropper.zoom(false);
+      $("[data-zoomprev]").classList.remove("is-on");
+      el.querySelectorAll("[data-asp]").forEach((q) => q.classList.toggle("is-on", q === b));
+      cropper.setAspect(b.dataset.asp === "video" ? "video" : Number(b.dataset.asp));
+    };
+    $("[data-zoomprev]").onclick = (e) => {
+      if (!cropper) return;
+      const on = !cropper.zoomed;
+      cropper.zoom(on);
+      e.currentTarget.classList.toggle("is-on", on);
+    };
+    $("[data-cropreset]").onclick = () => {
+      if (!cropper) return;
+      cropper.zoom(false);
+      $("[data-zoomprev]").classList.remove("is-on");
+      cropper.set({ x: 0, y: 0, w: 1, h: 1 });
+    };
+  }
   $("[data-clear]").onclick = () => {
     clips = [];
     keep();
@@ -127,14 +197,14 @@ export function openClipCut(x, video) {
 
   async function save() {
     if (!clips.length) return;
-    const o = { precise: $("[data-q][value=precise]").checked, join: $("[data-join]").checked, folder: $("[data-sub]").checked ? "Clips" : "same", meta: $("[data-meta]").checked };
+    const o = { precise: $("[data-q][value=precise]").checked, join: $("[data-join]").checked, folder: $("[data-sub]").checked ? "Clips" : "same", meta: $("[data-meta]").checked, upscale: !!($("[data-upscale]") || {}).checked };
     store.set("clipOpts", o);
     const btns = el.querySelectorAll(".kb-drawer-foot .kb-btn");
     btns.forEach((b) => (b.disabled = true));
     $("[data-barwrap]").hidden = false;
     $("[data-bar]").style.width = "3%";
     try {
-      const r = await runBackend({ mode: "clip_cut", scene_id: x.id, clips, precise: o.precise, join: o.join, folder: o.folder });
+      const r = await runBackend({ mode: "clip_cut", scene_id: x.id, clips, precise: o.precise || clips.some((c) => c.crop), join: o.join, folder: o.folder, upscale: o.upscale, ref_w: (x.files[0] || {}).width || video.videoWidth || 0, ref_h: (x.files[0] || {}).height || video.videoHeight || 0 });
       let st;
       for (;;) {
         await new Promise((res) => setTimeout(res, 1200));
@@ -164,7 +234,8 @@ export function openClipCut(x, video) {
 }
 
 // Scan the new files, then give the scenes the original's performers, tags and studio, plus the tag "Clip"
-async function intoStash(x, files, o) {
+// extra (optional): per file { tagIds } – more tags for that file's scene (used by clips from markers)
+export async function intoStash(x, files, o, extra) {
   const job = (await gql(`mutation($i: ScanMetadataInput!) { metadataScan(input: $i) }`, { i: { paths: files } })).metadataScan;
   for (let i = 0; i < 150; i++) {
     await new Promise((r) => setTimeout(r, 1500));
@@ -180,7 +251,7 @@ async function intoStash(x, files, o) {
   // (comparing the file names loosely: case and accents' form don't matter), and say so if one never showed up
   const norm = (n) => String(n).normalize("NFC").toLowerCase();
   const missing = [];
-  for (const f of files) {
+  for (const [fi, f] of files.entries()) {
     const base = f.split(/[\\/]/).pop();
     let sc = null;
     for (let i = 0; i < 30 && !sc; i++) {
@@ -196,7 +267,7 @@ async function intoStash(x, files, o) {
     const input = {
       id: sc.id,
       performer_ids: (x.performers || []).map((p) => p.id),
-      tag_ids: [...new Set([...(x.tags || []).map((tg) => tg.id), tagId])],
+      tag_ids: [...new Set([...(x.tags || []).map((tg) => tg.id), tagId, ...((extra && extra[fi] && extra[fi].tagIds) || [])])],
       title: base.replace(/\.[^.]+$/, ""),
     };
     if (x.studio) input.studio_id = x.studio.id;

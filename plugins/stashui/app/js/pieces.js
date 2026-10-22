@@ -1,7 +1,7 @@
 // Common model for scenes, images and galleries ("pieces") and the salon hanging.
 
 import { esc, icon, fmtDuration, fmtRes, fmtDate, fmtBytes, invNo, plural, store, menu, errorToast, inlineSvg, ratingText } from "./ui.js";
-import { t } from "./i18n.js";
+import { t, locale } from "./i18n.js";
 import { tierNow } from "./tiers.js";
 import { tierBadge } from "./versusx.js";
 import { critOf } from "./ratingx.js";
@@ -90,17 +90,56 @@ function foreignHtml(p) {
   );
 }
 
+// Badges on thumbnails: rating, tier and length/resolution can each sit in any corner or be switched off
+// (Settings → This interface → Badges on thumbnails). "auto" = as before (tier top left, length top right /
+// bottom right on cards, rating only on cards at the bottom left).
+const BADGE_CORNERS = ["tl", "tr", "bl", "br"];
+export const BADGE_POS = ["auto", "off", ...BADGE_CORNERS];
+export const RATING_STYLES = ["plain", "tint", "fill"];
+const badgePos = (key) => {
+  const v = store.get(key, "auto");
+  return BADGE_POS.includes(v) ? v : "auto";
+};
+
+// Colour of a rating: red (low) → orange → yellow → green (high)
+function ratingColor(r) {
+  const k = Math.max(0, Math.min(100, r)) / 100;
+  return `hsl(${Math.round(4 + k * k * 136)} ${Math.round(78 + k * 8)}% ${Math.round(52 + k * 4)}%)`;
+}
+function ratingBadge(r, extra = "") {
+  const st = RATING_STYLES.includes(store.get("ratingStyle", "plain")) ? store.get("ratingStyle", "plain") : "plain";
+  const txt = ratingText(r);
+  return `<span class="kb-rbadge is-${st}${extra}" style="--rc:${ratingColor(r)}" title="${esc(t("Rating"))}">${esc(/★/.test(txt) ? txt : "★ " + txt)}</span>`;
+}
+
 function pieceHtml(p) {
   if (p.foreign) return foreignHtml(p);
   const tag = p.kind === "image" ? "button" : "a";
   const href = p.kind === "scene" ? `#/scene/${p.id}` : p.kind === "gallery" ? `#/gallery/${p.id}` : "";
+  const bTier = badgePos("badgeTier");
+  const bStamp = badgePos("badgeStamp");
+  const bRate = badgePos("badgeRating");
+  const slot = { tl: "", tr: "", bl: "", br: "" };
+  const stampHtml = (cls) => `<span class="kb-stamp${cls}">${p.interactive ? `<i class="kb-ia" title="${esc(t("Funscript – plays on The Handy"))}">${icon("plug")}</i>` : ""}${esc(p.stamp)}</span>`;
+  let stamp = "";
+  if (p.stamp && bStamp === "auto") stamp = stampHtml("");
+  else if (p.stamp && bStamp !== "off") slot[bStamp] += stampHtml(" is-inline");
+  let tier = "";
+  if (p.tier && bTier === "auto") tier = `<span class="kb-tierpos">${tierBadge(p.tier)}</span>`;
+  else if (p.tier && bTier !== "off") slot[bTier] += tierBadge(p.tier);
+  if (p.rating && !["auto", "off"].includes(bRate)) slot[bRate] += ratingBadge(p.rating);
+  const studioAt = p.studio && store.get("studioLogos", false) ? store.get("studioPos", "bl") : "";
+  const corners = BADGE_CORNERS.filter((c) => slot[c])
+    .map((c) => `<span class="kb-bc kb-bc-${c}${bStamp === "auto" && p.stamp && c !== "tl" && c !== "bl" ? " after-stamp" : ""}${p.fav && c === "br" ? " has-fav" : ""}${studioAt === c && (c === "bl" || c === "br") ? " after-studio" : ""}">${slot[c]}</span>`)
+    .join("");
   return (
     `<${tag} class="kb-piece" data-key="${p.kind}:${p.id}"${href ? ` href="${href}"` : ' type="button"'} aria-label="${esc(p.title)}">` +
     (p.thumb ? `<img alt="" loading="lazy" decoding="async" src="${esc(p.thumb)}">` : "") +
-    (p.stamp ? `<span class="kb-stamp">${p.interactive ? `<i class="kb-ia" title="${esc(t("Funscript – plays on The Handy"))}">${icon("plug")}</i>` : ""}${esc(p.stamp)}</span>` : "") +
+    stamp +
     (p.resume ? `<span class="kb-resume"><i style="width:${(p.resume * 100).toFixed(1)}%"></i></span>` : "") +
     (p.fav ? `<span class="kb-dot" title="${t("Favorite")}"></span>` : "") +
-    (p.tier ? `<span class="kb-tierpos">${tierBadge(p.tier)}</span>` : "") +
+    tier +
+    corners +
     (p.crit ? `<span class="kb-critbars" aria-hidden="true">${p.crit.slice(0, 6).map((c) => `<i style="--v:${c.score * 20}%" title="${esc(c.name)}: ${c.score} / 5"></i>`).join("")}</span>` : "") +
     studioBadge(p) +
     `<span class="kb-pick" role="checkbox" aria-checked="false" aria-label="${t("Select")}">${icon("check")}</span>` +
@@ -117,10 +156,45 @@ function cardOverlays(p) {
   const logo = x.studio && x.studio.image_path && !/default=true/.test(x.studio.image_path);
   return (
     `<div class="kb-scard-over">` +
-    (x.studio ? `<a class="kb-scard-studio${logo ? "" : " is-name"}" href="#/studio/${x.studio.id}" title="${esc(x.studio.name)}">${logo ? `<img alt="${esc(x.studio.name)}" loading="lazy" src="${esc(x.studio.image_path)}">` : esc(x.studio.name)}</a>` : "") +
-    (x.rating100 ? `<span class="kb-scard-rating" title="${esc(t("Rating"))}">${esc(/★/.test(ratingText(x.rating100)) ? ratingText(x.rating100) : "★ " + ratingText(x.rating100))}</span>` : "") +
+    (x.studio ? `<a class="kb-scard-studio at-${["tl", "tr", "bl", "br"].includes(store.get("studioPos", null)) ? store.get("studioPos", null) : "tr"}${logo ? "" : " is-name"}" href="#/studio/${x.studio.id}" title="${esc(x.studio.name)}">${logo ? `<img alt="${esc(x.studio.name)}" loading="lazy" src="${esc(x.studio.image_path)}">` : esc(x.studio.name)}</a>` : "") +
+    (x.rating100 && badgePos("badgeRating") === "auto" ? ratingBadge(x.rating100, " kb-scard-rating") : "") +
     `</div>`
   );
+}
+
+// Settings → This interface → "Info on scene cards": extra lines under the date. Times can be shown as a date ("12 Oct 2026")
+// or as days ago ("3 days ago"), each with or without the time of day.
+export const CARD_INFO = { watched: true, added: false, time: false, size: false, style: "date", hour: false, clock: "auto" };
+export const cardInfo = () => Object.assign({}, CARD_INFO, store.get("cardInfo", {}));
+export function cardStamp(iso, o) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return "";
+  let s;
+  if (o.style === "days") {
+    const a = new Date();
+    a.setHours(0, 0, 0, 0);
+    const b = new Date(d);
+    b.setHours(0, 0, 0, 0);
+    const n = Math.round((a - b) / 864e5);
+    s = n <= 0 ? t("Today") : n === 1 ? t("Yesterday") : t("{n} days ago", { n });
+  } else s = fmtDate(iso);
+  return o.hour ? `${s}, ${clockOf(d, o)}` : s;
+}
+// The time of day: 24-hour (14:25), 12-hour (2:25 PM) or whatever the language uses ("auto")
+const clockOf = (d, o) => d.toLocaleTimeString(locale(), o.clock === "12" ? { hour: "numeric", minute: "2-digit", hour12: true } : o.clock === "24" ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" } : { hour: "2-digit", minute: "2-digit" });
+const fullStamp = (iso, o) => (iso ? `${fmtDate(iso)}, ${clockOf(new Date(iso), o)}` : "");
+function cardFacts(x) {
+  const o = cardInfo();
+  const rows = [];
+  const row = (label, value, title) => value && rows.push(`<div class="kb-scard-fact"${title ? ` title="${esc(title)}"` : ""}><span>${esc(t(label))}</span> ${esc(value)}</div>`);
+  if (o.watched) {
+    if (x.last_played_at) row("Last watched", cardStamp(x.last_played_at, o), fullStamp(x.last_played_at, o));
+    else row("Last watched", t("Never watched"));
+  }
+  if (o.added) row("Added", cardStamp(x.created_at, o), fullStamp(x.created_at, o));
+  if (o.time && x.play_duration > 0) row("Watch time", fmtDuration(x.play_duration));
+  if (o.size && x.files && x.files[0]) row("File size", fmtBytes(x.files[0].size));
+  return rows.length ? `<div class="kb-scard-facts">${rows.join("")}</div>` : "";
 }
 
 function cardBody(p) {
@@ -133,6 +207,7 @@ function cardBody(p) {
   return (
     `<a class="kb-scard-title" href="#/scene/${p.id}" title="${esc(p.title)}">${esc(p.title)}</a>` +
     (x.date ? `<div class="kb-scard-date">${esc(fmtDate(x.date))}</div>` : "") +
+    cardFacts(x) +
     (x.details ? `<p class="kb-scard-details">${esc(x.details)}</p>` : "") +
     `<div class="kb-scard-pops">` +
     pop("perfs", "person", perfs.length, t("Performers")) +

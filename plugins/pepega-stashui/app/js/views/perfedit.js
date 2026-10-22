@@ -323,7 +323,23 @@ export async function openPerformerEditor(id, opts = {}) {
     const ch = $("[data-choices]");
     ch.hidden = !imgs.length;
     ch.innerHTML = imgs.length ? `<small class="kb-hint">${t("Found pictures – click one to use it")}</small><div>${imgs.map((u, i) => `<button type="button" data-pick="${i}"><img alt="" src="${esc(u)}"></button>`).join("")}</div>` : "";
+    // The mouse resting on a small picture shows it big, beside the drawer (the strip is small on purpose: eight fit)
+    const zoomOff = () => document.querySelectorAll(".kb-pe-zoom").forEach((z) => z.remove());
+    ch.onpointerover = (e) => {
+      const b = e.target.closest("[data-pick]");
+      zoomOff();
+      if (!b || e.pointerType === "touch") return;
+      const z = document.createElement("div");
+      z.className = "kb-pe-zoom";
+      z.innerHTML = `<img alt="" src="${esc(imgs[Number(b.dataset.pick)])}">`;
+      document.body.appendChild(z);
+      const dr = el.getBoundingClientRect();
+      z.style.right = Math.max(12, innerWidth - dr.left + 12) + "px";
+      z.style.top = Math.max(12, Math.min(b.getBoundingClientRect().top - 120, innerHeight - 420)) + "px";
+    };
+    ch.onpointerleave = zoomOff;
     ch.onclick = (e) => {
+      zoomOff();
       const b = e.target.closest("[data-pick]");
       if (!b) return;
       setImage(imgs[Number(b.dataset.pick)]);

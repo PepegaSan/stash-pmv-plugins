@@ -1,8 +1,256 @@
 // What's new: the patch notes shown on the "What's new" page (newest first).
 // Every release that changes something you can see gets an entry; en + zh (Simplified Chinese).
 // app: "ui" = Stash UI, "pmv" = PMV Generator, "storm" = Media Storm
+// An item can have a 4th entry "route::target" – the What's new page then shows a "Show me" button that opens the route and lights
+// up the target for a moment. The target is a CSS selector (starts with [ . #) or the label of a setting (opens it in Settings).
+// "@performer" / "@scene" inside the route (performer/@performer) stand for the id of one of your own performers (most scenes) / scenes. Older entries are listed in LINKS.
 
 export const CHANGES = [
+  {
+    v: "3.118.0",
+    date: "2026-10-22",
+    items: [
+      ["ui", "Clips from markers: the Markers page has a “Make clips” button (it takes everything the search and tag filter show), and Cut clips in the player has “Clips from markers” for that video. A marker that has a start and an end becomes a clip as it is. For markers without an end you choose “take the next 20 seconds” (5/10/20/30/60 or any number, optionally stopping at the next marker of the same video) or leave them out – and in the list you can type the end of any marker yourself (1:25, or +15 for 15 seconds after the start) or untick the ones you don't want. Clips are saved like in Cut clips (Fast or Exact, joined per video, “Clips” subfolder) and can take over the video's performers/tags/studio plus the marker's own tags.", "用标记制作片段：标记页面新增“Make clips”按钮（处理搜索和标签筛选当前显示的所有标记），播放器里的“Cut clips”也有针对该视频的“Clips from markers”。有开始和结束时间的标记直接变成片段；没有结束时间的标记可以选择“取之后 20 秒”（5/10/20/30/60 秒或任意数字，可选在同一视频的下一个标记处停止），或者跳过 – 在列表中还可以自己输入任意标记的结束时间（1:25，或 +15 表示开始后 15 秒），也可以取消勾选不要的标记。片段的保存方式与“Cut clips”相同（快速或精确、按视频合并、“Clips”子文件夹），并可沿用该视频的演员/标签/工作室以及标记自己的标签。", "markers::[data-mkclips]"],
+    ],
+  },
+  {
+    v: "3.117.0",
+    date: "2026-10-21",
+    items: [
+      ["ui", "A–B loop in the player, as suggested by Blueocean15: press L where the part should start (A), press L again where it should end (B) and that part repeats. The third press clears it. The gear menu has the same entry, and the repeated part is shown on the timeline.", "播放器新增 A–B 循环（Blueocean15 的建议）：在要开始的位置按 L（A 点），在结束的位置再按一次 L（B 点），这一段就会重复播放。第三次按下则清除。齿轮菜单里也有同样的条目，重复的部分会显示在时间轴上。", "scene/@scene::[data-menubtn]"],
+      ["ui", "Themes from other plugins: an extension module can call stashui.addTheme({ id, name, colors, css, glass }) and the theme shows up next to the colour presets in Settings → Appearance. Picking it sets the colours, loads the plugin's stylesheet and switches liquid glass on or off if the theme says so; picking another preset removes it again. (Thanks CandyBoudoir – for plugin authors: see the README.)", "来自其他插件的主题：扩展模块可以调用 stashui.addTheme({ id, name, colors, css, glass })，主题就会出现在“设置 → 外观”的配色预设旁边。选择它会设置颜色、加载插件的样式表，并按主题的要求开启或关闭液态玻璃；选择其他预设则会移除它。（感谢 CandyBoudoir – 插件作者请看 README。）", "settings/look::[data-theme]"],
+    ],
+  },
+  {
+    v: "3.116.0",
+    date: "2026-10-21",
+    items: [
+      ["ui", "Discover and Missing scenes, as suggested by ufousox007: (1) a “Last (days)” field instead of exact dates – only scenes from the last n days (Discover: released in the last n days; the performer page's Missing scenes and Settings → This interface have the same field, and it replaces the From / To dates). (2) Discover has a “Performers from my library” filter – only scenes with performers you have linked to that stash-box (together with the days field that gives “recently released by my performers”). (3) Clicking a scene you don't have opens a window with a larger cover, the details, the performers (the ones in your library link to them), the tags, a button to search your library for the title, and the one to open it on the stash-box. I could only test this against a fake stash-box – StashDB's date and performer criteria are assumed; if a box doesn't know them the page filters itself. Searching or downloading from that window isn't built yet.", "发现和缺失场景（ufousox007 的建议）：（1）用“最近（天）”字段代替确切日期 – 只显示最近 n 天内的场景（发现：最近 n 天内发布；演员页面的缺失场景以及“设置 → 此界面”里有同样的字段，它会取代“从”/“到”日期）。（2）发现新增“我资料库中的演员”筛选 – 只显示包含你已与该 stash-box 关联的演员的场景（与天数字段一起就是“我的演员最近发布的”）。（3）点击你没有的场景会打开一个窗口，包含更大的封面、详情、演员（资料库中已有的可点击跳转）、标签、在资料库中搜索该标题的按钮以及在 stash-box 上打开的按钮。这些只在模拟的 stash-box 上测试过 – StashDB 的日期和演员条件是假设的；如果某个 stash-box 不支持，页面会自己筛选。窗口里的搜索和下载功能尚未实现。", "discover::[data-days]"],
+    ],
+  },
+  {
+    v: "3.115.1",
+    date: "2026-10-20",
+    items: [
+      ["pmv", "Mouse control in the PMV Generator, as suggested by abverbaerba: it has its own section now (between Sound and Funscript) in the order you'd use it – click the middle, middle mouse button, click the sides, mouse wheel. Clicking the sides has the same choice as the wheel – off / next-previous song / song volume – and changes the volume in 5 % steps (was 10 %). “Start by itself” moved next to the intro and outro switches.", "PMV Generator 的鼠标控制（采纳 abverbaerba 的建议）：现在有独立的区域（在“声音”和“Funscript”之间），按使用顺序排列——点击中间、鼠标中键、点击两侧、鼠标滚轮。点击两侧和滚轮一样可以选择：关闭 / 下一首-上一首 / 歌曲音量，音量每次调 5 %（原来是 10 %）。“自动开始”移到了片头和片尾开关旁边。"],
+    ],
+  },
+  {
+    v: "3.115.0",
+    date: "2026-10-20",
+    items: [
+      ["ui", "Matching the O video now works like a video editor: “Match an O video …” shows two bars on a timeline, one above the other – this video and the O video. Drag the O video's bar sideways to line it up, drag the ends of either bar to trim it, click the ruler to move the playhead, press Space to play both (the arrow keys step one picture), zoom with the slider. The O video then only plays where the two trimmed bars overlap. “Find it by the sound” still lines the bar up for you.", "对齐 O 视频现在像视频编辑器一样：“对齐 O 视频 …”会显示时间轴上上下叠放的两个条块——本视频和 O 视频。左右拖动 O 视频的条块来对齐，拖动任一条块的两端来裁剪，点击标尺移动播放头，按空格同时播放（方向键逐帧移动），用滑块缩放。之后 O 视频只在两个裁剪后条块重叠的部分播放。“通过声音查找”仍会自动帮你对齐。", "scene/@scene::.kb-omoments"],
+    ],
+  },
+  {
+    v: "3.114.0",
+    date: "2026-10-20",
+    items: [
+      ["ui", "O video that plays along: if you have a video of the O with the PMV (or any video) running in its background, line the two up once and the O video then plays in a window whenever the PMV plays. Info bar → “O video” → “Match an O video …”: both videos sit side by side – put them on a moment you can see in both and press “These two match”, or let “Find it by the sound” compare the music of the two (works to about a hundredth of a second). “Play both” checks it; −1 s … +1 frame nudge the match. The single O moments from 3.113.0 are still there, folded away below.", "一起播放的 O 视频：如果你有一个 O 的视频，背景里正播放着 PMV（或任何视频），把两者对齐一次，之后每当播放这个 PMV，O 视频就会在小窗口里同步播放。信息栏 →“O 视频”→“对齐 O 视频 …”：两个视频并排显示——把它们定位到两边都能看到的同一时刻，点“这两处对上了”；或让“通过声音查找”比较两边的音乐（精度约百分之一秒）。“同时播放”用来检查；−1 秒 … +1 帧可微调。3.113.0 的单个 O 时刻仍然保留，折叠在下方。", "scene/@scene::.kb-omoments"],
+    ],
+  },
+  {
+    v: "3.113.1",
+    date: "2026-10-20",
+    items: [
+      ["ui", "O clip window: it now takes the shape of the clip. A 9:16 clip no longer sits in a 16:9 window with thick black bars – the window becomes tall and a little narrower instead.", "O 片段窗口：现在会采用片段本身的形状。9:16 的片段不再放在带粗黑边的 16:9 窗口里，窗口会变成竖向并略窄。", "scene/@scene::.kb-omoments"],
+    ],
+  },
+  {
+    v: "3.113.0",
+    date: "2026-10-20",
+    items: [
+      ["ui", "Crop / zoom in on a video and save it as its own video: player → “Cut clips” → “Crop / zoom in”. Drag a frame on the picture (free, 16:9, 9:16, 1:1, 4:5 or like the video), “Preview the zoom” shows what you'll get, then “Add clip” and “Save clips” – the new video holds only that part of the picture (re-encoded; optionally scaled up to the original height). Every clip can have its own area; joined clips are fitted to one size. “Whole video” fills in 0:00 to the end.", "对视频裁剪 / 放大，并另存为独立视频：播放器 →“剪辑片段”→“裁剪 / 放大”。在画面上拖动方框（自由、16:9、9:16、1:1、4:5 或与视频相同），“预览放大效果”显示最终画面，然后“添加片段”并“保存片段”——新视频只包含画面的这一部分（会重新编码；可选放大到原视频高度）。每个片段可以有自己的区域；合并的片段会统一尺寸。“整个视频”会填入 0:00 到结尾。", "scene/@scene::[data-cut]"],
+      ["ui", "O moments and O clips: press Shift+O at the moment of an O in a video (the O key and button mark it too – Settings → Player has a switch). The info bar gets an “O moments” section: choose an O clip there (a marker or a part of any scene; for this scene or for every scene without its own). From each marked moment on, that clip plays in a small window over the video, in step with it (pause, jumping and speed carry over); the window can sit in any corner, be resized and has its own sound button. The moments and clips are kept in Stash's plugin settings.", "O 时刻和 O 片段：在视频中 O 发生的时刻按 Shift+O（按 O 键和按钮也会标记——设置 → 播放器里有开关）。信息栏新增“O 时刻”区域：在那里选择 O 片段（一个标记或任意场景的一段；用于这个场景，或用于所有没有自己片段的场景）。从每个标记的时刻起，该片段会在视频上的小窗口中同步播放（暂停、跳转和速度都会跟随）；窗口可放在任意角落、可调大小，并有自己的声音按钮。时刻和片段保存在 Stash 的插件设置中。", "scene/@scene::.kb-omoments"],
+    ],
+  },
+  {
+    v: "3.112.1",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Scene cards: you can now choose how the time of day is written – 24-hour (14:25), 12-hour with AM/PM (2:25 PM) or automatic (what your language uses). Settings → This interface → “Time format”; it applies when “With the time” is on.", "场景卡片：现在可以选择时间的写法——24 小时制（14:25）、带 AM/PM 的 12 小时制（2:25 PM）或自动（按所选语言）。设置 → 本界面 →“时间格式”；开启“显示具体时间”后生效。", "settings::Time format"],
+    ],
+  },
+  {
+    v: "3.112.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Scene cards can show more under the date: when you last watched it (or “Never watched”), when it was added, the time you watched it and the file size. Settings → This interface → “Info on scene cards”: switch each line on or off, show dates as the exact date or as “3 days ago” / “Yesterday”, with or without the time of day. Only “Last watched” is on at first.", "场景卡片可在日期下方显示更多信息：最近观看时间（或“从未观看”）、添加时间、观看时长和文件大小。设置 → 本界面 →“场景卡片上的信息”：可逐行开关，日期可显示为确切日期或“3 天前”/“昨天”，可带或不带具体时间。默认只开启“最近观看”。", "settings::Info on scene cards"],
+    ],
+  },
+  {
+    v: "3.111.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Player: new switch “Always start from the beginning” (sliders menu in the player, or Settings → Player and previews). Scenes you stopped halfway then begin at 0:00 instead of where you left off. The saved point stays in Stash untouched, and the hint at the top offers it as a button (“Resume at …”).", "播放器：新增开关“始终从头开始播放”（播放器的滑块菜单，或 设置 → 播放器和预览）。中途停止的场景会从 0:00 开始，而不是从上次停下的位置继续。保存的进度原样保留在 Stash 中，顶部提示里有“从 … 继续”按钮。", "settings::Always start from the beginning"],
+    ],
+  },
+  {
+    v: "3.110.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Performers: the “Looks” filter now has a “Natural or enhanced” dropdown, and a performer who names several ethnicities (“Caucasian, Asian”) shows up under each one – pick “Asian” and you get all of them. A new sort order “Natural / enhanced (A–Z)”. Statistics has a new card “Your performers”: how many performers (and scenes) per ethnicity, eye color, hair color or natural/enhanced – a click opens the Performers list with that filter. (Thanks JoeBiden!)", "演员：“外貌”筛选新增“自然或丰胸”下拉框；填写多个种族（如“Caucasian, Asian”）的演员会出现在每个种族下——选“Asian”即可找到全部。新增排序“自然/丰胸（A–Z）”。统计页新增“你的演员”卡片：按种族、眼睛颜色、发色或自然/丰胸统计演员（及场景）数量——点击即打开带该筛选的演员列表。（感谢 JoeBiden！）", "stats::[data-looks]"],
+      ["ui", "E and T on a card (the key under the mouse): the page behind is no longer dimmed or blurred, and the cursor is already in the tags field – type, Enter, done. (Thanks JoeBiden!)", "在卡片上按 E / T（鼠标所指的卡片）：背景页面不再变暗或模糊，光标已在标签栏——输入、回车即可。（感谢 JoeBiden！）"],
+      ["ui", "Home → Continue watching: select scenes and use “Remove from Continue watching” in the bar – they stay off the list until you watch them again. Your watch history is untouched. (Thanks Sunset-1982!)", "首页 → 继续观看：选中场景，在底部栏点“从继续观看中移除”——在你再次观看之前它们不再出现。观看历史不受影响。（感谢 Sunset-1982！）"],
+      ["ui", "Photo cutter (performer photos): turn the picture left or right and change brightness and contrast before cutting – for a vertical frame that lies on its side. (Thanks JoeBiden!)", "照片裁剪（演员照片）：裁剪前可向左/向右旋转图片并调整亮度和对比度——适合横躺的竖向画面。（感谢 JoeBiden！）"],
+      ["pmv", "Mouse control while the show plays (Output → Mouse and start): click the middle = play / pause, click the left / right side = song volume (reversible), middle mouse button = new clips, mouse wheel = next / previous song or song volume (reversible). “Start by itself” opens the show as soon as it can. All off by default. (Thanks abverbaerba!)", "播放时的鼠标控制（输出 → 鼠标与启动）：点击中间 = 播放/暂停，点击左/右侧 = 歌曲音量（可反向），鼠标中键 = 换新片段，滚轮 = 下一首/上一首或歌曲音量（可反向）。“自动开始”会在条件满足时立即开始。默认全部关闭。（感谢 abverbaerba！）"],
+    ],
+  },
+  {
+    v: "3.109.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Player: the picture above the timeline now stays inside the window, is a bit bigger, loads only once per scene (and ahead of the first hover), isn't shown while a finger just hovers, and has the liquid-glass look. New switch Settings → Player and previews → “Picture when hovering the timeline” (on). Scenes without timeline images show only the time, as before. A video that is played through a live transcode could freeze at the start (endless loop when jumping to 1–2 s) – fixed.", "播放器：时间轴上方的预览图现在不会超出窗口、略微放大、每个场景只加载一次（并在首次悬停前预加载）、手指悬停时不显示，并支持液态玻璃外观。新开关 设置 → 播放器与预览 →“悬停时间轴显示画面”（默认开启）。没有时间轴图片的场景和以前一样只显示时间。修复：通过实时转码播放的视频在跳到 1–2 秒时可能在开头卡住（无限循环）。", "settings::Picture when hovering the timeline"],
+    ],
+  },
+  {
+    v: "3.108.2",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Discover: if a stash-box counts scenes but sends none, the plugin now also asks it with a plainer question (no sort order, no page size), and the page shows what the box answered so the problem can be found.", "发现：如果某个 stash-box 报告有场景却不返回任何内容，插件现在还会用更简单的请求再问一次（不带排序和每页数量），页面也会显示该 stash-box 的回复，方便查找问题。"],
+    ],
+  },
+  {
+    v: "3.108.1",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Discover: when a stash-box says it has scenes but sends none (ThePornDB did this for a search without a word), the page now says so and suggests typing a search word instead of just “Nothing found.” – and it first tries the same question once more without the sort order. If “Show” hides everything, it says that too.", "发现：当某个 stash-box 声称有场景却没有返回任何内容时（ThePornDB 在不输入搜索词时就是这样），页面现在会说明情况并建议输入搜索词，而不只是显示“没有找到。”——并且会先去掉排序再问一次。如果“显示”把所有内容都隐藏了，也会提示。", "discover::[data-show]"],
+    ],
+  },
+  {
+    v: "3.108.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Performers: a new “Tags” button filters the performer list by the performers’ own tags (like classic Stash). Pick several tags, right-click a tag to leave it out, and choose whether a performer needs all of them or just one. The choice is kept in the address, so you can bookmark it. (Thanks eialici!)", "演员：新增“标签”按钮，可按演员自己的标签筛选演员列表（与经典 Stash 一样）。可选多个标签，右键点击标签表示排除，并可选择需要全部匹配还是任一匹配。所选内容会保存在地址中，方便收藏。（感谢 eialici！）", "performers::[data-tagbtn]"],
+      ["ui", "New language: Ukrainian (Українська) – translated by illuminat-ua, with the newer texts added on top. Pick it under Settings → This interface → Language (or it follows Stash’s language). (Thanks illuminat-ua!)", "新语言：乌克兰语（Українська）——由 illuminat-ua 翻译，较新的文本已补全。可在“设置 → 此界面 → 语言”中选择（也会跟随 Stash 的语言）。（感谢 illuminat-ua！）"],
+    ],
+  },
+  {
+    v: "3.107.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "New: Discover (Library). Search a stash-box such as StashDB for scenes – not only what your library has. The results are cards with cover, title, studio, performers and length; scenes you already have say so and open the local scene, the others open the stash-box page. Search by title, performer or studio, sort by newest, trending or title, show only what’s missing, and pick the stash-box if you have several. (Thanks ufousox007!)", "新增：发现（资料库菜单）。在 stash-box（如 StashDB）中搜索场景，而不仅限于你的资料库。结果以卡片显示封面、标题、工作室、演员和时长；你已有的场景会标明并打开本地场景，其余的打开 stash-box 页面。可按标题、演员或工作室搜索，按最新、热门或标题排序，只显示缺失的，有多个 stash-box 时可选择其一。（感谢 ufousox007！）", "discover::[data-q]"],
+      ["ui", "Tasks: the “Running now” panel now stays at the top while you scroll through the task cards, so the progress remains in view after you press Start. It also shows what the task is doing right now and for how long it has been running, and what finished during your visit is listed underneath (done / cancelled).", "任务：“正在运行”面板现在会在你滚动任务卡片时固定在顶部，因此点击开始后进度始终可见。它还会显示任务当前在做什么、已运行多久，并在下方列出本次访问期间已结束的任务（完成/已取消）。", "tasks::[data-jobs]"],
+    ],
+  },
+  {
+    v: "3.106.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Missing scenes (performer page): every scene now shows its cover picture (loaded through the plugin while you scroll), and you can limit the list to scenes from an oldest to a newest date – in the list itself and in Settings → General, where you also pick which stash-box is asked first and can switch the covers off. (Thanks ufousox007!)", "缺失场景（演员页面）：每个场景现在都会显示封面图片（滚动到时通过插件加载），并且可以把列表限制在最早到最晚日期之间的场景 – 在列表中以及“设置 → 常规”里都可以设置，在那里还可以选择优先询问哪个 stash-box，也可以关闭封面。（感谢 ufousox007！）", "performer/@performer::[data-pmiss]"],
+      ["ui", "Card view: the studio logo follows Settings → General → Studio logo: corner and size now (top right as before if you never set it), and on a phone the cards no longer reach past the right edge of the screen.", "卡片视图：工作室标志现在会遵循“设置 → 常规 → 工作室标志：位置/大小”（如果你没设置过，仍在右上角）；在手机上，卡片也不再超出屏幕右边缘。"],
+      ["ui", "Versus (Chinese): the button on the ranking page that goes back to the duels now says “继续” (Continue) instead of “播放” (Play).", "对决（中文）：排行榜页面上返回对决的按钮现在显示“继续”，而不是“播放”。"],
+    ],
+  },
+  {
+    v: "3.105.2",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Liquid glass: the filter panel of the Scenes, Images, Galleries and other lists (tags, performers, rating, resolution …) and its suggestion list when you type a tag, performer or studio are glass now, like the rest of the page.", "液态玻璃：场景、图片、图库等列表的筛选面板（标签、演员、评分、分辨率等）以及输入标签、演员或工作室时的建议列表现在也是玻璃效果，与页面其余部分一致。", "scenes::[data-filter]"],
+    ],
+  },
+  {
+    v: "3.105.1",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Statistics: the big panel at the top (“Your week”) now follows the period you pick – 7 days, 30 days, 3 months, a year or all time – with its title, dates, most watched, top performer and tag, busiest day and days with something on. And in the Liquid glass look every panel of the page is glass now: the key figures, the bar with the period buttons, the achievements, the streak, the hover tip and the small bars. (Thanks ufousox007!)", "统计：顶部的大面板（“你的一周”）现在会跟随所选时间段变化 – 7 天、30 天、3 个月、1 年或全部 – 标题、日期、观看最多、最常看的演员和标签、最忙的一天和有观看的天数都会随之变化。并且在液态玻璃样式下，该页面的所有面板都是玻璃效果：关键数据、时间段按钮栏、成就、连续天数、悬停提示和小条形图。（感谢 ufousox007！）", "stats::[data-period]"],
+    ],
+  },
+  {
+    v: "3.105.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "What’s new: entries of new features now have a “Show me” button that takes you to the feature – the right page, or the right setting – and lights it up for a moment (the latest entries have it; plugin authors can add it to their own with a fourth entry).", "更新内容：新功能的条目现在有“带我去看”按钮，点击后会跳到对应的页面或设置，并让该功能短暂高亮（最近的条目都有）。"],
+    ],
+  },
+  {
+    v: "3.104.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "New: delete several performers at once. The Performers page has a “Select” button, and every card gets a tick box on hover (shift-click ticks a stretch, ctrl-click one more; once something is ticked a click on a card ticks it instead of opening it). The bar at the bottom deletes what is ticked after one question – their scenes, images and galleries stay, only the link to the performer goes – and “Select all” also takes everything the search and filters found, not just what is loaded. (Thanks ufousox007!)", "新增：一次删除多个演员。演员页面有“选择”按钮，鼠标悬停在每张卡片上都会出现勾选框（Shift+点击勾选一段，Ctrl+点击再勾一个；有勾选后，点击卡片是勾选而不是打开）。底部的操作栏只问一次就删除已勾选的 – 他们的场景、图片和图库会保留，只移除与演员的关联 – “全选”还会选中搜索和筛选找到的全部，而不只是已加载的。（感谢 ufousox007！）"],
+    ],
+  },
+  {
+    v: "3.103.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Performer page: two new buttons. “Statistics” shows what the library holds of the performer – scenes, watched and not yet, plays, watch time, total length and size, average rating, scenes per year, top tags, who they often appear with, studios, resolutions, most watched and best rated. “Missing scenes” asks StashDB (or another stash-box the performer is linked to) for the performer’s scenes and lists those the library doesn’t have yet – with a link to each, and “Show all” to see the ones you have too (matched by StashDB id, or by title and date). The stash-box is asked through the plugin’s backend with the key Stash already has; the key never reaches the page. (Thanks ufousox007!)", "演员页面：新增两个按钮。“统计”显示资料库中该演员的内容 – 场景数、已看和未看、播放次数、观看时间、总时长和大小、平均评分、每年场景数、常用标签、经常同台的演员、工作室、分辨率、观看最多和评分最高的场景。“缺失的场景”会向 StashDB（或该演员关联的其他 stash-box）查询该演员的场景，列出资料库里还没有的 – 每个都有链接，点“显示全部”还能看到已有的（按 StashDB ID 或标题和日期匹配）。查询由插件后端使用 Stash 已有的密钥完成，密钥不会传到页面。（感谢 ufousox007！）"],
+      ["ui", "Badges on thumbnails: the rating, the tier and the length (with resolution) can each sit in any corner or be hidden (Settings → This interface). The rating badge now also shows on the normal thumbnails if you choose a corner, and its colour can follow the value – dark as before, coloured text, or filled – from red (low) to green (high). Several badges in one corner stack next to each other. (Thanks ufousox007!)", "缩略图徽章：评分、等级和时长（含分辨率）都可以放在任意角落或隐藏（设置 → 本界面）。选择一个角落后，评分徽章也会显示在普通缩略图上，其颜色可随评分变化 – 深色（同以前）、彩色文字或颜色填充 – 从红色（低）到绿色（高）。同一角落的多个徽章会并排显示。（感谢 ufousox007！）"],
+      ["ui", "Fix: the performer card that opens over a performer in the scene’s info bar was see-through in the glass look, so the text behind it showed and was hard to read. It is frosted again and much more opaque. (Thanks ufousox007!)", "修复：在液态玻璃样式下，场景信息栏中演员卡片是透明的，后面的文字透出来很难读。现在重新有磨砂效果，而且更不透明。（感谢 ufousox007！）"],
+    ],
+  },
+  {
+    v: "3.102.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Versus (performers): the button that opens a performer\u2019s page now opens it in a new tab, so the duel and your streak stay where they are \u2013 also the names in the ranking. (Thanks Ghboon!)", "对战（演员）：打开演员页面的按钮现在会在新标签页中打开，对战和连胜记录保持原样——排行榜中的名字也一样。（感谢 Ghboon！）"],
+      ["pmv", "Clip selection: two sliders, \u201cSkip the start of each scene\u201d and \u201cSkip the end of each scene\u201d (0\u2013300 s). No clip is taken from those seconds \u2013 e.g. a studio logo or the credits. The start comes on top of the automatic intro skip, the end sits on top of the last few seconds that were always skipped. Off by default. (Thanks rudi123!)", "片段选择：新增两个滑块“跳过每个场景的开头”和“跳过每个场景的结尾”（0–300 秒）。这些秒数内不会取片段——例如厂牌标志或片尾字幕。开头叠加在自动跳过片头之上，结尾叠加在原本就会跳过的最后几秒之上。默认关闭。（感谢 rudi123！）"],
+    ],
+  },
+  {
+    v: "3.101.1",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Fix: \u201cShow file\u201d worked only for some files \u2013 on Windows, paths with spaces or commas made Explorer open a default folder instead of selecting the file. The file is now passed to Explorer the way it expects it. If it still can\u2019t open a file, the message says why (not in a library folder / not found on Stash\u2019s computer) and the path is copied. (Thanks Ghboon!)", "修复：“显示文件”只对部分文件有效——在 Windows 上，含空格或逗号的路径会使资源管理器打开默认文件夹，而不是选中文件。现在按资源管理器期望的方式传递文件。如果仍无法打开，提示会说明原因（不在库文件夹内 / 在 Stash 所在电脑上找不到），并复制路径。（感谢 Ghboon！）"],
+    ],
+  },
+  {
+    v: "3.101.0",
+    date: "2026-10-19",
+    items: [
+      ["ui", "Fix: the image viewer no longer flickers when you turn the page (also from a gallery). Before, the whole viewer faded in again over the page with every picture and the controls popped back up; now only the picture changes, and controls that were hidden stay hidden. The page-turning animations \u201cslide\u201d and \u201czoom\u201d no longer dip to black. (Thanks ufousox007!)", "修复：图片查看器翻页（包括从图库打开时）不再闪烁。以前每翻一张，整个查看器都会在页面上重新淡入，控制栏也会重新弹出；现在只有图片本身切换，已隐藏的控制栏保持隐藏。“滑入”和“放大进入”翻页动画也不再变黑闪烁。（感谢 ufousox007！）"],
+      ["ui", "New: a \u201cShow file\u201d button in the info bar (scenes, images, galleries) opens the file in Explorer / Finder with the file selected \u2013 when Stash runs on the same computer. Otherwise (other computer, phone) the path is copied. Only files inside your library folders. (Thanks Ghboon!)", "新增：信息栏（场景、图片、图库）中的“显示文件”按钮，可在资源管理器 / Finder 中打开并选中该文件——前提是 Stash 运行在同一台电脑上；否则（其他电脑、手机）会复制文件路径。仅限库文件夹内的文件。（感谢 Ghboon！）"],
+    ],
+  },
+  {
+    v: "3.100.0",
+    date: "2026-10-18",
+    items: [
+      ["ui", "Detailed rating: the window shows the picture and name of what you rate \u2013 for a performer also a few pictures of them from your library, to judge \u201cFace\u201d, \u201cBody\u201d \u2026 by. (Thanks JoeBiden!)", "详细评分：窗口顶部显示被评分对象的图片和名称——演员还会显示她/他在你库中的几张图片，方便判断“脸”“身材”等。（感谢 JoeBiden！）"],
+      ["ui", "Tag fields: with nothing typed, the list is for browsing \u2013 the most used tags first, up to 200 to scroll through (typing still shows the 30 best matches). (Thanks JoeBiden!)", "标签输入框：未输入时列表用于浏览——最常用的标签在前，最多 200 个可滚动查看（输入后仍显示最匹配的 30 个）。（感谢 JoeBiden！）"],
+    ],
+  },
+  {
+    v: "3.99.0",
+    date: "2026-10-18",
+    items: [
+      ["ui", "Performers: a \u201cLooks\u201d button opens filters for the performer\u2019s own eye color, hair color, ethnicity and country (the values your library has, with counts) \u2013 for \u201cblue eyes\u201d without relying on a tag. They stay in the address and combine with the other filters. (Thanks JoeBiden!)", "演员：新增“外貌”按钮，可按演员自身的眼睛颜色、发色、种族和国家筛选（列出你库中已有的值及数量）——不必再依赖标签来找“蓝眼睛”。筛选保存在地址中，可与其他筛选组合。（感谢 JoeBiden！）"],
+      ["ui", "Quick keys on the card under the mouse (scene, image and gallery lists): E edit, T tags (add / remove), D or Delete delete \u2013 each asks or opens a form first. (Thanks JoeBiden!)", "鼠标所指卡片上的快捷键（场景、图片、图库列表）：E 编辑，T 标签（添加/移除），D 或 Delete 删除——都会先询问或打开表单。（感谢 JoeBiden！）"],
+      ["ui", "Editing a performer from the internet: the found pictures are bigger, and the mouse resting on one shows it large beside the drawer. (Thanks JoeBiden!)", "从网上编辑演员：找到的图片更大，鼠标停在某张图片上时会在抽屉旁显示大图。（感谢 JoeBiden！）"],
+    ],
+  },
+  {
+    v: "3.98.0",
+    date: "2026-10-18",
+    items: [
+      ["ui", "Fix: studio \u201cFill in from the internet\u201d found no source in many Stash versions \u2013 asking for studio scrapers (which don\u2019t exist there) made the whole question fail, so not even StashDB was offered. The StashDB-style boxes are asked on their own now. (Thanks sashi!)", "修复：在许多 Stash 版本中，工作室的“从网上填写”找不到任何来源——询问（那里并不存在的）工作室刮削器会使整个查询失败，连 StashDB 都没有列出。现在单独查询 StashDB 类的来源。（感谢 sashi！）"],
+      ["ui", "The E key opens Edit on the performer, studio, gallery and tag pages and in the image viewer, like in the player. (Thanks sashi!)", "在演员、工作室、图库、标签页面以及图片查看器中，按 E 键即可打开编辑，与播放器一致。（感谢 sashi！）"],
+      ["ui", "Studio editor: the logo button \u201cRemove\u201d is now \u201cDefault image\u201d \u2013 Stash shows its default image again. (Thanks sashi!)", "工作室编辑器：标志按钮“移除”改为“默认图片”——Stash 会重新显示其默认图片。（感谢 sashi！）"],
+      ["ui", "Home \u2192 Customize \u2192 Sidebar: if the sidebar editor can\u2019t be built, the error is shown instead of an empty tab (so it can be reported).", "主页 \u2192 自定义 \u2192 侧边栏：如果无法构建侧边栏编辑器，现在会显示错误信息，而不是空白标签页（便于反馈）。"],
+    ],
+  },
+  {
+    v: "3.97.0",
+    date: "2026-10-18",
+    items: [
+      ["ui", "New: Settings \u2192 Player \u2192 \u201cStart playing when a scene opens\u201d. Off, a scene waits for the play button; going on to the next video from the player still plays. (Thanks pr0nNDal!)", "新增：设置 \u2192 播放器 \u2192 \u201c打开场景时自动播放\u201d。关闭后，场景会等待你点击播放按钮；从播放器继续到下一个视频时仍会自动播放。（感谢 pr0nNDal！）"],
+      ["ui", "New: Settings \u2192 General \u2192 \u201cStyle classic Stash like this interface\u201d. Off, classic Stash keeps its own look and only Stash UI is styled (the button back to Stash UI stays). (Thanks ufousox007!)", "新增：设置 \u2192 常规 \u2192 \u201c经典 Stash 采用与本界面相同的外观\u201d。关闭后，经典 Stash 保持自己的外观，只有 Stash UI 使用此外观（返回 Stash UI 的按钮保留）。（感谢 ufousox007！）"],
+      ["ui", "Image viewer: dragging with the mouse turns the page like a swipe (the picture follows the mouse), the next picture is loaded before it is shown (no blank flash between two images), and Settings \u2192 Player has a page-turning animation: fade, slide in, zoom in or none. Arrow keys and finger swipes worked before. (Thanks ufousox007!)", "图片查看器：用鼠标拖动即可像滑动一样翻页（图片跟随鼠标），下一张图片会先加载好再显示（两张图片之间不再闪白），设置 \u2192 播放器中新增翻页动画：淡入、滑入、放大进入或无。方向键和手指滑动此前已可用。（感谢 ufousox007！）"],
+      ["ui", "Versus: performers can be filtered by gender (only women \u2026). (Thanks Ghboon!)", "对战：演员可按性别筛选（只看女性\u2026）。（感谢 Ghboon！）"],
+      ["ui", "Fix: when every duplicate group was hidden, the \u201cShow x hidden groups again\u201d button disappeared \u2013 it stays now. (Thanks Ghboon!)", "修复：隐藏了全部重复组后，“重新显示 x 个已隐藏的组”按钮会消失——现在会保留。（感谢 Ghboon！）"],
+      ["ui", "The favorite button on a performer says what a click does: \u201cAdd to favorites\u201d / \u201cRemove from favorites\u201d (also the heart on the cards). (Thanks sashi!)", "演员页的收藏按钮现在直接说明点击的效果：“加入收藏”/“从收藏中移除”（演员卡片上的心形也一样）。（感谢 sashi！）"],
+    ],
+  },
+  {
+    v: "3.96.0",
+    date: "2026-10-18",
+    items: [
+      ["ui", "Edit → Fill in from the internet: a checkbox \u201cLook up by file hash (oshash / phash / md5)\u201d asks the source for the scene by its file fingerprints instead of its title (the title box is greyed out while it is ticked; the choice is remembered). (Thanks AffordObedienceUntamed!)", "编辑 → 从网上填写：新增复选框“按文件哈希查找（oshash / phash / md5）”，按文件指纹而不是标题向来源查询场景（勾选时标题框变灰；该选择会被记住）。（感谢 AffordObedienceUntamed！）"],
+      ["pmv", "Clip speed follows the music (experimental) now picks the scene for its speed, not only the spot in it, and keeps its speed maps between shows (in the browser) – from the second show on the first clips already fit the music. The speed measure copes with very fast motion; the clip info (I) shows each clip's speed. (Thanks PepegaSan!)", "“片段速度跟随音乐”（实验性）现在会按速度挑选场景，而不只是场景中的位置，并在两次放映之间保留速度图（保存在浏览器中）——从第二次放映起，开头的片段就已经符合音乐。速度测量能应对非常快的动作；片段信息（I）显示每个片段的速度。（感谢 PepegaSan！）"],
+      ["pmv", "New: Motion on the beat (experimental, off by default). The rhythm of the motion in each clip is measured and lined up with the beat – a clip comes in on a turn of the motion and plays up to 12 % faster or slower. (Thanks PepegaSan!)", "新增：动作踩点（实验性，默认关闭）。会测量每个片段中动作的节奏并与节拍对齐——片段从动作的转折点进入，播放速度最多快或慢 12 %。（感谢 PepegaSan！）"],
+      ["pmv", "No more clips from a scene's intro (studio logo, titles): picked spots start after it (your markers are not affected), and a clip that reaches the end of its scene turns back to its start instead of looping into the intro. (Thanks PepegaSan!)", "不再截取场景片头（工作室标志、标题）的片段：挑选的位置从片头之后开始（你的标记不受影响），到达场景结尾的片段会回到自己的起点，而不是循环到片头。（感谢 PepegaSan！）"],
+    ],
+  },
   {
     v: "3.95.1",
     date: "2026-10-14",
@@ -971,5 +1219,19 @@ export const CHANGES = [
     ],
   },
 ];
+
+// "version:index of the item" → target, for entries written before items could carry their own
+export const LINKS = {
+  "3.104.0:0": "performers::[data-selmode]",
+  "3.103.0:0": "performer/@performer::[data-pstats], [data-pmiss]",
+  "3.103.0:1": "settings/this-ui::Rating badge",
+  "3.101.0:1": "scene/@scene::[data-reveal]",
+  "3.99.0:0": "performers::[data-attrbtn]",
+  "3.97.0:0": "settings/player-ui::Start playing when a scene opens",
+  "3.97.0:1": "settings/this-ui::Style classic Stash like this interface",
+  "3.97.0:5": "performer/@performer::[data-fav]",
+  "3.94.1:0": "scenes::[data-viewseg]",
+  "3.94.0:0": "scenes::[data-viewseg]",
+};
 
 export const LATEST = CHANGES[0].v;

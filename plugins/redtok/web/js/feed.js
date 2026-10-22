@@ -3,12 +3,14 @@
 // grid …) – only the one on top plays, and only that one holds video elements beyond a few.
 
 import { $, esc, t, fmt, ago, mmss, ic, isPhone, nav, on, emit, img } from "./core.js";
-import { settings, saveSettings, isLiked, setLiked, isFollowing, setFollow, userPic, markWatched, markSeen, refetchGif, stashStart, isHidden } from "./data.js";
+import { settings, saveSettings, isLiked, setLiked, isFollowing, setFollow, userPic, markWatched, markSeen, refetchGif, stashStart, isHidden, viewed } from "./data.js";
 import { enqueue, jobOf, isSaved } from "./dl.js";
 
 const feeds = new Set();
 let current = null;
 export const activeFeed = () => current;
+// the tab goes to the background: what you watched so far counts
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && current && current.flush) current.flush(); });
 export let muted = !settings.sound;
 
 // ---------- small shared pieces ----------
@@ -176,12 +178,14 @@ export function createFeed(host, S, opts = {}) {
   function setCurrent(i, force) {
     if (!F.nodes[i] || (i === F.cur && !force)) return;
     const prev = F.cur;
+    if (prev !== i && F.nodes[prev]) report(F.nodes[prev]);
     F.cur = i;
     F.nodes.forEach((n, k) => n.el.querySelector(".card").classList.toggle("is-wide", k === i && wideOf(n.g)));
     F.nodes.forEach((n, k) => { if (k < i - 1 || k > i + 2) release(n); });
     if (prev !== i && F.nodes[prev]) pause(F.nodes[prev]);
     const n = F.nodes[i];
     if (F.active) {
+      n.pt = 0; n.since = performance.now();
       ensure(n);
       play(n);
       // The next two are warmed up (one only when the phone asks to save data) – but only once the swipe has come to
@@ -240,6 +244,9 @@ export function createFeed(host, S, opts = {}) {
     v.onwaiting = () => card.classList.add("is-wait");
     v.oncanplay = () => card.classList.remove("is-wait");
     v.ontimeupdate = () => {
+      // played time for the algorithm: only while this is the video on screen (a warmed-up next video doesn't count)
+      if (n.lt != null && F.active && F.nodes[F.cur] === n && !v.paused) { const dt = v.currentTime - n.lt; if (dt > 0 && dt < 1.5) n.pt = (n.pt || 0) + dt; }
+      n.lt = v.currentTime;
       if (!v.duration) return;
       n.el.querySelector(".prog b").style.width = (v.currentTime / v.duration) * 100 + "%";
       n.el.querySelector(".time").textContent = `${mmss(v.currentTime)} / ${mmss(v.duration)}`;
@@ -262,6 +269,15 @@ export function createFeed(host, S, opts = {}) {
     n.video = null;
     if (pool.length < 8) pool.push(v);
   }
+  // you left this video: tell the algorithm how long you really watched (a flick past on the way somewhere doesn't count)
+  function report(n) {
+    if (!n || n.since == null) return;
+    const seen = performance.now() - n.since, pt = n.pt || 0;
+    n.since = null; n.pt = 0;
+    if (seen < 450 && pt < 0.4) return;
+    viewed(n.g, pt, S.spec.t === "foryou");
+  }
+  F.flush = () => { const n = F.nodes[F.cur]; if (n && n.since != null) { report(n); n.since = performance.now(); } };
   function pause(n) { if (n.video) n.video.pause(); }
   function play(n) {
     const v = n.video;
@@ -505,7 +521,7 @@ export function createFeed(host, S, opts = {}) {
   F.deactivate = (sleep) => {
     F.active = false;
     if (current === F) current = null;
-    if (F.nodes[F.cur]) pause(F.nodes[F.cur]);
+    if (F.nodes[F.cur]) { report(F.nodes[F.cur]); pause(F.nodes[F.cur]); }
     clearTimeout(F.wt);
     if (sleep) F.nodes.forEach(release);
   };

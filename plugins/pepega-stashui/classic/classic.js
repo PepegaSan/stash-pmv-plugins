@@ -16,6 +16,57 @@
   html.classList.add("kb-classic");
   if (embedded) html.classList.add("kb-embed");
 
+  // Settings → "Style classic Stash like Stash UI" off: classic Stash keeps its own look (only the button back to
+  // Stash UI stays). The look is one block of rules, between two marker rules in classic.css – deleted here, whether
+  // Stash serves the file alone or together with other plugins' CSS. (Not inside Stash UI itself: pages of classic
+  // Stash shown there keep the look.)
+  function plain() {
+    try {
+      return localStorage.getItem("stashui.plainClassic") === "true";
+    } catch (e) {
+      return false;
+    }
+  }
+  function stripLook() {
+    var done = false;
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      var sh = document.styleSheets[i];
+      var rules;
+      try {
+        rules = sh.cssRules;
+      } catch (e) {
+        continue; // (a sheet of another site)
+      }
+      var a = -1;
+      var b = -1;
+      for (var j = 0; j < rules.length; j++) {
+        var sel = rules[j].selectorText;
+        if (sel === ".kb-classic-start") a = j;
+        else if (sel === ".kb-classic-end") {
+          b = j;
+          break;
+        }
+      }
+      if (a >= 0 && b > a) {
+        for (var k = b; k >= a; k--) sh.deleteRule(k);
+        done = true;
+      }
+    }
+    return done;
+  }
+  if (!embedded && plain()) {
+    html.classList.add("kb-plain");
+    var tries2 = 0;
+    var strip = function () {
+      if (stripLook() || ++tries2 > 40) return;
+      setTimeout(strip, 150);
+    };
+    strip();
+    var st = document.createElement("style");
+    st.textContent = ".kb-back-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #ff3e8a; }";
+    document.head.appendChild(st);
+  }
+
   var params = new URLSearchParams(location.search);
   try {
     if (params.get("classic") === "1") sessionStorage.setItem("stashui.classic", "1");
@@ -55,6 +106,7 @@
     .then(function (j) {
       var c = (j.data && j.data.configuration.plugins && j.data.configuration.plugins[PLUGIN_ID]) || {};
       localStorage.setItem("stashui.keepClassicHome", String(!!c.keepClassicHome));
+      localStorage.setItem("stashui.plainClassic", String(!!c.plainClassic));
     })
     .catch(function () {});
 

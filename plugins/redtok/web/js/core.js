@@ -2,7 +2,7 @@
 // toasts and the layer stack (pages and dialogs that the browser's Back button closes again).
 
 export const PLUGIN = "redtok";
-export const VERSION = "1.2.0";
+export const VERSION = "1.8.0";
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];

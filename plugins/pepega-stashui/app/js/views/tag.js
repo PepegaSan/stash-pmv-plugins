@@ -1,6 +1,6 @@
 // A tag: details, parent/child tags, all items with this tag.
 
-import { esc, icon, errorToast, toast, openDrawer, confirmDialog, plural } from "../ui.js";
+import { esc, icon, errorToast, toast, openDrawer, confirmDialog, plural, editKey } from "../ui.js";
 import { t } from "../i18n.js";
 import { getTag, gql } from "../api.js";
 import { mediaBrowser } from "./media.js";
@@ -118,7 +118,9 @@ export async function render(main, params, query) {
       }
     };
   };
+  const offKey = editKey(main);
   return () => {
+    offKey();
     xhead.destroy();
     b.destroy();
   };

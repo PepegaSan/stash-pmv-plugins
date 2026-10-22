@@ -78,7 +78,9 @@ export function tagPicker(host, opts) {
       .filter((tg) => !inc.includes(tg.id) && !exc.includes(tg.id))
       .filter((tg) => !q || tg.name.toLowerCase().includes(q) || (tg.aliases || []).some((a) => a.toLowerCase().includes(q)));
     if (q) shown = shown.map((tg) => [matchRank(tg.name, tg.aliases, q), tg]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
-    shown = shown.slice(0, 30);
+    // Nothing typed = browsing: the most used first, a long list to scroll (a name typed: the 30 best matches)
+    else shown = shown.slice().sort((a, b) => (b.scene_count || 0) + (b.image_count || 0) + (b.gallery_count || 0) - ((a.scene_count || 0) + (a.image_count || 0) + (a.gallery_count || 0)) || a.name.localeCompare(b.name));
+    shown = shown.slice(0, q ? 30 : 200);
     // opts.recent() = the tags used last ({ id, name }, newest first): the first 3 sit on top while nothing is typed –
     // none used yet, nothing shown. (Only with the whole tag list: the counts come from it.)
     const recent = !q && state === "ok" && opts.recent ? opts.recent().slice(0, 3).map((r) => tags.find((tg) => tg.id === r.id)).filter((tg) => tg && !inc.includes(tg.id) && !exc.includes(tg.id)) : [];

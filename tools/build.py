@@ -51,6 +51,7 @@ SHARED = [
     "app/js/locales/de.js",
     "app/js/locales/pl.js",
     "app/js/locales/ru.js",
+    "app/js/locales/uk.js",
     "app/js/pmvsmart.js",
     "app/js/audiox.js",
     "app/js/views/tagpicker.js",

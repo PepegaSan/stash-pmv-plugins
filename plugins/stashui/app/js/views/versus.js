@@ -47,6 +47,7 @@ const KINDS = {
     open: (id, x) => (x ? `scene/${x.scene.id}?t=${Math.floor(x.seconds || 0)}` : "versus/ranking"),
   },
 };
+const VGENDERS = [["FEMALE", "Female"], ["MALE", "Male"], ["TRANSGENDER_FEMALE", "Trans female"], ["TRANSGENDER_MALE", "Trans male"], ["NON_BINARY", "Non-binary"], ["INTERSEX", "Intersex"]];
 const MODES = [
   ["fair", "Fair matches", "Similar strength, the least played first"],
   ["champ", "Winner stays", "The winner stays on – how long a streak?"],
@@ -113,7 +114,7 @@ const parseVs = (txt) => {
 };
 
 export function render(main, params = {}) {
-  const S = Object.assign({ kind: "scene", mode: "fair", tags: [], xtags: [] }, store.get("versusView", {}));
+  const S = Object.assign({ kind: "scene", mode: "fair", tags: [], xtags: [], gender: "" }, store.get("versusView", {}));
   const saveView = () => store.set("versusView", S);
   // { scene: { id: [elo, wins, losses] }, image: …, performer: …, votes, day, dayVotes, bestStreak }
   // This browser keeps a copy (starts at once); Stash has the real thing – written a few seconds after
@@ -173,7 +174,7 @@ export function render(main, params = {}) {
       <button type="button" class="kb-btn is-ghost" data-vx="snaps" title="${t("Snapshots of the standings")}">${icon("copies")}${t("Snapshots")}</button>
       <button type="button" class="kb-btn is-ghost" data-vx="log">${icon("logs")}${t("Log")}</button>
       <button type="button" class="kb-btn is-ghost" data-vx="opts">${icon("sliders")}${t("Options")}</button>
-      <a class="kb-btn${ranking ? " is-primary" : ""}" href="#/${ranking ? "versus" : "versus/ranking"}">${icon(ranking ? "bolt" : "trophy")}${ranking ? t("Play") : t("Ranking")}</a>
+      <a class="kb-btn${ranking ? " is-primary" : ""}" href="#/${ranking ? "versus" : "versus/ranking"}">${icon(ranking ? "bolt" : "trophy")}${ranking ? t("Continue") : t("Ranking")}</a>
     </div></header>
     <div class="kb-vs" data-body></div>`;
   const $ = (q) => main.querySelector(q);
@@ -227,10 +228,13 @@ export function render(main, params = {}) {
 
   // ---------- Loading ----------
   function filter() {
-    if (!S.tags.length && !S.xtags.length) return {};
-    const tags = { value: S.tags, modifier: "INCLUDES", depth: 0 };
-    if (S.xtags.length) tags.excludes = S.xtags;
-    return { tags };
+    const f = {};
+    if (S.tags.length || S.xtags.length) {
+      f.tags = { value: S.tags, modifier: "INCLUDES", depth: 0 };
+      if (S.xtags.length) f.tags.excludes = S.xtags;
+    }
+    if (S.kind === "performer" && S.gender) f.gender = { value: S.gender, modifier: "EQUALS" }; // (performers only: show only women …)
+    return f;
   }
   // (moments have tags too – the same filter works)
   async function loadPool() {
@@ -278,6 +282,7 @@ export function render(main, params = {}) {
         <div class="kb-seg" data-mode>${MODES.map(([m, l, h]) => `<button type="button" data-v="${m}" title="${esc(t(h))}">${t(l)}</button>`).join("")}</div>
         <div class="kb-vs-filter" data-tags></div>
         <div class="kb-vs-filter kb-vs-xtags" data-xtags></div>
+        ${S.kind === "performer" ? `<select class="kb-field kb-vs-gender" data-gender aria-label="${esc(t("Gender"))}"><option value="">${t("Everyone")}</option>${VGENDERS.map(([v, l]) => `<option value="${v}"${S.gender === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select>` : ""}
       </div>
       <div class="kb-vs-arena" data-arena><div class="kb-loading">${t("Loading …")}</div></div>
       <div class="kb-vs-foot">
@@ -318,6 +323,12 @@ export function render(main, params = {}) {
         reset();
       },
     });
+    const gsel = body.querySelector("[data-gender]");
+    if (gsel) gsel.onchange = () => {
+      S.gender = gsel.value;
+      saveView();
+      reset();
+    };
     body.querySelector("[data-skip]").onclick = () => showNext();
     body.querySelector("[data-undo]").onclick = () => undoLast();
     body.querySelector("[data-fs]").onclick = () => fullscreen();
@@ -329,7 +340,10 @@ export function render(main, params = {}) {
       const open = e.target.closest("[data-open]");
       if (open) {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); // the player opens outside of it
-        return go(KINDS[S.kind].open(open.dataset.open, (pair || []).find((x) => x.id === open.dataset.open)));
+        const route = KINDS[S.kind].open(open.dataset.open, (pair || []).find((x) => x.id === open.dataset.open));
+        // A performer's page opens in a new tab: the duel (and its streak) stays where it is
+        if (S.kind === "performer") return void window.open(location.href.split("#")[0] + "#/" + route, "_blank", "noopener");
+        return go(route);
       }
       const c = e.target.closest("[data-side]");
       if (c) vote(Number(c.dataset.side));
@@ -595,7 +609,7 @@ export function render(main, params = {}) {
         .map(([id, [elo, w, l]], i) => {
           const x = byId.get(id);
           if (!x) return "";
-          return `<li data-lid="${esc(id)}"><a href="#/${esc(k.open(id, x))}"><span class="kb-vs-pos${i < 3 ? " is-podium" : ""}">${i + 1}</span>
+          return `<li data-lid="${esc(id)}"><a href="#/${esc(k.open(id, x))}"${S.kind === "performer" ? ' target="_blank" rel="noopener"' : ""}><span class="kb-vs-pos${i < 3 ? " is-podium" : ""}">${i + 1}</span>
             <img src="${esc(thumbOf(S.kind, x) || "")}" alt="" loading="lazy"><b>${esc(titleOf(S.kind, x))}</b>${tierBadge(tiers.map.get(id)) || "<span></span>"}
             <span class="kb-vs-pts">${Math.round(elo)}</span><small>${w}–${l}</small></a>
             <button type="button" class="kb-vs-hist" data-hist title="${t("Last matches")}" aria-label="${t("Last matches")}">${icon("history")}</button><div class="kb-vs-ledger" hidden></div></li>`;

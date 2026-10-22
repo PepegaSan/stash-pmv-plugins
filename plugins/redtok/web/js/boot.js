@@ -2,6 +2,7 @@
 // Stash opened under another address, a new device) gets it back from the backup file next to Stash.
 
 import { call } from "./core.js";
+import { pull } from "./sync.js";
 
 export let restoredN = 0;
 const have = {};
@@ -15,3 +16,5 @@ if (!["rgf.liked", "rgf.following", "rgf.watched", "rgf.history", "rgf.done", "r
     restoredN = e.length;
   } catch (x) { /* no backup (yet), or no backend */ }
 }
+// Sync between devices (Settings → Your data): the newer copy of each list from Stash, before the page reads them
+try { await pull(); } catch (x) { /* no backend, offline – the next time */ }

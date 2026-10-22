@@ -110,13 +110,16 @@ export async function render(main) {
 
   function paint() {
     const visible = visibleGroups();
+    const hiddenN = groups.filter((g) => ignored.has(keyOf(g))).length; // (groups you hid – not keys of groups that are gone)
     paintBulk();
     if (!visible.length) {
-      list.innerHTML = `<div class="kb-empty"><b>${t("No duplicates found")}</b><p>${t("Stash finds duplicates through perceptual hashes. If there are none yet: Tasks → Generate → Phashes. A lower accuracy finds more (and more false matches).")}</p></div>`;
+      // (also when you have hidden every group: the button to get them back stays)
+      const back = hiddenN ? `<p><button type="button" class="kb-btn" data-unignore>${t("Show {n} hidden groups again", { n: hiddenN })}</button></p>` : "";
+      list.innerHTML = `<div class="kb-empty"><b>${t("No duplicates found")}</b><p>${t("Stash finds duplicates through perceptual hashes. If there are none yet: Tasks → Generate → Phashes. A lower accuracy finds more (and more false matches).")}</p>${back}</div>`;
       return;
     }
     list.innerHTML =
-      `<p class="kb-hint">${plural(visible.length, "group", "groups")}${ignored.size ? ` · <button type="button" class="kb-linkbtn" data-unignore>${t("Show {n} hidden groups again", { n: ignored.size })}</button>` : ""}</p>` +
+      `<p class="kb-hint">${plural(visible.length, "group", "groups")}${hiddenN ? ` · <button type="button" class="kb-linkbtn" data-unignore>${t("Show {n} hidden groups again", { n: hiddenN })}</button>` : ""}</p>` +
       visible
         .slice(0, shown)
         .map((g) => {

@@ -3,9 +3,11 @@
 // Fields and types come live from Stash; unknown options end up under "More options".
 
 import { applyDisplay } from "../display.js";
+import { cardInfo } from "../pieces.js";
 import { forgetLarge, largeNow } from "../scale.js";
 import { esc, icon, toast, errorToast, store, confirmDialog, fmtDate, folderMode, ratingSystem, setRatingSystem } from "../ui.js";
 import { t, locale, LANGS, chosen, choose } from "../i18n.js";
+import { oPrefs, setOPrefs } from "../oclip.js";
 import { gql, setPluginConfig } from "../api.js";
 import { typeInfo, selection, fieldHtml, readFields, unwrap, labelOf, LABELS } from "../forms.js";
 import { go } from "../main.js";
@@ -51,7 +53,7 @@ SECTIONS.splice(SECTIONS.findIndex((x) => x.id === "classic-ui"), 0, Object.assi
 // Search: what the custom pages contain (their labels, as shown)
 const CUSTOM_ENTRIES = {
   look: ["Colors", "Liquid glass", "Effects and animations"],
-  "player-ui": ["At the end of a video", "Start at a random spot", "Mouse wheel on the video", "Reverse the wheel", "Info panel in fullscreen", "Sound in previews", "The Handy", "Connection key", "Script offset"],
+  "player-ui": ["At the end of a video", "Start at a random spot", "Mouse wheel on the video", "Reverse the wheel", "Picture when hovering the timeline", "Info panel in fullscreen", "Sound in previews", "The Handy", "Connection key", "Script offset"],
   "this-ui": ["Language", "Folder loading", "This interface as home page", "Install as app", "Studio on scenes", "Resolution on scene cards", "Other plugins in the menu", "Rating system", "Thumbnail size", "Favorites", "Backup and restore", "Reset interface settings"],
   database: ["Back up database", "Optimize database", "Clean up generated files"],
   login: ["API key"],
@@ -378,10 +380,17 @@ function renderPlayerUi(body) {
   body.innerHTML = `<form class="kb-set-form" data-form>
       <label class="kb-set"><span class="kb-set-label"><b>${t("At the end of a video")}</b><small>${t("The same as the button in the player bar – a click there cycles through these.")}</small></span>
         <select class="kb-field" data-pmode>${[["order", "In order"], ["shuffle", "Random order"], ["one", "Repeat this video"], ["all", "Repeat all"], ["stop", "Stop at the end"]].map(([v, l]) => `<option value="${v}"${mode === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
-      ${sw("data-randstart", !!player.randomStart, "Start at a random spot", "Every scene starts somewhere in the middle – for browsing around. Your resume points in Stash stay as they are.")}
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Image viewer: turning the page")}</b><small>${t("How the next picture comes in. Arrow keys, a swipe (finger or dragging with the mouse) and the arrows on the sides all turn the page.")}</small></span>
+        <select class="kb-field" data-vanim>${[["fade", "Fade"], ["slide", "Slide in"], ["zoom", "Zoom in"], ["none", "None"]].map(([v, l]) => `<option value="${v}"${(store.get("viewer", {}).anim || "fade") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
+      ${sw("data-autoplay", player.autoplay !== false, "Start playing when a scene opens", "Off: opening a scene shows the first picture and waits for the play button. Going on to the next video from the player always plays.")}
+      ${sw("data-fromstart", !!player.fromStart, "Always start from the beginning", "Scenes you stopped halfway begin at 0:00 instead of where you left off. The saved point stays in Stash; the hint offers it as a button.")}
+      ${sw("data-randstart",!!player.randomStart, "Start at a random spot", "Every scene starts somewhere in the middle – for browsing around. Your resume points in Stash stay as they are.")}
       <label class="kb-set"><span class="kb-set-label"><b>${t("Mouse wheel on the video")}</b><small>${t("Turn the wheel over the picture to change the volume or to jump (5 s per notch); hold Shift for the other one.")}</small></span>
         <select class="kb-field" data-wheel>${[["volume", "Volume"], ["seek", "Jump forward / back"], ["off", "Off"]].map(([v, l]) => `<option value="${v}"${(player.wheel || "volume") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
       ${sw("data-wheelrev", !!player.wheelRev, "Reverse the wheel", "Normally turning the wheel up makes it louder or jumps forward. Switch this on and up goes quieter / back, down louder / forward.")}
+      ${sw("data-scrubpeek", player.scrubPeek !== false, "Picture when hovering the timeline", "Hover the timeline in the player to see a small picture of that moment above the pointer (needs Stash's timeline images – Tasks → Generate → Timeline images). Not shown on touch screens.")}
+      ${sw("data-omark", oPrefs().mark !== false, "O marks the moment", "Pressing O (key or button) in the player also remembers the spot in the video. Shift+O marks it without counting an O.")}
+      ${sw("data-oshow", oPrefs().show !== false, "Show the O clip at the O moments", "From a marked O moment on, the O clip you chose plays in a small window next to the video (info bar → O moments).")}
       ${sw("data-fspanel", player.fsPanel !== false, "Info panel in fullscreen", "Move the mouse to the right edge in fullscreen to slide in the info panel.")}
       <div class="kb-set"><div class="kb-set-label"><b>${t("External players")}</b><small>${t("The “External player” button in a scene's info panel hands the video to a player on this device – for formats the browser can't play. Choose the ones to offer; some need a small helper installed (see below each).")}</small></div></div>
       <div class="kb-extpick" data-extpick></div>
@@ -407,7 +416,13 @@ function renderPlayerUi(body) {
   body.querySelector("[data-pmode]").onchange = (e) => setPlayer({ mode: e.target.value });
   body.querySelector("[data-wheel]").onchange = (e) => setPlayer({ wheel: e.target.value });
   body.querySelector("[data-wheelrev]").onchange = (e) => setPlayer({ wheelRev: e.target.checked });
+  body.querySelector("[data-scrubpeek]").onchange = (e) => setPlayer({ scrubPeek: e.target.checked });
+  body.querySelector("[data-omark]").onchange = (e) => setOPrefs({ mark: e.target.checked });
+  body.querySelector("[data-oshow]").onchange = (e) => setOPrefs({ show: e.target.checked });
   body.querySelector("[data-fspanel]").onchange = (e) => setPlayer({ fsPanel: e.target.checked });
+  body.querySelector("[data-vanim]").onchange = (e) => store.set("viewer", Object.assign(store.get("viewer", { panel: false, interval: 5 }), { anim: e.target.value }));
+  body.querySelector("[data-autoplay]").onchange = (e) => setPlayer({ autoplay: e.target.checked });
+  body.querySelector("[data-fromstart]").onchange = (e) => setPlayer({ fromStart: e.target.checked });
   body.querySelector("[data-randstart]").onchange = (e) => setPlayer({ randomStart: e.target.checked });
   body.querySelector("[data-psound]").onchange = (e) => store.set("previewSound", e.target.checked);
 
@@ -472,15 +487,43 @@ async function renderApp(body) {
         <select class="kb-field" data-dsp="vsMedia">${[["auto", "Automatic"], ["preview", "Preview clips"], ["full", "Whole video"]].map(([v, l]) => `<option value="${v}"${store.get("vsMedia", "auto") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
       <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("This interface as home page")}</b><small>${t("Opening Stash goes straight to this interface. Off = classic Stash stays the home page.")}</small></span>
         <span class="kb-switch"><input type="checkbox" data-home${cfg.keepClassicHome ? "" : " checked"}><i></i></span></label>
+      <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("Style classic Stash like this interface")}</b><small>${t("Off: classic Stash keeps its own look (reload its page after changing this); only this interface is styled.")}</small></span>
+        <span class="kb-switch"><input type="checkbox" data-plainclassic${cfg.plainClassic ? "" : " checked"}><i></i></span></label>
       <div class="kb-set"><div class="kb-set-label"><b>${t("Install as app")}</b><small data-installhint></small></div><button type="button" class="kb-btn" data-install hidden>${icon("phone")}${t("Install")}</button></div>
       <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("Studio on scenes")}</b><small>${t("Shows the studio's logo (or its name) in the corner of scene thumbnails.")}</small></span>
         <span class="kb-switch"><input type="checkbox" data-studiologo${store.get("studioLogos", false) ? " checked" : ""}><i></i></span></label>
       <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("Resolution on scene cards")}</b><small>${t("Shows 1080p, 720p … next to the length in the corner of scene thumbnails (after the next page load).")}</small></span>
         <span class="kb-switch"><input type="checkbox" data-cardres${store.get("cardRes", false) ? " checked" : ""}><i></i></span></label>
+      <div class="kb-set"><span class="kb-set-label"><b>${t("Info on scene cards")}</b><small>${t("Extra lines under the date when scenes are shown as cards. Click to switch each one on or off.")}</small></span>
+        <div class="kb-chips" data-cardinfo>${[["watched", "Last watched"], ["added", "Added"], ["time", "Watch time"], ["size", "File size"]].map(([k, l]) => `<button type="button" class="kb-chip${cardInfo()[k] ? " is-on" : ""}" data-ci="${k}">${t(l)}</button>`).join("")}</div></div>
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Dates on scene cards")}</b><small>${t("Last watched and Added: the exact date, or how many days ago.")}</small></span>
+        <select class="kb-field" data-cistyle>${[["date", "Exact date"], ["days", "Days ago"]].map(([v, l]) => `<option value="${v}"${cardInfo().style === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
+      <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("With the time")}</b><small>${t("Adds the hour and minute to those dates.")}</small></span>
+        <span class="kb-switch"><input type="checkbox" data-cihour${cardInfo().hour ? " checked" : ""}><i></i></span></label>
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Time format")}</b><small>${t("How the time of day is written when “With the time” is on.")}</small></span>
+        <select class="kb-field" data-ciclock>${[["auto", "Automatic"], ["24", "24-hour (14:25)"], ["12", "12-hour (2:25 PM)"]].map(([v, l]) => `<option value="${v}"${cardInfo().clock === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
+      ${[
+        ["badgeRating", "Rating badge", "Where the rating sits on a thumbnail. Automatic: only on the card view (bottom left).", [["auto", "Automatic"], ["off", "Hidden"]]],
+        ["badgeTier", "Tier badge", "Where the tier (S–F) sits on a thumbnail. Automatic: top left.", [["auto", "Automatic"], ["off", "Hidden"]]],
+        ["badgeStamp", "Length badge", "Where the length (and resolution) sits on a thumbnail. Automatic: top right.", [["auto", "Automatic"], ["off", "Hidden"]]],
+      ].map(([k, label, hint, first]) => `<label class="kb-set"><span class="kb-set-label"><b>${t(label)}</b><small>${t(hint)} ${t("Takes effect when a list is loaded again.")}</small></span>
+        <select class="kb-field" data-dsp="${k}">${[...first, ["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"]].map(([v, l]) => `<option value="${v}"${store.get(k, "auto") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>`).join("")}
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Rating badge: colour")}</b><small>${t("The colour can follow the rating – from red (low) to green (high).")}</small></span>
+        <select class="kb-field" data-dsp="ratingStyle">${[["plain", "Dark"], ["tint", "Coloured text"], ["fill", "Filled with the colour"]].map(([v, l]) => `<option value="${v}"${store.get("ratingStyle", "plain") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
       <label class="kb-set"><span class="kb-set-label"><b>${t("Studio logo: corner")}</b><small>${t("Where the logo sits on a thumbnail.")}</small></span>
         <select class="kb-field" data-dsp="studioPos">${[["bl", "Bottom left"], ["br", "Bottom right"], ["tl", "Top left"], ["tr", "Top right"]].map(([v, l]) => `<option value="${v}"${store.get("studioPos", "bl") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
       <label class="kb-set"><span class="kb-set-label"><b>${t("Studio logo: size")}</b><small>${t("How big the logo is.")}</small></span>
         <select class="kb-field" data-dsp="studioSize">${[["s", "Small"], ["m", "Medium"], ["l", "Large"], ["xl", "Extra large"]].map(([v, l]) => `<option value="${v}"${store.get("studioSize", "m") === v ? " selected" : ""}>${t(l)}</option>`).join("")}</select></label>
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Missing scenes: oldest date")}</b><small>${t("The performer page's “Missing scenes” only lists scenes from this date on. Empty = no limit.")}</small></span>
+        <input type="date" class="kb-field" data-dsp="missingFrom" value="${esc(store.get("missingFrom", ""))}"></label>
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Missing scenes: newest date")}</b><small>${t("… and only up to this date. Empty = no limit.")}</small></span>
+        <input type="date" class="kb-field" data-dsp="missingTo" value="${esc(store.get("missingTo", ""))}"></label>
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Missing scenes: only the last days")}</b><small>${t("Only scenes from the last n days (0 = off). Replaces the oldest and newest date.")}</small></span>
+        <input type="number" min="0" max="36500" class="kb-field" data-dsp="missingDays" value="${esc(store.get("missingDays", "") || "")}" placeholder="0"></label>
+      <label class="kb-set"><span class="kb-set-label"><b>${t("Missing scenes: stash-box")}</b><small>${t("Which stash-box is asked first when a performer is linked to several. The ones set up in Stash (Settings → Metadata Providers) are listed.")}</small></span>
+        <select class="kb-field" data-dsp="missingBox" data-boxsel><option value="">${t("Automatic")}</option></select></label>
+      <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("Missing scenes: cover pictures")}</b><small>${t("Shows the cover of each scene in the list (fetched through the plugin, only while you scroll to it).")}</small></span>
+        <span class="kb-switch"><input type="checkbox" data-dsp="missingCovers"${store.get("missingCovers", true) !== false ? " checked" : ""}><i></i></span></label>
       <label class="kb-set kb-set-bool"><span class="kb-set-label"><b>${t("NSFW mode")}</b><small>${t("Blurs all pictures and hover previews – also with the eye button at the top of the menu on the left.")}</small></span>
         <span class="kb-switch"><input type="checkbox" data-dsp="nsfw"${store.get("nsfw", false) ? " checked" : ""}><i></i></span></label>
       <label class="kb-set"><span class="kb-set-label"><b>${t("NSFW mode: what is blurred")}</b><small>${t("Thumbnails and previews – or also the player and the image viewer.")}</small></span>
@@ -581,6 +624,28 @@ async function renderApp(body) {
     if (el.type === "range") el.addEventListener("change", () => toast(t("Saved"), "ok"));
     else el.addEventListener("change", () => toast(t("Saved"), "ok"));
   });
+  // the stash-boxes set up in Stash fill the "Missing scenes: stash-box" list
+  const boxSel = body.querySelector("[data-boxsel]");
+  if (boxSel)
+    gql(`query { configuration { general { stashBoxes { endpoint name } } } }`)
+      .then((d) => {
+        for (const b of d.configuration.general.stashBoxes || []) boxSel.insertAdjacentHTML("beforeend", `<option value="${esc(b.endpoint)}">${esc(b.name || b.endpoint)}</option>`);
+        boxSel.value = store.get("missingBox", "");
+      })
+      .catch(() => {});
+  const setCardInfo = (patch) => {
+    store.set("cardInfo", Object.assign(cardInfo(), patch));
+    toast(t("Saved"), "ok");
+  };
+  body.querySelector("[data-cardinfo]").onclick = (e) => {
+    const b = e.target.closest("[data-ci]");
+    if (!b) return;
+    b.classList.toggle("is-on");
+    setCardInfo({ [b.dataset.ci]: b.classList.contains("is-on") });
+  };
+  body.querySelector("[data-cistyle]").onchange = (e) => setCardInfo({ style: e.target.value });
+  body.querySelector("[data-cihour]").onchange = (e) => setCardInfo({ hour: e.target.checked });
+  body.querySelector("[data-ciclock]").onchange = (e) => setCardInfo({ clock: e.target.value });
   body.querySelector("[data-cardres]").onchange = (e) => {
     store.set("cardRes", e.target.checked);
     toast(t("Saved"), "ok");
@@ -596,6 +661,15 @@ async function renderApp(body) {
   langSel.onchange = () => {
     choose(langSel.value);
     location.reload();
+  };
+  body.querySelector("[data-plainclassic]").onchange = async (e) => {
+    try {
+      await setPluginConfig("stashui", { plainClassic: !e.target.checked });
+      localStorage.setItem("stashui.plainClassic", String(!e.target.checked));
+      toast(t("Saved"), "ok");
+    } catch (err) {
+      errorToast(err, "Save");
+    }
   };
   body.querySelector("[data-home]").onchange = async (e) => {
     try {

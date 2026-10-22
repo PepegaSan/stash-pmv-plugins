@@ -59,6 +59,7 @@ const DEFAULTS = {
   layoutShape: {}, // clip shape per layout (layout id → all | portrait | landscape), missing = all
   bestSpots: true, // best moments instead of random
   paceMatch: false, // clip speed follows the music: fast music gets clips with fast motion (scene previews give a speed map)
+  beatSync: false, // motion on the beat: each clip's rhythm is measured while preparing and lined up with the beat (experimental)
   cleanCuts: true, // a clip's start has no scene change in the first seconds (it would cut by itself)
   smartCrop: true, // crop follows what matters
   variety: true, // same scene / performer not shortly after each other
@@ -78,11 +79,21 @@ const DEFAULTS = {
   bright: 0, // smooth extra brightness (%)
   soft: false, // soft seams: the fields of a split screen blend into each other
   softAmt: 50, // how wide the blend is (%)
+  skipHead: 0, // seconds at the start of every scene that no clip is taken from (on top of the automatic intro skip)
+  skipTail: 0, // … and at the end
   divW: 2, // width of the dividers between the fields (px at 1280 wide, scales with the picture)
   cutLead: 0, // cuts land this many ms before the beat (the picture is a touch early, which feels tighter)
   minBeats: 0, // a clip stays at least this many beats before its field is cut again (0 = off)
   maxBeats: 0, // … and is replaced after at most this many beats (0 = off)
   reshuffleEach: false, // several songs / Plex: new clips for every new song
+  autoStart: false, // starts by itself as soon as it can (a Plex playlist is set / a song has been picked)
+  mWheel: "off", // mouse wheel while it plays: off | song (next / previous song) | volume (song volume)
+  mWheelRev: false, // … the other way round
+  mMid: false, // a click in the middle of the picture pauses / plays
+  mSides: false, // (old on/off switch, replaced by mSidesMode)
+  mSidesMode: "", // a click on the left / right third of the picture: off | song (previous / next song) | volume (song volume)
+  mSidesRev: false, // … left = louder, right = quieter
+  mShuffle: false, // the middle mouse button reshuffles the clips
   introEach: false, // several songs / Plex: intro and outro come again for every song
   recSplit: false, // several songs: one recording per song
   edge: "off", // rim of the picture: off | blur | motion | lens
@@ -171,6 +182,7 @@ const SECTIONS = [
   ["look", "Color & look", "Color mood, brightness and film effects"],
   ["frame", "Picture & frame", "Format, fit, seams and edges"],
   ["sound", "Sound", "Song and clip volume"],
+  ["mouse", "Mouse control", "Run the show with the mouse alone"],
   ["fs", "Funscript", "A script for The Handy that follows the song"],
   ["out", "Output", "Intro, outro and recording"],
 ];
@@ -203,6 +215,7 @@ export function render(main) {
   S.layouts = Object.assign({}, DEFAULTS.layouts, S.layouts);
   S.stages = JSON.parse(JSON.stringify(Array.isArray(S.stages) && S.stages.length >= 2 ? S.stages : DEFAULTS.stages));
   S.collapsed = Object.assign({}, S.collapsed);
+  if (!S.mSidesMode) S.mSidesMode = S.mSides ? "volume" : "off"; // (settings from before the choice existed)
   // Settings from before version 2 had "Fill" as default – people took the cropping for a bug
   if (!stored.v) S.fit = "contain";
   if (!Array.isArray(S.folders)) S.folders = [];
@@ -374,9 +387,12 @@ export function render(main) {
         <div class="kb-pmvg-opts">
           ${sw("bestSpots", "Best moments instead of random", "Looks at several spots per scene (motion, skin, your markers) and takes the best one")}
           ${sw("paceMatch", "Clip speed follows the music (experimental)", "Fast, busy music gets clips with fast motion, calm music slow ones. Finds the fast and calm spots of each scene in Stash's scene previews (Tasks → Generate → Previews) – without them it measures the spot it takes")}
+          ${sw("beatSync", "Motion on the beat (experimental)", "Measures the rhythm of the motion in each clip and lines it up with the beat – a clip comes in on a turn of the motion and plays up to 12 % faster or slower. Clips take about 1 s longer to prepare; works best with steady, repeating motion, a still camera and clips that stay on for a few beats")}
           ${sw("cleanCuts", "Clean cuts", "With best moments: a clip starts where its scene runs on for the next few seconds – no hidden cut inside the clip that jumps to another scene by itself")}
           ${sw("smartCrop", "Smart crop", "The crop follows what matters in the clip instead of sticking to the center")}
         </div>
+        <label class="kb-pmvg-range" title="No clip is taken from the first seconds of a scene (studio logo, titles). On top of the automatic skip of the intro; 0 = automatic only"><span>${icon("sliders")}Skip the start of each scene</span><input type="range" min="0" max="300" step="5" data-r="skipHead" aria-label="Skip the start of each scene"><output data-ro="skipHead" data-unit=" s"></output></label>
+        <label class="kb-pmvg-range" title="No clip is taken from the last seconds of a scene (credits, outro). 0 = off"><span>${icon("sliders")}Skip the end of each scene</span><input type="range" min="0" max="300" step="5" data-r="skipTail" aria-label="Skip the end of each scene"><output data-ro="skipTail" data-unit=" s"></output></label>
         <span class="kb-lab-t">Clip order <small>– which clip follows which</small></span>
         <div class="kb-pmvg-opts">
           ${sw("matchCut", "Match cuts", "At each cut, the clip that best matches the previous one in color, brightness and composition comes next")}
@@ -560,6 +576,22 @@ export function render(main) {
           </div>
         </div>
 
+        <div class="kb-pmvg-sec" data-sec="mouse">
+          ${secHead("mouse")}
+          <div class="kb-pmvg-pane" id="pmvg-pane-mouse" data-pane="mouse">
+            <div class="kb-pmvg-opts">
+              ${sw("mMid", "Click the middle: play / pause", "A click on the middle third of the picture")}
+              ${sw("mShuffle", "Middle mouse button: new clips", "Same as the R key")}
+            </div>
+            <span class="kb-lab-t">Click the sides</span>
+            <div class="kb-seg" data-seg="mSidesMode"><button type="button" data-v="off">Off</button><button type="button" data-v="song" title="Right third = next song, left = previous (only with several songs)">Next / previous song</button><button type="button" data-v="volume" title="Right third louder, left third quieter (5 % per click)">Song volume</button></div>
+            <div class="kb-pmvg-opts">${sw("mSidesRev", "Sides the other way round", "Left = next song / louder, right = previous song / quieter")}</div>
+            <span class="kb-lab-t">Mouse wheel</span>
+            <div class="kb-seg" data-seg="mWheel"><button type="button" data-v="off">Off</button><button type="button" data-v="song" title="Wheel down = next song, up = previous (only with several songs)">Next / previous song</button><button type="button" data-v="volume">Song volume</button></div>
+            <div class="kb-pmvg-opts">${sw("mWheelRev", "Reverse the wheel", "Turns it round: wheel down = previous song / louder, wheel up = next song / quieter")}</div>
+          </div>
+        </div>
+
         <div class="kb-pmvg-sec" data-sec="fs">
           ${secHead("fs")}
           <div class="kb-pmvg-pane" id="pmvg-pane-fs" data-pane="fs">
@@ -589,6 +621,7 @@ export function render(main) {
               ${sw("intro", "Intro", "Title card at the start: your title slams in, comic-SFX style")}
               ${sw("outro", "Outro", "Credits at the end: the picture fades dark, title and number of clips")}
               ${sw("introEach", "Again for every song", "With several songs or Plex: intro and outro come again for each song (the outro when a song plays to its end)")}
+              ${sw("autoStart", "Start by itself", "Starts as soon as it can – when the page opens with a Plex playlist set, or right after you pick a song – with the settings as you left them")}
             </div>
             <input class="kb-field" data-title placeholder="Title for intro/outro – empty = song name" value="${esc(S.title)}">
             </div>
@@ -703,11 +736,12 @@ export function render(main) {
       look: look,
       frame: `${S.format === "window" ? "window shape" : S.format} · ${S.fit === "cover" ? "fill" : "fit"}${S.soft ? " · soft seams" : ""}`,
       sound: `Song ${S.songVol} · Clips ${S.fx.voice ? S.clipVol : "off"}`,
+      mouse: [S.mMid, S.mShuffle, S.mSidesMode !== "off", S.mWheel && S.mWheel !== "off"].filter(Boolean).length ? `${[S.mMid, S.mShuffle, S.mSidesMode !== "off", S.mWheel && S.mWheel !== "off"].filter(Boolean).length} on` : "off",
       fs: S.fsOn ? `${S.fsPace === "auto" ? "follows the song" : S.fsPace} · ${S.fsSize === "auto" ? "auto size" : S.fsSize}` : "off",
       out: [S.intro && "Intro", S.outro && "Outro", S.record && "Recording"].filter(Boolean).join(" · ") || "live only",
     };
     main.querySelectorAll("[data-tabsum]").forEach((s) => (s.textContent = tabSum[s.dataset.tabsum]));
-    const clipOpts = [S.bestSpots && "best moments", S.paceMatch && "clip speed follows the music", S.cleanCuts && "clean cuts", S.smartCrop && "smart crop", S.matchCut && "match cuts", S.sequenced && "scene timeline", S.variety && "variety"].filter(Boolean);
+    const clipOpts = [S.bestSpots && "best moments", S.paceMatch && "clip speed follows the music", S.beatSync && "motion on the beat", S.cleanCuts && "clean cuts", S.smartCrop && "smart crop", S.matchCut && "match cuts", S.sequenced && "scene timeline", S.variety && "variety"].filter(Boolean);
     const src = { scene: "Scenes", image: "Images", both: "Scenes + images", marker: "Markers" }[S.source];
     const where = (S.folders.length ? `from ${S.folders.length === 1 ? "1 folder" : S.folders.length + " folders"}` : "from all folders") + (S.xfolders.length ? `, without ${S.xfolders.length === 1 ? "1 folder" : S.xfolders.length + " folders"}` : "");
     const plName = S.clipFrom === "playlist" ? (pls.find((p) => p.id === S.clipList) || {}).name : null;
@@ -1424,11 +1458,16 @@ export function render(main) {
 
   const canStart = () =>
     S.mode === "tpl" ? !!tpl : S.mode === "plex" ? !!plex && (S.plexWhat !== "list" || !!S.plexList) : S.mode === "live" ? !!(liveConn && liveSt && liveSt.running) : !!song;
+  var autoDone = false; // "Start by itself": once per visit of the page
   function paintStart() {
     if (starting) return;
     const ok = canStart();
     const b = $("[data-start]");
     b.disabled = !ok;
+    if (ok && S.autoStart && !autoDone && !waiting) {
+      autoDone = true;
+      setTimeout(() => canStart() && !starting && startRun(), 900);
+    }
     const label =
       S.mode === "tpl"
         ? ok ? "Rebuild with my clips" : "Pick a PMV first"
@@ -1442,7 +1481,7 @@ export function render(main) {
 
   // ---------- My settings (presets) ----------
   // Everything about clips, cutting, effects, look and sound – not the music source or the title
-  const NOT_IN_PRESET = ["collapsed", "glass", "v", "mode", "title", "shuffle", "plexWhat", "plexList", "plexSync", "plexSyncs", "liveApp"];
+  const NOT_IN_PRESET = ["autoStart", "mWheel", "mWheelRev", "mMid", "mSides", "mSidesMode", "mSidesRev", "mShuffle", "collapsed", "glass", "v", "mode", "title", "shuffle", "plexWhat", "plexList", "plexSync", "plexSyncs", "liveApp"];
   // Kept in Stash (this plugin's settings), not in the browser: browser storage for localhost:9999 is
   // shared by Stash and every plugin and can be full – saving then failed without a word. This way
   // they're also there in every browser. Stored as one JSON text so Stash leaves the names alone.
@@ -2069,6 +2108,14 @@ function layoutIcon(id) {
 // Best-looking spots of a scene from Stash's sprite sheet + VTT (the scrubbing thumbnails):
 // skin and contrast per picture, a bonus near your markers and where the funscript is fast → [{ t, score }], best first
 const spriteCache = new Map();
+// Where a scene's intro (studio logo, titles) is surely over: picked spots start after it – your markers may be in it.
+// 3 min → 15 s, 10 min → 24 s, longer → 30 s; short clips a tenth
+// "Skip the start / the end of each scene" (Clip selection) adds to that: skipS = [seconds at the start, seconds at the end],
+// never more than 40 % of a scene each
+const skipS = [0, 0];
+const introEnd = (dur) => (dur > 10 ? Math.max(Math.min(30, Math.max(dur * 0.04, Math.min(15, dur * 0.1))), Math.min(skipS[0], dur * 0.4)) : 0);
+const tailX = (dur) => (dur > 10 ? Math.min(skipS[1], dur * 0.4) : 0);
+
 async function spriteSpots(s, dur, heat) {
   if (!s.sprite || !s.vtt) return null;
   if (spriteCache.has(s.key)) return spriteCache.get(s.key);
@@ -2086,7 +2133,7 @@ async function spriteSpots(s, dur, heat) {
     img.src = s.sprite;
     await withTimeout(img.decode(), 8000);
     const out = [];
-    const use = cues.filter((c) => c.t >= dur * 0.04 && c.t <= dur - 4); // not the very start (titles) or the end
+    const use = cues.filter((c) => c.t >= introEnd(dur) && c.t <= dur - 4 - tailX(dur)); // not the intro or the very end
     const sigs = analyzeTiles(img, use.map((c) => c.r));
     for (const [i, c] of use.entries()) {
       const a = sigs[i];
@@ -2102,6 +2149,115 @@ async function spriteSpots(s, dur, heat) {
   if (!list) return null;
   // Every visit a different one of the good spots
   return list.slice().sort(() => Math.random() - 0.5).sort((x, y) => y.score - x.score + (Math.random() - 0.5) * 0.4);
+}
+
+// ---------- Motion on the beat ----------
+// The rhythm in a motion curve [{ t, m }] (seconds, motion per second; from frame differences)
+// → { period, turn, q }: seconds per motion pulse, a time where the motion turns (least motion – with
+// back-and-forth motion the turns are the "hits", two per movement) and how clear the rhythm is (0–1);
+// null without a clear rhythm.
+const RHYTHM_DT = 1 / 30;
+function rhythmOf(pts) {
+  if (pts.length < 30) return null;
+  // Evenly spaced (frames can be dropped or come at 24/25/60 fps)
+  const t0 = pts[0].t;
+  const n = Math.floor((pts[pts.length - 1].t - t0) / RHYTHM_DT) + 1;
+  const x = new Float64Array(n);
+  for (let i = 0, j = 0; i < n; i++) {
+    const t = t0 + i * RHYTHM_DT;
+    while (j < pts.length - 2 && pts[j + 1].t < t) j++;
+    const a = pts[j];
+    const b = pts[j + 1];
+    const f = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
+    x[i] = a.m + (b.m - a.m) * f;
+  }
+  const mean = x.reduce((s, v) => s + v, 0) / n;
+  for (let i = 0; i < n; i++) x[i] -= mean;
+  const sd = Math.sqrt(x.reduce((s, v) => s + v * v, 0) / n);
+  if (mean < 0.3 || sd / mean < 0.15) return null; // hardly any motion (a still picture), or motion without ups and downs
+  // Autocorrelation over 0.2–0.9 s; the shortest lag that is nearly as strong as the strongest
+  // (multiples of the period correlate too)
+  const lo = Math.round(0.2 / RHYTHM_DT);
+  const hi = Math.min(Math.round(0.9 / RHYTHM_DT), Math.floor(n * 0.6));
+  if (hi <= lo + 2) return null;
+  const corr = (L) => {
+    let s = 0;
+    let ea = 0;
+    let eb = 0;
+    for (let i = 0; i + L < n; i++) {
+      s += x[i] * x[i + L];
+      ea += x[i] * x[i];
+      eb += x[i + L] * x[i + L];
+    }
+    return ea && eb ? s / Math.sqrt(ea * eb) : 0;
+  };
+  const r = [];
+  for (let L = lo - 1; L <= hi + 1; L++) r[L] = corr(L);
+  // A peak at L, between whole frames (parabola through its neighbours)
+  const peakAt = (L) => {
+    const den = r[L - 1] - 2 * r[L] + r[L + 1];
+    return L + (den ? Math.max(-0.5, Math.min(0.5, (0.5 * (r[L - 1] - r[L + 1])) / den)) : 0);
+  };
+  // The highest of L-1…L+1 if it is a peak (a lag between two frames falls on either)
+  const peakNear = (L) => {
+    let k = L;
+    for (const j of [L - 1, L + 1]) if (r[j] != null && r[j] > r[k]) k = j;
+    return r[k - 1] != null && r[k + 1] != null && r[k] >= r[k - 1] && r[k] >= r[k + 1] ? k : -1;
+  };
+  let top = 0;
+  for (let L = lo; L <= hi; L++) top = Math.max(top, r[L]);
+  if (top < 0.35) return null;
+  let lag = -1;
+  for (let L = lo; L <= hi; L++) {
+    if (r[L] >= 0.8 * top && r[L] >= r[L - 1] && r[L] >= r[L + 1]) {
+      lag = L;
+      break;
+    }
+  }
+  if (lag < 0) return null;
+  let period = peakAt(lag) * RHYTHM_DT;
+  // Finer: the peak near twice the lag measures two periods with the same frame step (if it fits in the window).
+  // Searched a few frames around it – with a flat top the first peak can sit a frame off
+  if (2 * lag + 4 < n * 0.75) {
+    for (let L = 2 * lag - 4; L <= 2 * lag + 4; L++) r[L] = r[L] ?? corr(L);
+    let k = 2 * lag - 3;
+    for (let L = k + 1; L <= 2 * lag + 3; L++) if (r[L] > r[k]) k = L;
+    if (r[k] >= 0.25 && r[k] >= r[k - 1] && r[k] >= r[k + 1]) {
+      const p2 = (peakAt(k) * RHYTHM_DT) / 2;
+      if (Math.abs(p2 - period) < 1.6 * RHYTHM_DT) period = p2;
+    }
+  }
+  // The two halves of a back-and-forth often differ (one way faster, other light behind) – then the strongest
+  // lag is the whole movement; its half counts as well if it is a rhythm of its own
+  const h = Math.round(lag / 2);
+  const hk = h - 1 >= lo - 1 ? peakNear(h) : -1;
+  const half = hk >= lo && r[hk] >= 0.3 ? period / 2 : null;
+  // Phase from the curve's fundamental, around the middle of the stretch (a small error in the period
+  // grows towards the ends): a turn is half a pulse after where the motion is most. Taken at the pulse
+  // (the half, if there is one – at the whole movement the fundamental would point between the turns)
+  const pulse = half || period;
+  const mid = (n - 1) / 2;
+  let c = 0;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const w = (2 * Math.PI * (i - mid) * RHYTHM_DT) / pulse;
+    c += x[i] * Math.cos(w);
+    s += x[i] * Math.sin(w);
+  }
+  const most = Math.atan2(s, c) / (2 * Math.PI) * pulse;
+  return { period, half, turn: t0 + mid * RHYTHM_DT + most + pulse / 2, q: top };
+}
+
+// Speed factor that puts motion pulses of `period` on the beat: one pulse per beat, two, or one per two beats –
+// whichever needs the least change, at most ±12 % (more looks wrong); null if none fits
+function beatFit(period, bpm) {
+  const beat = 60 / bpm;
+  let rate = null;
+  for (const k of [1, 2, 0.5]) {
+    const f = (period * k) / beat; // > 1: play faster
+    if (f >= 0.88 && f <= 1.12 && (rate == null || Math.abs(f - 1) < Math.abs(rate - 1))) rate = f;
+  }
+  return rate;
 }
 
 // Plays a video (muted, in the pool, at `speed` – the frames keep their own times) for `secs` of it from
@@ -2133,71 +2289,99 @@ async function captureFrames(v, secs, speed = 1) {
   return (await Promise.all(jobs)).filter((x) => x.a && x.a.gray).sort((x, y) => x.t - y.t);
 }
 
+// Motion per second between neighbouring frames → [{ t, m }]; null on a cut (a scene change mixes two motions)
+function motionCurve(fr) {
+  const pts = [];
+  for (let i = 1; i < fr.length; i++) {
+    const dt = fr[i].t - fr[i - 1].t;
+    if (dt <= 0) continue;
+    if (isCut(fr[i - 1].a, fr[i].a)) return null;
+    pts.push({ t: (fr[i].t + fr[i - 1].t) / 2, m: motion(fr[i - 1].a, fr[i].a) / dt });
+  }
+  return pts;
+}
 const meanSpeed = (pts) => (pts && pts.length >= 5 ? pts.reduce((s, p) => s + p.m, 0) / pts.length : null);
 
 // Width of the small measuring picture analyzeAsync makes (pmvsmart's tiny(): 64 px on the long side)
 const grayW = (w, h) => Math.max(8, Math.round(w >= h ? 64 : (64 * w) / h));
+// Shifts to try (± px), the near ones first: the right one is usually near, the far ones then stop early
+const shifts = (rx, ry) => {
+  const l = [];
+  for (let dy = -ry; dy <= ry; dy++) for (let dx = -rx; dx <= rx; dx++) l.push([dx, dy]);
+  return l.sort((p, q) => Math.abs(p[0]) + Math.abs(p[1]) - Math.abs(q[0]) - Math.abs(q[1]));
+};
+const CAM_SHIFTS = shifts(6, 4);
+const BLOCK_SHIFTS = shifts(12, 12);
 // How fast what is in the picture moves – not the camera, not how much of the picture it fills or how much
 // contrast it has. Block matching on the small measuring picture: first the camera (the best shift of the
-// whole frame), then for each 4×4 block with some texture how far it moved on top of that (up to 6 px of 64).
-// The fastest 15 % of the blocks count – a fast hand in a wide shot is a small part of the picture
-// → pixels (of 64) per frame step
+// whole frame), then for each 4×4 block with some texture how far it moved on top of that – up to 12 px of 64,
+// so fast motion between the frames of a preview played at 4× still counts (up to 6 px it hit the limit there:
+// very fast measured like fast, or even slower). The whole picture counts, its edges too (a block there only
+// looks where the picture goes on). The fastest 6 % of the blocks with texture count – a fast hand in a wide
+// shot is a small part of the picture → pixels (of 64) per frame step
 function actionMotion(a, b, w) {
   const h = Math.floor(a.length / w);
-  const C = 4; // camera search (± px)
-  const R = 6; // block search on top (± px)
   const B = 4; // block size
-  const m = C + R;
-  if (w < 2 * m + 2 * B || h < 2 * m + B) return 0;
-  const diff = (x0, y0, dx, dy, n) => {
-    let s = 0;
-    for (let y = y0; y < y0 + n; y++) for (let x = x0; x < x0 + n; x++) s += Math.abs(a[y * w + x] - b[(y + dy) * w + x + dx]);
-    return s;
-  };
-  let best = Infinity;
+  if (w < 4 * B || h < 4 * B) return 0;
+  // The camera: the shift that fits the whole frame best (every 2nd pixel of the middle)
+  let cb = Infinity;
   let cx = 0;
   let cy = 0;
-  for (let dy = -3; dy <= 3; dy++) {
-    for (let dx = -C; dx <= C; dx++) {
-      let s = 0;
-      for (let y = C; y < h - C; y += 2) for (let x = C; x < w - C; x += 2) s += Math.abs(a[y * w + x] - b[(y + dy) * w + x + dx]);
-      if (s < best) [best, cx, cy] = [s, dx, dy];
-    }
+  for (const [dx, dy] of CAM_SHIFTS) {
+    let s = 0;
+    for (let y = 4; y < h - 4 && s < cb; y += 2) for (let x = 6; x < w - 6; x += 2) s += Math.abs(a[y * w + x] - b[(y + dy) * w + x + dx]);
+    if (s < cb) [cb, cx, cy] = [s, dx, dy];
   }
+  // A block's difference at a shift (Infinity where it leaves the picture); stops once it reaches `max`
+  const diff = (x0, y0, dx, dy, max) => {
+    if (x0 + dx < 0 || y0 + dy < 0 || x0 + dx + B > w || y0 + dy + B > h) return Infinity;
+    let s = 0;
+    for (let y = y0; y < y0 + B && s < max; y++) {
+      const r = y * w;
+      const k = (y + dy) * w + dx;
+      for (let x = x0; x < x0 + B; x++) s += Math.abs(a[r + x] - b[k + x]);
+    }
+    return s;
+  };
   const mags = [];
-  for (let y0 = m; y0 + B <= h - m; y0 += B) {
-    for (let x0 = m; x0 + B <= w - m; x0 += B) {
+  for (let y0 = 0; y0 + B <= h; y0 += B) {
+    for (let x0 = 0; x0 + B <= w; x0 += B) {
       let tex = 0;
-      for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) tex += Math.abs(a[y * w + x + 1] - a[y * w + x]) + Math.abs(a[(y + 1) * w + x] - a[y * w + x]);
+      for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) tex += Math.abs(a[y * w + Math.min(w - 1, x + 1)] - a[y * w + x]) + Math.abs(a[Math.min(h - 1, y + 1) * w + x] - a[y * w + x]);
       if (tex < B * B * 6) continue; // flat: where it went can't be told
-      const still = diff(x0, y0, cx, cy, B);
-      let bs = still;
+      const still = diff(x0, y0, cx, cy, Infinity);
+      if (still === Infinity) continue; // (the camera moved it out of the picture)
+      // Only a clearly better place counts as a move (noise finds some "better" place anywhere, and along an edge
+      // every place up or down fits about the same) – so a block that hardly changed needs no search at all.
+      // A far place has to fit a little better than a near one (2 per pixel of way), else noise wins out there
+      let bc = Math.min(0.7 * still, still - B * B * 5);
       let mx = 0;
       let my = 0;
-      for (let dy = -R; dy <= R; dy++) {
-        for (let dx = -R; dx <= R; dx++) {
-          const s = diff(x0, y0, cx + dx, cy + dy, B);
-          if (s < bs) [bs, mx, my] = [s, dx, dy];
-        }
+      let moved = false;
+      for (const [dx, dy] of BLOCK_SHIFTS) {
+        const pen = 2 * (Math.abs(dx) + Math.abs(dy));
+        if (pen >= bc) break; // (sorted by way: none further out can win)
+        const s = diff(x0, y0, cx + dx, cy + dy, bc - pen);
+        if (s + pen < bc) [bc, mx, my, moved] = [s + pen, dx, dy, true];
       }
-      // only a clearly better match counts as a move – noise finds some "better" place anywhere, and along an
-      // edge every place up or down fits about the same
-      mags.push(bs < 0.7 * still && still - bs > B * B * 5 ? Math.hypot(mx, my) : 0);
+      mags.push(moved ? Math.hypot(mx, my) : 0);
     }
   }
   if (!mags.length) return 0;
   mags.sort((p, q) => q - p);
-  const top = mags.slice(0, Math.max(1, Math.round(mags.length * 0.15)));
+  const top = mags.slice(0, Math.max(2, Math.round(mags.length * 0.06)));
   return top.reduce((s, v) => s + v, 0) / top.length;
 }
-// The speed of the action from frames (captureFrames) of a video w×h → motion per second, or null (a cut, too few)
-function actionSpeed(fr, w, h) {
+// The speed of the action from frames (captureFrames) of a video w×h → motion per second, or null (a cut, too few).
+// A short break every few frames – the show keeps running smoothly meanwhile
+async function actionSpeed(fr, w, h) {
   const gw = grayW(w, h);
   const pts = [];
   for (let i = 1; i < fr.length; i++) {
     const dt = fr[i].t - fr[i - 1].t;
     if (dt <= 0) continue;
     if (isCut(fr[i - 1].a, fr[i].a)) return null;
+    if (pts.length % 8 === 7) await new Promise((r) => setTimeout(r));
     pts.push({ t: fr[i].t, m: actionMotion(fr[i - 1].a.gray, fr[i].a.gray, gw) / dt }); // (px of 64 per second)
   }
   return meanSpeed(pts);
@@ -2222,25 +2406,133 @@ const excludeOf = (dur, v) => {
   return s.endsWith("%") && s.length > 1 ? (parseFloat(s) / 100) * dur : parseFloat(s) || 0;
 };
 
-// Speed maps of scenes: id → [{ t, len, speed }], null (none) or a Promise while scanning
+// Speed maps of scenes: id → [{ t, len, speed, m }] – spots of the scene and how fast it moves there (from its
+// preview, or m: measured while a clip was prepared – more exact, and scenes without a preview get a map that way).
+// Whether a scene's preview has been looked through: id → true, false (none) or a Promise while it runs
 const speedMaps = new Map();
+const scanned = new Map();
+function setMap(id, map) {
+  speedMaps.delete(id); // (the newest last: when there are too many, the oldest go)
+  speedMaps.set(id, map);
+  if (speedMaps.size > 5000) {
+    const old = speedMaps.keys().next().value;
+    speedMaps.delete(old);
+    scanned.delete(old);
+  }
+}
+// A spot measured while preparing → into the scene's map; what was known about that spot gives way to it
+// (at most 24 measured spots per scene – the oldest go)
+function addSpot(s, t, len, speed) {
+  if (speed == null || s.rg || s.kind !== "video") return;
+  const map = (speedMaps.get(s.id) || []).filter((p) => Math.abs(p.t - t) >= 1);
+  map.push({ t, len, speed, m: true });
+  for (let n = map.filter((p) => p.m).length; n > 24; n--) map.splice(map.findIndex((p) => p.m), 1);
+  setMap(s.id, map);
+  keepMap(s);
+}
 // The speeds seen so far (maps and measured clips): "fast" and "calm" are relative to your library
 const speedSeen = [];
+let seenSorted = null;
 function noteSpeed(v) {
   if (v == null || !(v >= 0)) return; // (null >= 0 is true)
   speedSeen.push(v);
   if (speedSeen.length > 600) speedSeen.shift();
+  seenSorted = null;
 }
 // Where a speed stands among those seen (0 = calmest, 1 = fastest); null while too few are known
 function speedPct(v) {
   if (v == null || speedSeen.length < 8) return null;
-  let below = 0;
-  let same = 0;
-  for (const x of speedSeen) x < v ? below++ : x === v && same++;
-  return (below + same / 2) / speedSeen.length;
+  const S = (seenSorted = seenSorted || Float64Array.from(speedSeen).sort());
+  const at = (f) => {
+    let lo = 0;
+    let hi = S.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (f(S[mid])) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  const below = at((x) => x < v);
+  return (below + (at((x) => x <= v) - below) / 2) / S.length;
 }
 
-// The speed map of a scene → [{ t, len, speed }] (seconds in the scene, motion per second) or null
+// ---------- Speed maps kept between shows ----------
+// In the browser (IndexedDB): the next show knows them at once, and every show gets to know more of the library.
+// Kept per scene with its length (another file → measured anew) and the preview settings (other previews → the
+// preview pieces are looked at again; the spots measured while preparing stay)
+const SPEED_V = 2; // the speed measure (maps measured another way don't mix)
+let speedDb;
+function speedStore() {
+  if (speedDb === undefined) {
+    speedDb = new Promise((res) => {
+      try {
+        const rq = indexedDB.open("pmvgen-speed", 1);
+        rq.onupgradeneeded = () => rq.result.createObjectStore("maps");
+        rq.onsuccess = () => res(rq.result);
+        rq.onerror = rq.onblocked = () => res(null);
+      } catch (e) {
+        res(null); // (no IndexedDB, e.g. in some private windows: the maps last for this visit only)
+      }
+    });
+  }
+  return speedDb;
+}
+const previewSig = (c) => [c.previewSegments, c.previewSegmentDuration, c.previewExcludeStart, c.previewExcludeEnd].join("|");
+// The kept maps of these clips (sources), those not known in this visit yet
+async function loadMaps(list) {
+  const want = list.filter((x) => x.kind === "video" && !x.rg && x.dur > 0 && !speedMaps.has(x.id));
+  const db = want.length ? await speedStore() : null;
+  if (!db) return;
+  const sig = previewSig(await previewSettings());
+  await new Promise((res) => {
+    try {
+      const tx = db.transaction("maps");
+      const st = tx.objectStore("maps");
+      for (const x of want) {
+        const rq = st.get(String(x.id));
+        rq.onsuccess = () => {
+          const e = rq.result;
+          if (!e || e.v !== SPEED_V || speedMaps.has(x.id) || !(Math.abs(e.dur - x.dur) < 1.5)) return;
+          const same = e.sig === sig;
+          const map = e.map.filter((p) => p[3] || same).map(([t, len, speed, m]) => ({ t, len, speed, m: !!m }));
+          if (!map.length) return;
+          setMap(x.id, map);
+          if (same && e.map.some((p) => !p[3])) scanned.set(x.id, true);
+          map.forEach((p) => noteSpeed(p.speed));
+        };
+      }
+      tx.oncomplete = tx.onerror = tx.onabort = () => res();
+    } catch (e) {
+      res();
+    }
+  });
+}
+// Keep a scene's map – a moment later (a look through its preview and measurements soon after: one write)
+const keepDue = new Map();
+function keepMap(s) {
+  if (!keepDue.size) setTimeout(flushMaps, 3000);
+  keepDue.set(s.id, s.dur);
+}
+async function flushMaps() {
+  const due = [...keepDue];
+  keepDue.clear();
+  const db = await speedStore();
+  if (!db) return;
+  const sig = previewSig(await previewSettings());
+  const r = (v, k) => Math.round(v * k) / k;
+  try {
+    const st = db.transaction("maps", "readwrite").objectStore("maps");
+    for (const [id, dur] of due) {
+      const map = speedMaps.get(id);
+      if (map && map.length) st.put({ v: SPEED_V, dur, sig, map: map.map((p) => [r(p.t, 100), r(p.len, 100), r(p.speed, 10), p.m ? 1 : 0]) }, String(id));
+    }
+  } catch (e) {
+    /* storage full or closed – the maps just aren't kept */
+  }
+}
+
+// The speed map of a scene from its preview → [{ t, len, speed }] (seconds in the scene, motion per second) or null
 // (no preview, or it doesn't fit the settings)
 async function scanPreview(url, dur, pool) {
   const cfg = await previewSettings();
@@ -2275,7 +2567,7 @@ async function scanPreview(url, dur, pool) {
     for (const pc of pieces) {
       // The frames well inside the piece (its edges are cuts to the next piece)
       const inner = fr.filter((f) => f.t > pc.p0 + 0.06 && f.t < pc.p1 - 0.06);
-      const speed = actionSpeed(inner, v.videoWidth, v.videoHeight);
+      const speed = await actionSpeed(inner, v.videoWidth, v.videoHeight);
       if (speed != null) out.push({ t: pc.t, len: pc.p1 - pc.p0, speed });
     }
     return out.length >= Math.min(3, pieces.length) ? out : null;
@@ -2492,6 +2784,8 @@ class Generator {
     this.song = tpl ? tpl.song : song;
     this.music = tpl ? null : music || null;
     this.S = S;
+    skipS[0] = Math.max(0, Number(S.skipHead) || 0);
+    skipS[1] = Math.max(0, Number(S.skipTail) || 0);
     this.setBars();
     this.onClose = onClose;
     this.tpl = tpl || null;
@@ -2526,7 +2820,7 @@ class Generator {
     this.recent = []; // recently shown clips (variety)
     this.used = new Set();
     this.spots = new Map(); // scene → start times used (the next clip of that scene comes from elsewhere)
-    this.measuring = 0; // clips whose speed is being measured (clip speed follows the music)
+    this.measuring = 0; // clips whose motion is being measured (clip speed follows the music, motion on the beat)
     this.scanning = false; // a scene preview is being scanned for its speed map (clip speed)
     this.shown = new Set(); // all shown clips (credits)
     // RedGifs: a share of the clips (error diffusion keeps the ratio); what was shown can be saved
@@ -2653,6 +2947,43 @@ class Generator {
       e.preventDefault();
     };
     document.addEventListener("keydown", this.onKey);
+    // The mouse alone (second monitor): clicks in the middle / on the sides, middle button, wheel – each one is a switch in Output
+    const onBar = (e) => e.target.closest(".kb-pmvg-hud, .kb-pmvg-end, .kb-pmvg-info, button, input, a");
+    el.addEventListener("click", (e) => {
+      if (this.done || onBar(e)) return;
+      const r = this.stage.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      if (x > 1 / 3 && x < 2 / 3) {
+        if (this.S.mMid && !this.outside) this.togglePause();
+      } else {
+        const mode = this.S.mSidesMode || (this.S.mSides ? "volume" : "off");
+        if (mode === "off" || this.outside) return;
+        const fwd = x >= 2 / 3 !== !!this.S.mSidesRev; // the right third = next / louder (turned round: the left)
+        if (mode === "volume") this.nudgeVolume(fwd ? 5 : -5);
+        else if (this.music && this.music.type === "list") this.skip(fwd ? 1 : -1);
+      }
+    });
+    el.addEventListener("mousedown", (e) => e.button === 1 && this.S.mShuffle && e.preventDefault()); // (no auto-scroll cursor)
+    el.addEventListener("auxclick", (e) => {
+      if (e.button !== 1 || !this.S.mShuffle || this.done || onBar(e)) return;
+      e.preventDefault();
+      this.reshuffle();
+    });
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        const mode = this.S.mWheel;
+        if (!mode || mode === "off" || this.done || onBar(e)) return;
+        e.preventDefault();
+        const dir = (e.deltaY > 0 ? 1 : -1) * (this.S.mWheelRev ? -1 : 1); // 1 = wheel "down"
+        if (mode === "volume") return this.nudgeVolume(-dir * 5);
+        const now = performance.now();
+        if (now - (this.wheelAt || 0) < 700) return; // one notch = one song
+        this.wheelAt = now;
+        if (this.music && this.music.type === "list") this.skip(dir);
+      },
+      { passive: false },
+    );
     this.stage.dataset.view = this.S.view || "contain";
     let resizeT = 0;
     this.onResize = () => {
@@ -2719,10 +3050,16 @@ class Generator {
       const name = m.rg ? `RedGifs${m.rg.user ? " · " + m.rg.user : ""}` : m.name || m.key;
       const tags = m.tagNames && m.tagNames.length ? ` <small>tags: ${esc(m.tagNames.join(", "))}</small>` : "";
       const stage = this.nStages > 1 && m.stage != null ? ` <small>stage ${m.stage + 1}</small>` : "";
-      return `<div><b>${i + 1}</b> ${esc(name)}${m.file && m.file !== name ? ` <small>${esc(m.file)}</small>` : ""} <small>${m.w}×${m.h}</small>${tags}${stage} <span class="${bad ? "is-bad" : ""}">${esc(st)}</span></div>`;
+      // clip speed follows the music: how fast the clip is among those seen
+      const pct = this.S.paceMatch ? speedPct(m.speed) : null;
+      const speed = pct != null ? ` <small>speed ${Math.round(pct * 100)} %</small>` : "";
+      return `<div><b>${i + 1}</b> ${esc(name)}${m.file && m.file !== name ? ` <small>${esc(m.file)}</small>` : ""} <small>${m.w}×${m.h}</small>${m.tempo && this.S.beatSync ? ` <small>on the beat ×${m.tempo.toFixed(2)}</small>` : ""}${speed}${tags}${stage} <span class="${bad ? "is-bad" : ""}">${esc(st)}</span></div>`;
     };
     const fails = (this.failed || []).slice(-5).reverse();
+    // (clip speed follows the music: how fast the music feels now, to hold against the clips' speed)
+    const pace = this.S.paceMatch && this.song ? `<div><small>Music pace ${Math.round(this.paceAt(this.now()) * 100)} % · ${speedMaps.size} scenes with a speed map</small></div>` : "";
     box.innerHTML =
+      pace +
       [...new Set(this.groups)].filter(Boolean).map(row).join("") +
       (fails.length ? `<div class="kb-pmvg-infohead">Skipped</div>` + fails.map((f) => `<div class="is-bad">${esc(f.name)} <small>${esc(f.file || f.url || "")}</small> – ${esc(f.why)}${f.n > 1 ? ` <small>×${f.n}</small>` : ""}</div>`).join("") : "");
   }
@@ -2763,6 +3100,13 @@ class Generator {
     saved.voiceMode = this.S.voiceMode;
     saved.fx = Object.assign({}, saved.fx, { voice: !!this.S.fx.voice });
     store.set("pmvgen", saved);
+  }
+
+  nudgeVolume(d) {
+    if (this.outside) return;
+    const v = Math.max(0, Math.min(100, Math.round(((this.S.songVol ?? 100) + d) / 5) * 5));
+    this.setVolume("songVol", v);
+    toast(`Song volume ${v} %`, "ok");
   }
 
   setVolume(key, v) {
@@ -2915,12 +3259,14 @@ class Generator {
     const mixed = [];
     for (let i = 0; lists.some((l) => i < l.length); i++) lists.forEach((l) => i < l.length && mixed.push(l[i]));
     if (!mixed.length) throw new Error("No matching clips found – loosen the filters.");
+    // Clip speed follows the music: the speed maps kept from earlier shows
+    if (this.S.paceMatch) await withTimeout(loadMaps(mixed), 3000).catch(() => {});
     P.seed = P.page.scene === 1 && P.page.image === 1 && P.page.marker === 1 ? Math.floor(Math.random() * 1e8) : P.seed;
     P.sources = mixed;
     P.srcIdx = 0;
   }
 
-  async nextSource(st = 0, want = null) {
+  async nextSource(st = 0, want = null, goal = null) {
     // RedGifs share first; the rest comes from Stash – and each side fills in when the other runs dry
     if (this.rg && !this.rg.dead) {
       this.rgAcc += this.S.rgPct / 100;
@@ -2931,7 +3277,7 @@ class Generator {
       }
     }
     try {
-      return await this.nextStash(st, want);
+      return await this.nextStash(st, want, goal);
     } catch (e) {
       const s = this.rg && !this.rg.dead ? ((this.stashDead = true), await this.nextRedgif()) : null;
       if (s) return s;
@@ -2954,13 +3300,13 @@ class Generator {
     toast("RedGifs – " + msg, "error");
   }
 
-  async nextStash(st = 0, want = null) {
+  async nextStash(st = 0, want = null, goal = null) {
     // A stage without any matching clip borrows from the next one that has some
     for (let k = 0; k < this.nStages; k++) {
       const i = (st + k) % this.nStages;
       if (this.sp[i].dead) continue;
       try {
-        return await this.nextFrom(this.sp[i], i, want);
+        return await this.nextFrom(this.sp[i], i, want, goal);
       } catch (e) {
         if (this.nStages < 2) throw e;
         this.sp[i].dead = true;
@@ -2969,12 +3315,16 @@ class Generator {
     throw new Error("No matching clips found – loosen the filters.");
   }
 
-  async nextFrom(P, st, want = null) {
+  async nextFrom(P, st, want = null, goal = null) {
     // Several clips are prepared in parallel – fetch new ones only once
     for (let tries = 0; ; tries++) {
       while (P.srcIdx >= P.sources.length) {
         P.fetching = P.fetching || this.fetchSources(P, st).finally(() => (P.fetching = null));
         await P.fetching;
+      }
+      if (goal != null && !want && !tries) {
+        const again = this.bySpeed(P, goal); // (clip speed follows the music)
+        if (again) return again;
       }
       // A shape is short (per-layout clip shape): take a source of that shape that is already known
       if (want) {
@@ -3004,6 +3354,61 @@ class Generator {
   // Variety: the same scene within the last 24 clips or – softer – the same performer within the last 4
   isRecent(s) {
     return this.used.has(s.key) || this.copies(s.key) > 0;
+  }
+
+  // Clip speed follows the music: the clip whose scene has a spot with a speed that fits the music best (goal 0–1) –
+  // the scene is picked for its speed, not only the spot in it. Of the next 24 in line; the others stay in line, and
+  // one without a map yet (or an image) counts as so-so, so one known not to fit comes after it.
+  // If none of them fits well, the scenes of this round used before count too (not lately, and less with every
+  // time they were used): a fast scene has more than one fast spot, and on a long loud part the fast ones in line
+  // soon run out. → such a scene to take again, or null (then the next in line is the one – moved up)
+  bySpeed(P, goal) {
+    const bad = (x) => this.badKeys && this.badKeys.has(x.key);
+    const end = Math.min(P.sources.length, P.srcIdx + 24);
+    let best = P.srcIdx;
+    let low = Infinity;
+    for (let n = P.srcIdx; n < end; n++) {
+      const x = P.sources[n];
+      if (bad(x) || (this.S.variety && this.isRecent(x))) continue;
+      const d = (this.mapFit(x, goal) ?? 0.3) + Math.random() * 0.05;
+      if (d < low) [low, best] = [d, n];
+    }
+    if (low > 0.12) {
+      for (let n = 0; n < P.srcIdx; n++) {
+        const x = P.sources[n];
+        const f = bad(x) || this.isRecent(x) ? null : this.mapFit(x, goal);
+        if (f == null) continue;
+        const d = f + 0.25 * (this.spots.get(x.id) || []).length + Math.random() * 0.05;
+        if (d < low) [low, best] = [d, n];
+      }
+    }
+    if (best < P.srcIdx) return P.sources[best];
+    if (best > P.srcIdx) P.sources.splice(P.srcIdx, 0, P.sources.splice(best, 1)[0]);
+    return null;
+  }
+  // How near a scene's best spot comes to a speed (0–1, among those seen; spots shown lately count less)
+  // → null without a map
+  mapFit(x, goal) {
+    const map = x.kind === "video" && x.at == null ? speedMaps.get(x.id) : null;
+    if (!Array.isArray(map)) return null;
+    const seq = this.seqWindow(x.dur);
+    let d = null;
+    for (const p of map) {
+      const pct = speedPct(p.speed);
+      if (pct == null || p.t < introEnd(x.dur) || p.t >= x.dur - 3 - tailX(x.dur) || (seq && (p.t < seq.lo || p.t > seq.hi))) continue;
+      const v = Math.abs(pct - goal) + (this.usedNear(x, p.t, x.dur) ? 0.5 : 0);
+      if (d == null || v < d) d = v;
+    }
+    return d;
+  }
+  // Follow the scenes' timeline: how far the song is = where in a scene (dur s) the clip is taken from (± a window)
+  // → { lo, hi } or null
+  seqWindow(dur) {
+    if (!this.S.sequenced || !(dur > 10) || !this.song || !(this.song.duration > 0)) return null;
+    const prog = Math.min(1, Math.max(0, this.now() / this.song.duration));
+    const half = Math.max(6, dur * 0.12);
+    const lo = Math.max(0, Math.min(prog * dur - half, dur - 6));
+    return { lo, hi: Math.min(dur - 3, Math.max(lo, prog * dur + half)) };
   }
   // How often a clip is ready or being prepared
   copies(key) {
@@ -3060,36 +3465,44 @@ class Generator {
   }
 
   // Clip speed follows the music: the speed maps of the scenes coming up next, one preview at a time
+  // (not the ones whose map is kept from an earlier show)
   scanAhead() {
     if (!this.S.paceMatch || this.scanning || this.done) return;
     // The ones coming up first, then the ones already shown (they come up again – with a small selection soon)
     const next = this.sp
       .flatMap((P) => P.sources.slice(P.srcIdx).concat(P.sources.slice(0, P.srcIdx)))
-      .find((x) => x.kind === "video" && x.preview && !x.rg && x.dur > 0 && !speedMaps.has(x.id));
+      .find((x) => x.kind === "video" && x.preview && !x.rg && x.dur > 0 && !scanned.has(x.id));
     if (!next) return;
     this.scanning = true;
-    const job = scanPreview(next.preview, next.dur, this.pool).then((map) => {
-      speedMaps.set(next.id, map);
-      if (map) map.forEach((x) => noteSpeed(x.speed));
-      return map;
+    const job = scanPreview(next.preview, next.dur, this.pool).then((pieces) => {
+      scanned.set(next.id, !!pieces);
+      if (!pieces) return;
+      pieces.forEach((x) => noteSpeed(x.speed));
+      // (spots measured while preparing stay – they are more exact than the preview's short pieces)
+      const mine = (speedMaps.get(next.id) || []).filter((p) => p.m);
+      setMap(next.id, [...pieces.filter((x) => !mine.some((p) => Math.abs(p.t - x.t) < 1)), ...mine]);
+      keepMap(next);
     });
-    speedMaps.set(next.id, job);
-    if (speedMaps.size > 2000) speedMaps.delete(speedMaps.keys().next().value);
-    job.finally(() => {
-      this.scanning = false;
-      if (!this.done) setTimeout(() => this.scanAhead(), 50);
-    });
+    scanned.set(next.id, job);
+    job
+      .catch(() => scanned.set(next.id, false))
+      .finally(() => {
+        this.scanning = false;
+        if (!this.done) setTimeout(() => this.scanAhead(), 50);
+      });
   }
 
   fillPool() {
     this.scanAhead();
     // Enough supply for a layout change with four new fields
     // (match cuts need a bit more choice)
+    // (clip speed follows the music: two more, so calm and fast ones are both at hand when the music turns)
+    const cap = (this.S.matchCut ? 8 : 6) + (this.S.paceMatch ? 2 : 0);
+    this.dropStale(cap);
     // At most 3 at once: each one decodes and seeks its video – with 4K several at once choke the decoder
     while (!this.done && this.preparing < 3) {
       const want = this.shapeShort();
-      // (clip speed follows the music: two more, so calm and fast ones are both at hand when the music turns)
-      let st = this.stageToFill((this.S.matchCut ? 8 : 6) + (this.S.paceMatch ? 2 : 0));
+      let st = this.stageToFill(cap);
       if (st < 0 && want) st = this.stageToFill(this.S.matchCut ? 14 : 12);
       if (st < 0) break;
       this.preparing++;
@@ -3099,6 +3512,7 @@ class Generator {
         .then((m) => {
           if (this.done) return this.release(m);
           m.stage = st;
+          m.readyAt = performance.now();
           this.ready.push(m);
           this.bad = 0;
         })
@@ -3110,6 +3524,27 @@ class Generator {
           if (!this.done && this.bad < 12) setTimeout(() => this.fillPool(), this.bad ? 200 : 0);
         });
     }
+  }
+
+  // Clip speed follows the music: a full supply of clips that fit neither the music now nor what comes soon (and have
+  // been waiting a while) makes room – the one waiting longest goes, one at a time, so the music gets new clips that
+  // fit, not only the few left. Two stay for when the music turns
+  dropStale(cap) {
+    if (!this.S.paceMatch || !this.song || !this.song.beats || !this.song.beats.length) return;
+    const st = this.nStages < 2 ? null : this.stageNow;
+    const mine = st == null ? this.ready : this.ready.filter((m) => m.stage === st);
+    if (mine.length + (st == null ? this.preparing : this.prepN[st] || 0) < cap) return;
+    const t = this.now();
+    const [a, b] = [this.paceAt(t), this.paceAt(t + this.readyWait())];
+    const since = performance.now() - 8000;
+    const stale = mine.filter((m) => {
+      const p = speedPct(m.speed);
+      return p != null && Math.abs(p - a) > 0.4 && Math.abs(p - b) > 0.4 && m.readyAt < since;
+    });
+    if (stale.length < 3) return;
+    const m = stale.reduce((x, y) => (y.readyAt < x.readyAt ? y : x));
+    this.ready.splice(this.ready.indexOf(m), 1);
+    this.release(m);
   }
 
   // Per-layout clip shape: which shape (landscape / portrait) the ready clips are short of (null = none)
@@ -3155,10 +3590,14 @@ class Generator {
   }
 
   async prepareOne(st = 0, want = null) {
-    const s = await this.nextSource(st, want);
+    // Clip speed follows the music: how fast the music will feel when this clip comes on – some time within the
+    // stretch the ready clips cover (they are picked by speed, not in turn, so the ready ones should cover what is
+    // coming: now as well as a drop in a few seconds). The scene and the spot in it are picked for that
+    const goal = this.S.paceMatch ? this.paceAt(this.now() + 1 + Math.random() * this.readyWait()) : null;
+    const s = await this.nextSource(st, want, goal);
     this.prepKeys.push(s.key); // (variety: not the same clip again while it is being prepared)
     try {
-      return await this.prepareFrom(s);
+      return await this.prepareFrom(s, goal);
     } catch (e) {
       this.noteFail(s, e);
       throw e;
@@ -3167,7 +3606,7 @@ class Generator {
     }
   }
 
-  async prepareFrom(s) {
+  async prepareFrom(s, goal = null) {
     if (s.kind === "image") {
       const img = new Image();
       img.decoding = "async";
@@ -3196,17 +3635,11 @@ class Generator {
       // Opens but no picture (e.g. a codec the browser can't decode): skip it – else it's a black field
       if (!v.videoWidth || !v.videoHeight) throw Object.assign(new Error("no picture"), { why: "no picture – the browser can't decode this video (codec?)" });
       const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : s.dur;
-      // Follow the scenes' timeline: how far the song is = where in the scene the clip is taken from (± a window)
-      let seq = null;
-      if (this.S.sequenced && dur > 10 && this.song && this.song.duration > 0) {
-        const prog = Math.min(1, Math.max(0, this.now() / this.song.duration));
-        const half = Math.max(6, dur * 0.12);
-        const lo = Math.max(0, Math.min(prog * dur - half, dur - 6));
-        const hi = Math.min(dur - 3, Math.max(lo, prog * dur + half));
-        seq = { lo, hi };
-      }
+      const seq = this.seqWindow(dur);
       const inSeq = (t) => !seq || (t >= seq.lo && t <= seq.hi);
-      const rand = () => (seq ? seq.lo + Math.random() * Math.max(0, seq.hi - seq.lo) : dur > 10 ? dur * 0.08 + Math.random() * Math.max(0, dur * 0.84 - 4) : 0);
+      // (the scene timeline starts at the scene's start – but not in its intro)
+      const head = introEnd(dur);
+      const rand = () => (seq ? Math.max(seq.lo, Math.min(head, seq.hi)) + Math.random() * Math.max(0, seq.hi - Math.max(seq.lo, head)) : dur > 10 ? head + Math.random() * Math.max(0, Math.min(dur * 0.92 - 4, dur - 4 - tailX(dur)) - head) : 0);
       const seek = async (t) => {
         v.currentTime = t;
         await withTimeout(once(v, "seeked"), 8000);
@@ -3227,18 +3660,15 @@ class Generator {
       // Your best moments (Versus): most of the time straight there – no need to look around
       const best = this.S.bestSpots && s.markers && s.markers.length ? await withTimeout(bestMarkers(), 8000).catch(() => null) : null;
       const bestHere = best ? s.markers.filter((mk) => best.has(mk.id) && mk.seconds < dur - 2 && inSeq(mk.seconds) && fresh(mk.seconds)) : [];
-      // Clip speed follows the music: the piece of the scene's speed map that fits how fast the music will feel
-      // when this clip comes on – some time within the stretch the ready clips cover (they are picked by speed,
-      // not in turn, so the ready ones should cover what is coming: now as well as a drop in a few seconds)
+      // Clip speed follows the music: the spot of the scene's speed map that fits how fast the music will feel
+      // when this clip comes on (goal, see prepareOne)
       let spd = null;
-      const map = this.S.paceMatch && s.at == null ? speedMaps.get(s.id) : null;
+      const map = goal != null && s.at == null ? speedMaps.get(s.id) : null;
       let mapCands = null;
-      let want = null;
       if (Array.isArray(map)) {
-        want = this.paceAt(this.now() + 1 + Math.random() * this.readyWait());
         mapCands = map
-          .filter((x) => x.t < dur - 3 && inSeq(x.t))
-          .map((x) => ({ x, d: Math.abs((speedPct(x.speed) ?? 0.5) - want) + (fresh(x.t) ? 0 : 0.5) + Math.random() * 0.12 }))
+          .filter((x) => x.t >= head && x.t < dur - 3 - tailX(dur) && inSeq(x.t)) // (the preview starts at 0 – the intro's logo moves fast)
+          .map((x) => ({ x, d: Math.abs((speedPct(x.speed) ?? 0.5) - goal) + (fresh(x.t) ? 0 : 0.5) + Math.random() * 0.12 }))
           .sort((a, b) => a.d - b.d);
       }
       const mapPick = mapCands && mapCands[0];
@@ -3309,37 +3739,66 @@ class Generator {
       }
       if (s.at == null) this.useSpot(s, start);
       await seek(start);
-      // Clip speed follows the music: measure how fast things move here (the clip plays 1.8 s of video at double
-      // speed in the pool – about 0.9 s, so the supply keeps up with fast cuts) – more exact than the map.
+      // Measure the motion here (the clip plays 1.8 s of video at double speed in the pool – about 0.9 s, so the
+      // supply keeps up with fast cuts): its speed (clip speed follows the music – more exact than the map) and
+      // its rhythm (motion on the beat: if it fits the song's tempo, the clip starts on a turn of the motion –
+      // it comes on screen on a beat – and plays a little faster or slower).
       // Not with big videos (above 1440p: decoding them along costs too much)
+      let tempo = null;
+      let pulse = null; // spacing of the motion's turns (video seconds) and one turn – onBeat keeps them on the beat
+      let turnAt = null;
       const SECS = 1.8;
-      if (this.S.paceMatch && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.measuring < 3) {
+      const sync = this.S.beatSync && this.song && this.song.bpm > 0;
+      if ((sync || this.S.paceMatch) && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.measuring < 3) {
         this.measuring++;
         try {
-          let ms = actionSpeed(await captureFrames(v, SECS, 2), v.videoWidth, v.videoHeight);
-          noteSpeed(ms);
+          let fr = await captureFrames(v, SECS, 2);
+          let ms = this.S.paceMatch ? await actionSpeed(fr, v.videoWidth, v.videoHeight) : null;
+          // (a spot picked from the map for its speed doesn't count among the speeds seen: they should tell how fast
+          // the library is, not what was picked – else a loud song fills them with fast ones, and fast seems slower)
+          if (!mapPick) noteSpeed(ms);
+          addSpot(s, start, SECS, ms); // (the scene's map learns the spot – next time it is known)
           // A piece of the map is only 0.75 s of the scene: if the spot turns out far off the wanted pace,
           // the next best piece is tried, and the better of the two taken
-          const off = (x) => Math.abs((speedPct(x) ?? want) - want);
+          const off = (x) => Math.abs((speedPct(x) ?? goal) - goal);
           if (mapPick && start === mapPick.x.t && mapCands.length > 1 && ms != null && off(ms) > 0.35) {
             const alt = mapCands[1].x.t;
             await seek(alt);
-            const ms2 = actionSpeed(await captureFrames(v, SECS, 2), v.videoWidth, v.videoHeight);
-            noteSpeed(ms2);
-            if (ms2 != null && off(ms2) < off(ms)) [start, ms] = [alt, ms2];
+            const fr2 = await captureFrames(v, SECS, 2);
+            const ms2 = await actionSpeed(fr2, v.videoWidth, v.videoHeight);
+            addSpot(s, alt, SECS, ms2);
+            if (ms2 != null && off(ms2) < off(ms)) [start, fr, ms] = [alt, fr2, ms2];
           }
           if (ms != null) spd = ms;
+          const pts = motionCurve(fr);
+          const r = sync && pts && rhythmOf(pts);
+          if (r) {
+            let rate = beatFit(r.period, this.song.bpm);
+            if (!rate && r.half) rate = beatFit(r.half, this.song.bpm);
+            // Starts on the first turn from the start on – also when the tempo doesn't fit: with fast cuts a clip
+            // is on for a beat or two, then the motion setting in on the beat is what shows
+            // (the start of a marker clip stays where it is)
+            const step = r.half || r.period;
+            const turn = r.turn - Math.floor((r.turn - start) / step) * step;
+            if (s.at == null && turn < dur - 1) start = turn;
+            tempo = rate;
+            pulse = step;
+            turnAt = turn;
+          }
         } catch (e) {
-          /* not measurable – the speed from the map (if any) stays */
+          /* not measurable – the speed from the map (if any) stays, the clip just isn't synced */
         } finally {
           this.measuring--;
         }
         await seek(start);
       }
       const m = { kind: "video", el: v, w: v.videoWidth, h: v.videoHeight, id: s.id, key: s.key, perf: s.perf, rg: s.rg, start, name: s.name, file: s.file, url: s.url, tagNames: s.tagNames,
-        motion: mo, heat: heat ? heat(start) : null, speed: spd };
-      // A marker with an end: the clip stays inside it (the scene would play on into something else) – see loop()
-      if (s.at != null && s.end > s.at + 0.5) m.endAt = Math.min(s.end, dur - 0.1);
+        motion: mo, heat: heat ? heat(start) : null, tempo, pulse, turnAt, speed: spd };
+      // Where the clip turns back to its start (see loop()): a marker with an end – the clip stays inside it (the
+      // scene would play on into something else) – else just before the scene's end: the video would start over
+      // at 0, in its intro (a spot near the end, a clip that stays on for long)
+      const end = s.at != null && s.end > s.at + 0.5 ? Math.min(s.end, dur - 0.1) : dur - 0.4;
+      if (end > start + 0.5) m.endAt = end;
       m.sig = info || (await analyzeAsync(v, m.w, m.h));
       if (this.S.smartCrop) {
         m.focus = Object.assign({}, m.sig.focus);
@@ -3417,6 +3876,7 @@ class Generator {
       if (outSig) s += 1.5 * matchDist(outSig, m.sig);
       if (pace != null) s += 2.5 * Math.abs((speedPct(m.speed) ?? 0.5) - pace);
       else if (rank.size) s += 1.2 * Math.abs((rank.has(i) ? rank.get(i) : 0.5) - energy);
+      if (this.S.beatSync && m.tempo) s -= 1; // motion on the beat: clips whose rhythm fits come first
       s += this.varietyPenalty(m);
       if (s < score) {
         score = s;
@@ -3428,7 +3888,10 @@ class Generator {
     m.shownAt = performance.now();
     m.zoomDir = (this.zoomFlip = !this.zoomFlip) ? 1 : -1; // zoom-in entry: alternating strong/soft (always zooming in)
     if (m.kind === "video") {
-      m.el.playbackRate = this.rate || 1;
+      // Motion on the beat: from here onBeat keeps the turns on it – the expectation starts on the turn grid
+      if (m.tempo && m.pulse) m.vExp = m.turnAt + Math.round((m.el.currentTime - m.turnAt) / m.pulse) * m.pulse;
+      m.sync = 1;
+      m.el.playbackRate = (this.rate || 1) * (m.tempo || 1);
       m.el.play().catch(() => {});
       this.watchFrames(m);
     }
@@ -4008,8 +4471,13 @@ class Generator {
     // (with "cut ahead of the beat" the cut is made a few ms early; the zoom pulse still sits on the real beat)
     const lead = (this.S.cutLead || 0) / 1000;
     while (this.bi < beats.length && beats[this.bi] - lead <= p) this.onBeat(this.bi++, t);
-    // A marker clip with an end loops inside its marker
-    for (const m of this.groups) if (m && m.endAt && m.kind === "video" && m.el.currentTime >= m.endAt) m.el.currentTime = m.start;
+    // A clip at its end turns back to its start (see prepareFrom) – also when the video got to its end first and
+    // started over at 0 (its intro)
+    for (const m of this.groups) {
+      if (!m || !m.endAt || m.kind !== "video") continue;
+      const ct = m.el.currentTime;
+      if (ct >= m.endAt || ct < m.start - 0.5) m.el.currentTime = m.start;
+    }
     if (this.tpl) {
       const evs = this.tpl.events;
       while (this.ti < evs.length && evs[this.ti].t <= t) this.applyEvent(evs[this.ti++], t);
@@ -4101,6 +4569,21 @@ class Generator {
     const minB = Math.max(0, Math.round(+S.minBeats || 0));
     const maxB = Math.max(0, Math.round(+S.maxBeats || 0));
     const beats = this.song.beats;
+    // Motion on the beat: hold the turns on it. The measured period is a touch off and play() starts late, so
+    // the phase drifts (~5 ms per beat per 1 % of error). Once per beat the clip's video time is compared with
+    // where the turn grid says it should be, and the playback is trimmed a little for the next beat – no image
+    // work. The error is folded to the nearest turn, so a marker clip's loop jump snaps back in too.
+    const gap = k > 0 ? beats[k] - beats[k - 1] : 60 / this.song.bpm;
+    for (const m of this.videos()) {
+      if (!m.tempo || !m.pulse || m.vExp == null || m.el.paused) continue;
+      m.vExp += gap * (this.rate || 1) * m.tempo;
+      let err = (m.el.currentTime - m.vExp) % m.pulse;
+      if (err > m.pulse / 2) err -= m.pulse;
+      else if (err < -m.pulse / 2) err += m.pulse;
+      m.vExp = m.el.currentTime - err; // whole pulses off (a loop jump) are carried, not fought
+      m.sync = Math.abs(err) < 0.01 ? 1 : Math.max(0.95, Math.min(1.05, 1 - err / (gap * (this.rate || 1) * m.tempo)));
+      m.el.playbackRate = (this.rate || 1) * (m.tempo || 1) * m.sync;
+    }
     const e = this.song.energy[k] || 0;
     const prev = this.song.energy[k - 4] || 0;
     // A drop counts once – otherwise the signal stays up for several beats in a row
@@ -4227,7 +4710,7 @@ class Generator {
     if (!hold && this.rateHold && now < this.rateHold) return;
     this.rateHold = hold ? now + hold * 1000 : 0;
     this.rate = rate;
-    this.videos().forEach((m) => (m.el.playbackRate = rate));
+    this.videos().forEach((m) => (m.el.playbackRate = rate * (m.tempo || 1) * (m.sync || 1)));
   }
 
   // Hook a clip's audio into the mix (once per clip); goes through master, so into the recording too

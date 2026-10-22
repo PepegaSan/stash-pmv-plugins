@@ -156,6 +156,22 @@ export const invNo = (kind, id) => `${{ scene: "S", image: "I", gallery: "G" }[k
 // (a big library: off until asked for – counting the folders reads the whole library)
 export const folderMode = () => store.get("folderMode") || (largeNow() ? "off" : store.get("railFolders", true) ? "all" : "page");
 
+// The E key opens the Edit button of a page (performer, studio, gallery, tag) – not while typing, with a drawer or dialog
+// open, or while the player / image viewer is on top of the page (they have their own E). → function that takes it off again
+export function editKey(root) {
+  const on = (e) => {
+    if (e.key.toLowerCase() !== "e" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (document.querySelector(".kb-drawer, .kb-dialog") || document.body.classList.contains("kb-noscroll")) return;
+    const b = root.querySelector("[data-edit]");
+    if (!b) return;
+    e.preventDefault();
+    b.click();
+  };
+  document.addEventListener("keydown", on);
+  return () => document.removeEventListener("keydown", on);
+}
+
 export const store = {
   get(key, fallback) {
     try {
@@ -251,7 +267,7 @@ export function errorToast(e, what) {
 const overlayRoot = () => document.fullscreenElement || document.getElementById("overlay-root");
 // Puts a dialog / drawer in. In fullscreen it sits inside the player's own element – its clicks must not reach the
 // player (its [data-close] would close the whole player, a tap would pause it)
-function mountOverlay(wrap) {
+export function mountOverlay(wrap) {
   const root = overlayRoot();
   root.appendChild(wrap);
   if (root.id !== "overlay-root") ["click", "dblclick", "pointerdown", "pointerup", "touchstart", "touchend"].forEach((ev) => wrap.addEventListener(ev, (e) => e.stopPropagation()));
@@ -333,10 +349,11 @@ export function promptDialog({ title, label, value = "", ok = t("OK") }) {
 }
 
 // Drawer from the right. render(body) fills the content; returns close().
-export function openDrawer({ title, body, foot, onClose }) {
+// light: the page behind isn't dimmed or blurred (the E / T keys on a card – you keep looking at what you tag)
+export function openDrawer({ title, body, foot, onClose, light }) {
   const wrap = document.createElement("div");
   wrap.innerHTML = `
-    <div class="kb-scrim"></div>
+    <div class="kb-scrim${light ? " is-clear" : ""}"></div>
     <aside class="kb-drawer" role="dialog" aria-modal="true" aria-label="${esc(title)}">
       <div class="kb-drawer-head"><h2>${esc(title)}</h2><button class="kb-btn is-icon is-ghost" data-close aria-label="${t("Close")}">${icon("close")}</button></div>
       <div class="kb-drawer-body">${body || ""}</div>

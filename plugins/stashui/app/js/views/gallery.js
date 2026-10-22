@@ -1,6 +1,6 @@
 // A gallery: placard with details, all images below.
 
-import { esc, icon, fmtDate, plural, starsHtml, errorToast, toast } from "../ui.js";
+import { esc, icon, fmtDate, plural, starsHtml, errorToast, toast, editKey } from "../ui.js";
 import { t } from "../i18n.js";
 import { getGallery, setFavorite, favoriteTagId } from "../api.js";
 import { mediaBrowser } from "./media.js";
@@ -62,7 +62,9 @@ export async function render(main, params, query) {
     app.context = { kind: "image", pieces: h.pieces, index: 0, hang: h, slideshow: true };
     go("image/" + h.pieces[0].id);
   };
+  const offKey = editKey(main);
   return () => {
+    offKey();
     xhead.destroy();
     b.destroy();
   };

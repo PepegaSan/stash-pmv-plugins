@@ -22,13 +22,22 @@ import { generatePreviews } from "../genprev.js";
 import { fpsOf, stepFrame, snap, fmtExact } from "../frames.js";
 import { videoGlow } from "../theme.js";
 import { mountSlots } from "../ext.js";
+import { oData, syncOf, pointsOf, addPoint, setPoint, removePoint, ownClips, clipsFor, oPrefs, setOPrefs, createOPlayer, openOPicker, refLen } from "../oclip.js";
 import { BINS, watchRecorder, watchBins, motionBins, combine, peaks } from "../heat.js";
 import { mountScenePage, bootPluginHost, isScenePluginEnabled } from "../plugin-host.js";
 
-// Read Stash's sprite VTT: time ranges → region in the sprite image
-async function loadSprites(vttUrl, spriteUrl) {
+// Read Stash's sprite VTT: time ranges → region in the sprite image (once per scene; the picture is fetched ahead too)
+const spriteCache = new Map();
+function loadSprites(vttUrl, spriteUrl) {
+  const key = vttUrl + "|" + spriteUrl;
+  if (!spriteCache.has(key)) spriteCache.set(key, readSprites(vttUrl, spriteUrl).then((s) => (s ? s : (spriteCache.delete(key), null))));
+  return spriteCache.get(key);
+}
+async function readSprites(vttUrl, spriteUrl) {
   try {
-    const txt = await (await fetch(vttUrl)).text();
+    const res = await fetch(vttUrl);
+    if (!res.ok) return null;
+    const txt = await res.text();
     const cues = [];
     const re = /(\d+):(\d+):(\d+)\.(\d+)\s+-->\s+(\d+):(\d+):(\d+)\.(\d+)\s*\n([^\n]+)/g;
     let m;
@@ -37,7 +46,8 @@ async function loadSprites(vttUrl, spriteUrl) {
       const xywh = (m[9].match(/#xywh=(\d+),(\d+),(\d+),(\d+)/) || []).slice(1).map(Number);
       if (xywh.length === 4) cues.push({ start: secs(m[1], m[2], m[3], m[4]), end: secs(m[5], m[6], m[7], m[8]), xywh });
     }
-    return cues.length ? { cues, url: spriteUrl } : null;
+    if (cues.length) new Image().src = spriteUrl; // load the picture now, so the first hover isn't empty
+    return cues.length ? { cues, url: spriteUrl, w: Math.max(...cues.map((c) => c.xywh[0] + c.xywh[2])) } : null;
   } catch (e) {
     return null;
   }
@@ -160,6 +170,7 @@ export async function render(host, params, query = {}) {
             ${x.interactive && x.paths.interactive_heatmap ? `<img class="kb-tl-fs" src="${esc(x.paths.interactive_heatmap)}" alt="" title="${t("Funscript – how intense it gets")}" onerror="this.remove()">` : ""}
             <div class="kb-tl-buf" data-buf></div>
             <div class="kb-tl-played" data-played></div>
+            <div class="kb-tl-loop" data-loop hidden></div>
             <div class="kb-tl-resume" data-resmark hidden></div>
             <div class="kb-tl-knob" data-knob></div>
             <div class="kb-tl-hls" data-hls></div>
@@ -213,6 +224,59 @@ export async function render(host, params, query = {}) {
   v.loop = prefs.mode === "one";
   const savePrefs = () => store.set("player", prefs);
 
+  // ---------- O moments: a chosen clip plays in a window over the picture from the moment of an O ----------
+  const oplay = createOPlayer({ screen: $(".kb-screen"), video: v, scene: x });
+  oData().then(() => host.isConnected && paintMarkers());
+  function markO(quiet) {
+    const at = snap(v.currentTime, fps);
+    oData().then(() => {
+      if (!addPoint(x.id, at)) return quiet || toast(t("There is already an O moment here"));
+      oplay.refresh();
+      paintMarkers();
+      toast(t("O moment at {time}", { time: fmtDuration(at) }), "ok");
+    });
+  }
+  function oSection() {
+    const pts = pointsOf(x.id);
+    const own = ownClips(x.id);
+    const eff = clipsFor(x.id);
+    const p = oPrefs();
+    const rows = pts
+      .map(
+        (s, i) =>
+          `<div class="kb-mkrow kb-orow"><button type="button" class="kb-mkgo" data-mkgo="${s}"><b>${fmtDuration(s)}</b><span>${t("O moment")}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-oset="${i}" title="${esc(t("Move this O moment to the spot you're watching"))}">${icon("check")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-odel="${i}" title="${esc(t("Remove"))}">${icon("close")}</button></div>`
+      )
+      .join("");
+    const chips = eff.length
+      ? `<div class="kb-oc-chosen">${eff.map((r) => `<span class="kb-chip" title="${esc(r.title || "")}">${esc(r.title || t("Clip"))} <small>${fmtDuration(refLen(r))}</small></span>`).join("")}</div>${own.length ? "" : `<p class="kb-plc-meta">${t("These play for every scene without a clip of its own.")}</p>`}`
+      : `<p class="kb-plc-meta">${t("No O clip chosen yet.")}</p>`;
+    const sel = (cur, opts) => opts.map(([v2, l]) => `<option value="${v2}"${cur === v2 ? " selected" : ""}>${t(l)}</option>`).join("");
+    const sy = syncOf(x.id);
+    const win = `<div class="kb-oset">
+        <label class="kb-cut-opt"><input type="checkbox" data-oshow${p.show ? " checked" : ""}><span>${t("Show the O clip at the O moments")}</span></label>
+        <label class="kb-form-row"><span>${t("Window")}</span><select class="kb-field" data-opos>${sel(p.pos, [["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"]])}</select></label>
+        <label class="kb-form-row"><span>${t("Size")}</span><input type="range" min="15" max="55" step="1" value="${p.size}" data-osize></label>
+      </div>`;
+    return secHtml(
+      "omoments",
+      `${t("O video")}<small class="kb-upsec-n">${sy ? 1 : pts.length || ""}</small>`,
+      `<div class="kb-osync-sec">
+        ${
+          sy
+            ? `<div class="kb-oc-chosen"><span class="kb-chip" title="${esc(sy.title || "")}">${esc(sy.title || t("O video"))}</span></div><p class="kb-plc-meta">${sy.offset >= 0 ? t("Starts {s} into this video.", { s: fmtDuration(sy.offset) }) : t("This video is {s} in when it starts.", { s: fmtDuration(-sy.offset) })}</p>`
+            : `<p class="kb-plc-meta">${t("Have a video of the O with this video playing in its background? Line the two up once – then the O video plays along whenever this one plays.")}</p>`
+        }
+        <button type="button" class="kb-btn is-primary kb-mkadd" data-osync>${icon("film")}${sy ? t("Match again …") : t("Match an O video …")}</button>
+      </div>
+      ${win}
+      <details class="kb-osingle"${pts.length ? " open" : ""}><summary>${t("Single O moments (a short clip at a marked moment)")}${pts.length ? ` · ${pts.length}` : ""}</summary>
+      ${rows || `<p class="kb-plc-meta">${t("Press Shift+O at the moment of an O (O itself marks it too) – the O clip then plays next to the video from there.")}</p>`}
+      <div class="kb-mkadds"><button type="button" class="kb-btn is-ghost kb-mkadd" data-omark>${icon("drop")}${t("Mark an O moment here (Shift+O)")}</button><button type="button" class="kb-btn is-ghost kb-mkadd" data-opick>${icon("film")}${t("Choose the O clip …")}</button></div>
+      ${chips}
+      </details>`
+    );
+  }
+
   // ---------- Source: direct stream, otherwise transcode ----------
   const streams = (x.sceneStreams || []).filter((s) => /mp4|webm/.test(s.mime_type || s.url));
   const sources = [x.paths.stream, ...streams.map((s) => s.url)].filter(Boolean);
@@ -236,14 +300,43 @@ export async function render(host, params, query = {}) {
     const want = caps.findIndex((c) => c.language_code === prefs.subs);
     setTimeout(() => setSubs(want));
   }
+  // Live transcodes (Stash's "resolution=" streams) don't know their length and can't be seeked: the bar uses the
+  // scene's known length, and a jump outside what is already loaded asks the stream to start at that second
+  // (start=<s>; the pictures then count from 0, `tcOff` adds the offset back). v.currentTime / v.duration are
+  // wrapped for this, so everything else in the player keeps working with real scene time.
+  const mediaProto = HTMLMediaElement.prototype;
+  const nativeTime = Object.getOwnPropertyDescriptor(mediaProto, "currentTime");
+  const nativeDur = Object.getOwnPropertyDescriptor(mediaProto, "duration");
+  let tcOff = 0;
+  const isLive = (i) => /[?&]resolution=/.test(sources[i] || "") && dur > 0;
+  const withStart = (u, sec) => u + (u.includes("?") ? "&" : "?") + "start=" + Math.floor(sec);
+  const inBuffer = (sec) => {
+    for (let k = 0; k < v.buffered.length; k++) if (sec >= v.buffered.start(k) && sec <= v.buffered.end(k) - 0.5) return true;
+    return false;
+  };
+  function loadAt(i, at, play) {
+    srcIdx = i;
+    tcOff = isLive(i) && at > 2 ? Math.floor(at) : 0;
+    v.src = tcOff ? withStart(sources[i], tcOff) : sources[i];
+    if (!tcOff && at > 0) nativeTime.set.call(v, at); // not v.currentTime: on a live stream that asks loadAt again (endless loop for 1–2 s)
+    if (play) v.play().catch(() => {});
+  }
+  Object.defineProperty(v, "currentTime", {
+    configurable: true,
+    get: () => nativeTime.get.call(v) + tcOff,
+    set: (x) => {
+      x = Number(x);
+      if (!isFinite(x)) return;
+      if (!isLive(srcIdx)) return nativeTime.set.call(v, x);
+      const local = x - tcOff;
+      if (local >= 0 && (inBuffer(local) || (tcOff === 0 && local < 1))) nativeTime.set.call(v, local);
+      else loadAt(srcIdx, Math.max(0, Math.min(x, dur - 1)), !v.paused);
+    },
+  });
+  Object.defineProperty(v, "duration", { configurable: true, get: () => (isLive(srcIdx) ? dur : nativeDur.get.call(v)) });
   function switchSource(i) {
     if (i === srcIdx) return;
-    const at = v.currentTime;
-    const playing = !v.paused;
-    srcIdx = i;
-    v.src = sources[i];
-    v.currentTime = at;
-    if (playing) v.play().catch(() => {});
+    loadAt(i, v.currentTime, !v.paused);
   }
   // Menu: quality, subtitles, speed (one button instead of three – the bar is full enough)
   function menuHtml() {
@@ -255,7 +348,9 @@ export async function render(host, params, query = {}) {
       (vr ? `<div class="kb-pmenu-sec"><b>VR</b><div class="kb-pmenu-speeds">${[["", t("Off"), ""], ["180", "180°", ""], ["180sbs", "180° SBS", t("180° side by side")], ["360", "360°", ""], ["360tb", "360° TB", t("360° top/bottom")], ["360sbs", "360° SBS", t("360° side by side")]].map(([m, l, title]) => `<button type="button" class="kb-chip${vr.mode === m ? " is-on" : ""}" data-vr="${m}"${title ? ` title="${esc(title)}"` : ""}>${l}</button>`).join("")}</div></div>` : "") +
       `<div class="kb-pmenu-sec"><b>${t("Speed")}</b><div class="kb-pmenu-speeds">${[0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => `<button type="button" class="kb-chip${v.playbackRate === s ? " is-on" : ""}" data-rate="${s}">${s}×</button>`).join("")}</div>` +
       (slowmoSupported() ? `<b title="${esc(t("Below 1× the missing pictures in between are made up on your graphics card – nothing to download"))}">${t("Smooth slow motion")}</b><div class="kb-pmenu-speeds">${[["off", "Off", ""], ["blend", "Blend", "Cross-fades the pictures – cheap, moving things leave a ghost"], ["motion", "Motion", "Follows the movement of the picture (uses the graphics card)"]].map(([m, l, h]) => `<button type="button" class="kb-chip${smoothMode() === m ? " is-on" : ""}" data-smooth="${m}"${h ? ` title="${esc(t(h))}"` : ""}>${t(l)}</button>`).join("")}</div>` : "") + `</div>` +
-      `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${prefs.randomStart ? " is-on" : ""}" data-randstart title="${esc(t("Every scene starts somewhere in the middle – for browsing around. Your resume points in Stash stay as they are."))}">${prefs.randomStart ? icon("check") : "<i></i>"}${t("Start at a random spot")}</button>` +
+      `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${prefs.fromStart ? " is-on" : ""}" data-fromstart title="${esc(t("Scenes you stopped halfway begin at 0:00 instead of where you left off. The saved point stays in Stash; the hint offers it as a button."))}">${prefs.fromStart ? icon("check") : "<i></i>"}${t("Always start from the beginning")}</button>` +
+      `<button type="button" class="kb-pmenu-opt${prefs.randomStart ? " is-on" : ""}" data-randstart title="${esc(t("Every scene starts somewhere in the middle – for browsing around. Your resume points in Stash stay as they are."))}">${prefs.randomStart ? icon("check") : "<i></i>"}${t("Start at a random spot")}</button>` +
+      `<button type="button" class="kb-pmenu-opt${loop && loop.b != null ? " is-on" : ""}" data-loop>${loop && loop.b != null ? icon("check") : "<i></i>"}${loop ? (loop.b == null ? t("A–B loop: set B here (L)") : t("A–B loop on – clear (L)")) : t("A–B loop: set A here (L)")}</button>` +
       `<button type="button" class="kb-pmenu-opt" data-addmark>${icon("drop")}${t("Add a marker here (B)")}</button></div>` +
       (canCast ? `<div class="kb-pmenu-sec"><button type="button" class="kb-pmenu-opt${casting() ? " is-on" : ""}" data-cast>${icon("cast")}${casting() ? t("Casting – choose another device") : t("Cast to TV")}</button></div>` : "");
   }
@@ -329,11 +424,16 @@ export async function render(host, params, query = {}) {
       vr.setMode(b.dataset.vr);
       store.set("vrScenes", Object.assign(store.get("vrScenes", {}), { [x.id]: b.dataset.vr }));
     } else if (b.dataset.cast != null) return cast();
-    else if (b.dataset.randstart != null) {
+    else if (b.dataset.fromstart != null) {
+      prefs.fromStart = !prefs.fromStart;
+      savePrefs();
+      toast(prefs.fromStart ? t("From the next scene on: always from the beginning") : t("Scenes continue where you stopped again"), "ok");
+    } else if (b.dataset.randstart != null) {
       prefs.randomStart = !prefs.randomStart;
       savePrefs();
       toast(prefs.randomStart ? t("From the next scene on: a random spot") : t("Scenes start normally again"), "ok");
     }
+    else if (b.dataset.loop != null) toggleLoop();
     else if (b.dataset.addmark != null) {
       closeMenu();
       return addMarker();
@@ -346,10 +446,7 @@ export async function render(host, params, query = {}) {
   });
   v.addEventListener("error", () => {
     if (srcIdx < sources.length - 1) {
-      const at = v.currentTime;
-      v.src = sources[++srcIdx];
-      v.currentTime = at;
-      v.play().catch(() => {});
+      loadAt(srcIdx + 1, v.currentTime, true);
     } else toast(t("This video can't be played here"), "error");
   });
   v.src = sources[srcIdx];
@@ -368,9 +465,23 @@ export async function render(host, params, query = {}) {
     prefs.randomStart && handoff == null && (randomBest.length || dur > 20)
       ? randomBest.length ? Math.max(0.01, randomBest[Math.floor(Math.random() * randomBest.length)].seconds) : dur * (0.05 + Math.random() * 0.8)
       : 0;
-  let keepResume = !!randomAt;
-  const resumeAt = !randomAt && handoff == null && x.resume_time && dur && x.resume_time > 5 && x.resume_time < dur * 0.95 ? x.resume_time : 0;
+  // "Always start from the beginning": the saved point is ignored (and left alone in Stash); the hint offers it as a button
+  const savedAt = x.resume_time && dur && x.resume_time > 5 && x.resume_time < dur * 0.95 ? x.resume_time : 0;
+  const fromBeginning = !!prefs.fromStart && !randomAt && handoff == null && !!savedAt;
+  let keepResume = !!randomAt || fromBeginning;
+  const resumeAt = !randomAt && !fromBeginning && handoff == null ? savedAt : 0;
   if (handoff != null) v.currentTime = handoff;
+  if (fromBeginning) {
+    const r = $("[data-resume]");
+    r.innerHTML = `<button class="kb-btn" data-toresume>${t("Resume at {time}", { time: fmtDuration(savedAt) })}</button>`;
+    r.hidden = false;
+    setTimeout(() => (r.hidden = true), 6000);
+    r.querySelector("[data-toresume]").onclick = () => {
+      v.currentTime = savedAt;
+      keepResume = false;
+      r.hidden = true;
+    };
+  }
   if (randomAt) {
     v.currentTime = randomAt;
     const r = $("[data-resume]");
@@ -405,7 +516,13 @@ export async function render(host, params, query = {}) {
     mark.hidden = false;
     mark.style.left = (resumeAt / dur) * 100 + "%";
   }
-  v.play().catch(() => ($("[data-bigplay]").hidden = false));
+  // Settings → Player → "Start playing when a scene opens": off = it waits for a click (the big play button).
+  // Going on from the player itself (next, up next, similar) always plays – you were watching.
+  const autoplay = store.get("player", {}).autoplay !== false || !!app.keepPlaying;
+  app.keepPlaying = false;
+  let held = !autoplay;
+  if (autoplay) v.play().catch(() => ($("[data-bigplay]").hidden = false));
+  else $("[data-bigplay]").hidden = false;
 
   // ---------- History ----------
   const watch = watchRecorder(x.id, dur);
@@ -456,7 +573,7 @@ export async function render(host, params, query = {}) {
   }
   function paintBuffer() {
     if (!v.buffered.length || !v.duration) return;
-    $("[data-buf]").style.width = (v.buffered.end(v.buffered.length - 1) / v.duration) * 100 + "%";
+    $("[data-buf]").style.width = ((v.buffered.end(v.buffered.length - 1) + tcOff) / v.duration) * 100 + "%";
   }
   const posFrom = (e) => {
     const r = tl.getBoundingClientRect();
@@ -523,22 +640,30 @@ export async function render(host, params, query = {}) {
     watch.seeked(at);
     toast(t("Highlight at {time}", { time: fmtDuration(at) }));
   }
+  // The picture above the pointer: the sprite tile at the time under it, scaled up a bit; stays inside the window.
+  // Without timeline images (or switched off, or touch hovering) only the time shows, as before.
+  const PEEK_W = 200;
   tl.addEventListener("pointermove", (e) => {
     const p = posFrom(e);
     const at = p * (v.duration || dur);
     const peek = $("[data-peek]");
     peek.hidden = false;
-    peek.style.left = p * 100 + "%";
     $("[data-peektime]").textContent = fmtDuration(at);
     const img = $("[data-peekimg]");
-    const cue = sprites && sprites.cues.find((c) => at >= c.start && at < c.end);
+    const r = tl.getBoundingClientRect();
+    const cue = sprites && store.get("player", {}).scrubPeek !== false && (e.pointerType !== "touch" || scrubbing) && sprites.cues.find((c) => at >= c.start && at < c.end);
     if (cue) {
       const [cx, cy, cw, ch] = cue.xywh;
+      const k = Math.max(1, Math.min(PEEK_W, r.width / 3) / cw); // small tiles are enlarged a bit, never shrunk
       img.hidden = false;
-      img.style.width = cw + "px";
-      img.style.height = ch + "px";
-      img.style.background = `url("${sprites.url}") -${cx}px -${cy}px`;
+      img.style.width = Math.round(cw * k) + "px";
+      img.style.height = Math.round(ch * k) + "px";
+      img.style.background = `url("${sprites.url}") -${Math.round(cx * k)}px -${Math.round(cy * k)}px / ${Math.round(sprites.w * k)}px auto no-repeat`;
     } else img.hidden = true;
+    const half = peek.offsetWidth / 2;
+    const lo = Math.max(half + 8 - r.left, 0);
+    const hi = Math.min(window.innerWidth - half - 8 - r.left, r.width);
+    peek.style.left = Math.max(lo, Math.min(hi, p * r.width)) + "px";
     if (scrubbing) v.currentTime = at;
   });
   tl.addEventListener("pointerleave", () => !scrubbing && ($("[data-peek]").hidden = true));
@@ -558,7 +683,8 @@ export async function render(host, params, query = {}) {
   // ---------- Controls ----------
   function syncPlay() {
     $("[data-play]").innerHTML = icon(v.paused ? "play" : "pause");
-    $("[data-bigplay]").hidden = !v.paused || v.currentTime > 0.5 ? true : false;
+    if (!v.paused) held = false;
+    $("[data-bigplay]").hidden = !v.paused || (v.currentTime > 0.5 && !held) ? true : false;
     stage.classList.toggle("is-paused", v.paused);
   }
   function syncVol() {
@@ -569,12 +695,22 @@ export async function render(host, params, query = {}) {
   syncPlay();
   const toggle = () => (v.paused ? v.play().catch(() => {}) : v.pause());
 
-  // Controls hide when idle
+  // Controls hide when idle: first they fade out (is-idle), but for a moment they still take clicks, so
+  // a click on a button that has just faded works and doesn't land on the picture (and pause it).
+  // Only then (is-gone) the picture gets the clicks again.
+  const IDLE_MS = 2600;
+  const GRACE_MS = 2500;
   let idle;
+  let gone;
   const wake = () => {
-    stage.classList.remove("is-idle");
+    stage.classList.remove("is-idle", "is-gone");
     clearTimeout(idle);
-    idle = setTimeout(() => !v.paused && stage.classList.add("is-idle"), 2600);
+    clearTimeout(gone);
+    idle = setTimeout(() => {
+      if (v.paused) return;
+      stage.classList.add("is-idle");
+      gone = setTimeout(() => stage.classList.add("is-gone"), GRACE_MS);
+    }, IDLE_MS);
   };
   stage.addEventListener("pointermove", wake);
   wake();
@@ -625,11 +761,44 @@ export async function render(host, params, query = {}) {
   };
   stage.addEventListener("pointerup", endSwipe);
   stage.addEventListener("pointercancel", endSwipe);
+  // Touch: holding a finger on the picture plays at 2× while it stays down, back to normal on release.
+  // A swipe (finger moves) cancels it, a boost cancels the swipe; the tap that ends it doesn't pause.
+  let boost = null;
+  const boostEnd = () => {
+    if (!boost) return;
+    clearTimeout(boost.timer);
+    if (boost.on) {
+      v.playbackRate = boost.prev;
+      swiped = Date.now();
+      flash("", false);
+    }
+    boost = null;
+  };
+  stage.addEventListener("pointerdown", (e) => {
+    boostEnd();
+    if (e.pointerType === "mouse" || (vr && vr.mode) || !(e.target === v || e.target.classList.contains("kb-screen"))) return;
+    boost = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, prev: v.playbackRate };
+    boost.timer = setTimeout(() => {
+      if (!boost || v.paused || (swipe && swipe.on)) return (boost = null);
+      swipe = null;
+      boost.on = true;
+      v.playbackRate = 2;
+      if (navigator.vibrate) navigator.vibrate(15);
+      flash("▸▸ 2×", true);
+    }, 450);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!boost || boost.on || e.pointerId !== boost.id) return;
+    if (Math.hypot(e.clientX - boost.x, e.clientY - boost.y) > 12) boostEnd();
+  });
+  ["pointerup", "pointercancel"].forEach((ev) => stage.addEventListener(ev, (e) => boost && e.pointerId === boost.id && boostEnd()));
+  stage.addEventListener("contextmenu", (e) => lastPointer !== "mouse" && (e.target === v || e.target.classList.contains("kb-screen")) && e.preventDefault());
 
   host.addEventListener("click", (e) => {
     const el = e.target;
     const woke = tapWoke;
     tapWoke = false;
+    wake(); // a click counts as activity: the bar stays and the countdown starts over
     if (Date.now() - swiped < 400 && (el === v || el.classList.contains("kb-screen"))) return;
     if (el.closest("[data-close]")) return closeOverlay();
     if (el.closest("[data-play]") || el.closest("[data-bigplay]")) return toggle();
@@ -679,7 +848,7 @@ export async function render(host, params, query = {}) {
       if (handy) handy.setLoop(prefs.mode === "one");
       paintMode();
       paintUpnext();
-      return toast(modeOf()[2], "ok");
+      return toast(t(modeOf()[2]), "ok");
     }
     const up = el.closest("[data-upgo]");
     if (up) return jump(Number(up.dataset.upgo));
@@ -802,6 +971,7 @@ export async function render(host, params, query = {}) {
     openScene(it.id);
   }
   function openScene(id) {
+    app.keepPlaying = true; // (the next scene plays on its own even when "Start playing when a scene opens" is off)
     go("scene/" + id, true);
   }
   v.addEventListener("ended", () => {
@@ -898,27 +1068,27 @@ export async function render(host, params, query = {}) {
     }
     return start;
   }
+  // Every main tag gets its own colour (the same tag always the same one) – on the timeline pin, the bar of a part and its row
+  const mkColor = (m) => {
+    const key = String((m.primary_tag && (m.primary_tag.name || m.primary_tag.id)) || m.title || "");
+    let h = 0;
+    for (const c of key) h = (h * 31 + c.charCodeAt(0)) % 360;
+    return `hsl(${(h * 47) % 360} 78% 58%)`;
+  };
   function paintMarks() {
     const box = $("[data-mks]");
     if (!box) return;
     const total = v.duration || dur || 1;
     const best = bestMarkersNow() || new Map();
-    box.innerHTML = (x.scene_markers || [])
-      .map((m) => {
-        const left = (m.seconds / total) * 100;
-        const endPct =
-          m.end_seconds != null && m.end_seconds > m.seconds + 0.05
-            ? ((m.end_seconds - m.seconds) / total) * 100
-            : 0;
-        const range =
-          endPct > 0.3
-            ? `<span class="kb-tl-mk-range" style="left:${left}%;width:${endPct}%"></span>`
-            : "";
-        return (
-          range +
-          `<button type="button" class="kb-tl-mk${best.has(m.id) ? " is-best" : ""}" data-mk="${m.seconds}" style="left:${left}%" title="${esc((best.has(m.id) ? "★ " + t("Best moment") + " · " : "") + (m.title || (m.primary_tag || {}).name || t("Marker")) + " · " + markerTimeLabel(m))}"></button>`
-        );
-      })
+    // a part with an end is drawn as a coloured bar over the timeline; the pin stays at its start
+    const bars = (x.scene_markers || [])
+      .slice()
+      .sort((a, b) => a.seconds - b.seconds)
+      .filter((m) => m.end_seconds > m.seconds)
+      .map((m, i) => `<i class="kb-tl-range${i % 2 ? " is-alt" : ""}" style="left:${(m.seconds / total) * 100}%;width:${((Math.min(m.end_seconds, total) - m.seconds) / total) * 100}%;--mk:${mkColor(m)}"></i>`)
+      .join("");
+    box.innerHTML = bars + (x.scene_markers || [])
+      .map((m) => `<button type="button" class="kb-tl-mk${best.has(m.id) ? " is-best" : ""}" data-mk="${m.seconds}" style="left:${(m.seconds / total) * 100}%;--mk:${mkColor(m)}" title="${esc((best.has(m.id) ? "★ " + t("Best moment") + " · " : "") + (m.title || (m.primary_tag || {}).name || t("Marker")) + " · " + markerTimeLabel(m))}"></button>`)
       .join("");
   }
   // the best moments arrive a moment later (standings from Stash) – then the marks again
@@ -956,10 +1126,11 @@ export async function render(host, params, query = {}) {
       `${t("Markers")}<small class="kb-upsec-n">${list.length || ""}</small>`,
       list
         .map(
-          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${markerTimeLabel(m)}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}${partTags(m)}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Edit the part (name, start, end, tags)")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
+          (m) => `<div class="kb-mkrow${(bestMarkersNow() || new Map()).has(m.id) ? " is-best" : ""}" data-mkid="${m.id}" style="--mk:${mkColor(m)}"><button type="button" class="kb-mkgo" data-mkgo="${m.seconds}"><b>${markerTimeLabel(m)}</b><span>${esc(m.title || (m.primary_tag || {}).name || t("Marker"))}${partTags(m)}</span></button><button type="button" class="kb-btn is-icon is-ghost" data-mkren="${m.id}" title="${t("Edit the part (name, start, end, tags)")}">${icon("edit")}</button><button type="button" class="kb-btn is-icon is-ghost kb-qdel" data-mkdel="${m.id}" title="${t("Delete marker")}">${icon("close")}</button></div>`
         )
         .join("") + markerAddFooter()
     );
+    box.insertAdjacentHTML("beforeend", `<div class="kb-omoments">${oSection()}</div>`);
     paintMarks();
   }
   async function addMarker() {
@@ -979,7 +1150,30 @@ export async function render(host, params, query = {}) {
       errorToast(e, "Marker");
     }
   }
+  $("[data-side]").addEventListener("change", (e) => {
+    if (e.target.matches("[data-oshow]")) setOPrefs({ show: e.target.checked });
+    else if (e.target.matches("[data-opos]")) setOPrefs({ pos: e.target.value });
+    else return;
+    oplay.layout();
+    oplay.refresh();
+  });
+  $("[data-side]").addEventListener("input", (e) => {
+    if (!e.target.matches("[data-osize]")) return;
+    setOPrefs({ size: Number(e.target.value) });
+    oplay.layout();
+  });
   $("[data-side]").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-osync]")) return oData().then(() => import("../osync.js")).then((m) => m.openOSync({ scene: x, onDone: () => (oplay.refresh(), paintMarkers()) }));
+    if (e.target.closest("[data-omark]")) return markO();
+    if (e.target.closest("[data-opick]")) return oData().then(() => openOPicker({ scene: x, onDone: () => (oplay.refresh(), paintMarkers()) }));
+    const oset = e.target.closest("[data-oset]");
+    const odel = e.target.closest("[data-odel]");
+    if (oset || odel) {
+      if (oset) setPoint(x.id, Number(oset.dataset.oset), snap(v.currentTime, fps));
+      else removePoint(x.id, Number(odel.dataset.odel));
+      oplay.refresh();
+      return paintMarkers();
+    }
     const go = e.target.closest("[data-mkgo]");
     if (go) {
       v.currentTime = Number(go.dataset.mkgo);
@@ -1037,6 +1231,37 @@ export async function render(host, params, query = {}) {
   window.addEventListener("kb:scene-markers-changed", onMarkersChanged);
   paintMarkers();
   v.addEventListener("loadedmetadata", paintMarks);
+  // Hovering a marker in the list plays its preview next to it (the picture Stash made for it)
+  let mkPop = null;
+  const mkPopOff = () => {
+    if (mkPop) mkPop.remove();
+    mkPop = null;
+  };
+  host.addEventListener("mouseover", (e) => {
+    const row = e.target.closest && e.target.closest("[data-mkid]");
+    if (!row) return;
+    const m = (x.scene_markers || []).find((q) => q.id === row.dataset.mkid);
+    const src = m && (m.preview || m.screenshot);
+    if (!src || (mkPop && mkPop.dataset.for === m.id)) return;
+    mkPopOff();
+    mkPop = document.createElement("div");
+    mkPop.className = "kb-mkpop";
+    mkPop.dataset.for = m.id;
+    mkPop.innerHTML = `<img alt="" src="${esc(src)}">`;
+    document.body.appendChild(mkPop);
+    const place = () => {
+      if (!mkPop) return;
+      const r = row.getBoundingClientRect();
+      mkPop.style.left = Math.max(8, r.left - (mkPop.offsetWidth || 240) - 10) + "px";
+      mkPop.style.top = Math.max(8, Math.min(r.top, innerHeight - mkPop.offsetHeight - 8)) + "px";
+    };
+    place();
+    mkPop.querySelector("img").addEventListener("load", place); // (the height is known once the picture is there)
+  });
+  host.addEventListener("mouseout", (e) => {
+    if (mkPop && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest("[data-mkid]"))) mkPopOff();
+  });
+  host.addEventListener("click", mkPopOff);
   $("[data-mks]").addEventListener("click", (e) => {
     const b = e.target.closest("[data-mk]");
     if (!b) return;
@@ -1180,6 +1405,7 @@ export async function render(host, params, query = {}) {
     goFolder: () => goToFolder(f.path),
     music: () => import("./music.js").then((m) => m.openMusic(x, v)),
     cut: () => import("./clipcut.js").then((m) => m.openClipCut(x, v)),
+    onO: () => oPrefs().mark !== false && markO(true),
     cover: () => frameAsCover(),
     funscript: () => addFunscript(),
   });
@@ -1629,6 +1855,7 @@ export async function render(host, params, query = {}) {
   function flash(note, hold) {
     const f = $("[data-seekflash]");
     if (!f) return;
+    if (!note) return f.classList.remove("is-on"); // (empty note = hide)
     f.textContent = note;
     clearTimeout(flashT);
     if (hold) {
@@ -1656,6 +1883,42 @@ export async function render(host, params, query = {}) {
   }
   const skipBy = (s) => seekTo(v.currentTime + s, s < 0 ? `−${-s} s` : `+${s} s`);
 
+  // A–B loop (key L, gear menu): the first press sets A, the second sets B and the part between repeats, the third clears it
+  let loop = null; // { a, b } – b stays null until it is set
+  let loopT = 0;
+  function paintLoop() {
+    const el = $("[data-loop]");
+    if (!el) return;
+    const total = v.duration || dur;
+    el.hidden = !loop || !total;
+    if (el.hidden) return;
+    el.classList.toggle("is-open", loop.b == null);
+    el.style.left = (loop.a / total) * 100 + "%";
+    el.style.width = loop.b == null ? "" : ((loop.b - loop.a) / total) * 100 + "%";
+  }
+  function toggleLoop() {
+    const at = v.currentTime;
+    if (!loop) {
+      loop = { a: at, b: null };
+      flash(t("A {time} – press L at the end", { time: fmtExact(snap(at, fps)) }));
+    } else if (loop.b == null) {
+      if (at - loop.a < 0.3) return flash(t("B must come after A"));
+      loop.b = at;
+      flash(t("Looping {a} – {b}", { a: fmtExact(snap(loop.a, fps)), b: fmtExact(snap(at, fps)) }));
+      loopT = setInterval(() => {
+        if (loop && loop.b != null && !v.paused && v.currentTime >= loop.b) {
+          v.currentTime = loop.a;
+          watch.seeked(v.currentTime);
+        }
+      }, 40);
+    } else {
+      clearInterval(loopT);
+      loop = null;
+      flash(t("Loop off"));
+    }
+    paintLoop();
+  }
+
   // Mouse wheel on the picture: volume or seeking (Settings → Player and previews); Shift swaps the two
   let wheelAt = 0;
   stage.addEventListener(
@@ -1664,7 +1927,7 @@ export async function render(host, params, query = {}) {
       const how = store.get("player", {}).wheel || "volume";
       if (how === "off" || e.ctrlKey || !e.deltaY || (e.target.closest && e.target.closest("[data-side], input, button, select, textarea, canvas"))) return;
       e.preventDefault();
-      const dir = e.deltaY < 0 ? 1 : -1;
+      const dir = (e.deltaY < 0 ? 1 : -1) * (store.get("player", {}).wheelRev ? -1 : 1);
       if ((how === "volume") !== e.shiftKey) {
         v.muted = false;
         v.volume = Math.max(0, Math.min(1, Math.round((v.volume + dir * 0.05) * 100) / 100));
@@ -1702,6 +1965,7 @@ export async function render(host, params, query = {}) {
       if (!quickMarkersActive) addMarker();
       else handled = false;
     }
+    else if (k === "l") toggleLoop();
     else if (k === "e") host.querySelector("[data-edit]") && host.querySelector("[data-edit]").click(); // edit
     else if (k === "r") host.querySelector("[data-advrate]") && host.querySelector("[data-advrate]").click(); // the detailed rating
     else if (k === "delete") host.querySelector("[data-delete]") && host.querySelector("[data-delete]").click(); // asks first
@@ -1709,7 +1973,7 @@ export async function render(host, params, query = {}) {
     else if (k === "p") next(-1);
     else if (k === "i") $("[data-panel]").click();
     else if (k === "h") plc.fav().catch((err) => errorToast(err, "Favorite"));
-    else if (k === "o") plc.o(1).catch((err) => errorToast(err, "O counter"));
+    else if (k === "o") (e.shiftKey ? (markO(), Promise.resolve()) : plc.o(1)).catch((err) => errorToast(err, "O counter"));
     else if (/^[1-5]$/.test(k)) plc.rate(Number(k)).catch((err) => errorToast(err, "Rating"));
     else if (/^[0-9]$/.test(k)) v.currentTime = (Number(k) / 10) * (v.duration || dur);
     else handled = false;
@@ -1738,6 +2002,7 @@ export async function render(host, params, query = {}) {
       cv.open = false;
       saveCover(x.id);
     }
+    oplay.destroy();
     if (infoSlots) infoSlots.destroy();
     if (menuSlots) menuSlots.destroy();
     document.removeEventListener("keydown", onKey);
@@ -1746,6 +2011,7 @@ export async function render(host, params, query = {}) {
     unmountScenePlugins();
     scenePluginsGone = true;
     sceneHost.remove();
+    clearInterval(loopT);
     window.removeEventListener("stash:queue-changed", onQueue);
     document.removeEventListener("fullscreenchange", onFsChange);
     document.removeEventListener("pointerdown", onDocDown, true);

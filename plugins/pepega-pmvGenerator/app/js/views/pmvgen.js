@@ -79,11 +79,21 @@ const DEFAULTS = {
   bright: 0, // smooth extra brightness (%)
   soft: false, // soft seams: the fields of a split screen blend into each other
   softAmt: 50, // how wide the blend is (%)
+  skipHead: 0, // seconds at the start of every scene that no clip is taken from (on top of the automatic intro skip)
+  skipTail: 0, // … and at the end
   divW: 2, // width of the dividers between the fields (px at 1280 wide, scales with the picture)
   cutLead: 0, // cuts land this many ms before the beat (the picture is a touch early, which feels tighter)
   minBeats: 0, // a clip stays at least this many beats before its field is cut again (0 = off)
   maxBeats: 0, // … and is replaced after at most this many beats (0 = off)
   reshuffleEach: false, // several songs / Plex: new clips for every new song
+  autoStart: false, // starts by itself as soon as it can (a Plex playlist is set / a song has been picked)
+  mWheel: "off", // mouse wheel while it plays: off | song (next / previous song) | volume (song volume)
+  mWheelRev: false, // … the other way round
+  mMid: false, // a click in the middle of the picture pauses / plays
+  mSides: false, // (old on/off switch, replaced by mSidesMode)
+  mSidesMode: "", // a click on the left / right third of the picture: off | song (previous / next song) | volume (song volume)
+  mSidesRev: false, // … left = louder, right = quieter
+  mShuffle: false, // the middle mouse button reshuffles the clips
   introEach: false, // several songs / Plex: intro and outro come again for every song
   recSplit: false, // several songs: one recording per song
   edge: "off", // rim of the picture: off | blur | motion | lens
@@ -172,6 +182,7 @@ const SECTIONS = [
   ["look", "Color & look", "Color mood, brightness and film effects"],
   ["frame", "Picture & frame", "Format, fit, seams and edges"],
   ["sound", "Sound", "Song and clip volume"],
+  ["mouse", "Mouse control", "Run the show with the mouse alone"],
   ["fs", "Funscript", "A script for The Handy that follows the song"],
   ["out", "Output", "Intro, outro and recording"],
 ];
@@ -204,6 +215,7 @@ export function render(main) {
   S.layouts = Object.assign({}, DEFAULTS.layouts, S.layouts);
   S.stages = JSON.parse(JSON.stringify(Array.isArray(S.stages) && S.stages.length >= 2 ? S.stages : DEFAULTS.stages));
   S.collapsed = Object.assign({}, S.collapsed);
+  if (!S.mSidesMode) S.mSidesMode = S.mSides ? "volume" : "off"; // (settings from before the choice existed)
   // Settings from before version 2 had "Fill" as default – people took the cropping for a bug
   if (!stored.v) S.fit = "contain";
   if (!Array.isArray(S.folders)) S.folders = [];
@@ -379,6 +391,8 @@ export function render(main) {
           ${sw("cleanCuts", "Clean cuts", "With best moments: a clip starts where its scene runs on for the next few seconds – no hidden cut inside the clip that jumps to another scene by itself")}
           ${sw("smartCrop", "Smart crop", "The crop follows what matters in the clip instead of sticking to the center")}
         </div>
+        <label class="kb-pmvg-range" title="No clip is taken from the first seconds of a scene (studio logo, titles). On top of the automatic skip of the intro; 0 = automatic only"><span>${icon("sliders")}Skip the start of each scene</span><input type="range" min="0" max="300" step="5" data-r="skipHead" aria-label="Skip the start of each scene"><output data-ro="skipHead" data-unit=" s"></output></label>
+        <label class="kb-pmvg-range" title="No clip is taken from the last seconds of a scene (credits, outro). 0 = off"><span>${icon("sliders")}Skip the end of each scene</span><input type="range" min="0" max="300" step="5" data-r="skipTail" aria-label="Skip the end of each scene"><output data-ro="skipTail" data-unit=" s"></output></label>
         <span class="kb-lab-t">Clip order <small>– which clip follows which</small></span>
         <div class="kb-pmvg-opts">
           ${sw("matchCut", "Match cuts", "At each cut, the clip that best matches the previous one in color, brightness and composition comes next")}
@@ -563,6 +577,22 @@ export function render(main) {
           </div>
         </div>
 
+        <div class="kb-pmvg-sec" data-sec="mouse">
+          ${secHead("mouse")}
+          <div class="kb-pmvg-pane" id="pmvg-pane-mouse" data-pane="mouse">
+            <div class="kb-pmvg-opts">
+              ${sw("mMid", "Click the middle: play / pause", "A click on the middle third of the picture")}
+              ${sw("mShuffle", "Middle mouse button: new clips", "Same as the R key")}
+            </div>
+            <span class="kb-lab-t">Click the sides</span>
+            <div class="kb-seg" data-seg="mSidesMode"><button type="button" data-v="off">Off</button><button type="button" data-v="song" title="Right third = next song, left = previous (only with several songs)">Next / previous song</button><button type="button" data-v="volume" title="Right third louder, left third quieter (5 % per click)">Song volume</button></div>
+            <div class="kb-pmvg-opts">${sw("mSidesRev", "Sides the other way round", "Left = next song / louder, right = previous song / quieter")}</div>
+            <span class="kb-lab-t">Mouse wheel</span>
+            <div class="kb-seg" data-seg="mWheel"><button type="button" data-v="off">Off</button><button type="button" data-v="song" title="Wheel down = next song, up = previous (only with several songs)">Next / previous song</button><button type="button" data-v="volume">Song volume</button></div>
+            <div class="kb-pmvg-opts">${sw("mWheelRev", "Reverse the wheel", "Turns it round: wheel down = previous song / louder, wheel up = next song / quieter")}</div>
+          </div>
+        </div>
+
         <div class="kb-pmvg-sec" data-sec="fs">
           ${secHead("fs")}
           <div class="kb-pmvg-pane" id="pmvg-pane-fs" data-pane="fs">
@@ -592,6 +622,7 @@ export function render(main) {
               ${sw("intro", "Intro", "Title card at the start: your title slams in, comic-SFX style")}
               ${sw("outro", "Outro", "Credits at the end: the picture fades dark, title and number of clips")}
               ${sw("introEach", "Again for every song", "With several songs or Plex: intro and outro come again for each song (the outro when a song plays to its end)")}
+              ${sw("autoStart", "Start by itself", "Starts as soon as it can – when the page opens with a Plex playlist set, or right after you pick a song – with the settings as you left them")}
             </div>
             <input class="kb-field" data-title placeholder="Title for intro/outro – empty = song name" value="${esc(S.title)}">
             </div>
@@ -706,6 +737,7 @@ export function render(main) {
       look: look,
       frame: `${S.format === "window" ? "window shape" : S.format} · ${S.fit === "cover" ? "fill" : "fit"}${S.soft ? " · soft seams" : ""}`,
       sound: `Song ${S.songVol} · Clips ${S.fx.voice ? S.clipVol : "off"}`,
+      mouse: [S.mMid, S.mShuffle, S.mSidesMode !== "off", S.mWheel && S.mWheel !== "off"].filter(Boolean).length ? `${[S.mMid, S.mShuffle, S.mSidesMode !== "off", S.mWheel && S.mWheel !== "off"].filter(Boolean).length} on` : "off",
       fs: S.fsOn ? `${S.fsPace === "auto" ? "follows the song" : S.fsPace} · ${S.fsSize === "auto" ? "auto size" : S.fsSize}` : "off",
       out: [S.intro && "Intro", S.outro && "Outro", S.record && "Recording"].filter(Boolean).join(" · ") || "live only",
     };
@@ -1427,11 +1459,16 @@ export function render(main) {
 
   const canStart = () =>
     S.mode === "tpl" ? !!tpl : S.mode === "plex" ? !!plex && (S.plexWhat !== "list" || !!S.plexList) : S.mode === "live" ? !!(liveConn && liveSt && liveSt.running) : !!song;
+  var autoDone = false; // "Start by itself": once per visit of the page
   function paintStart() {
     if (starting) return;
     const ok = canStart();
     const b = $("[data-start]");
     b.disabled = !ok;
+    if (ok && S.autoStart && !autoDone && !waiting) {
+      autoDone = true;
+      setTimeout(() => canStart() && !starting && startRun(), 900);
+    }
     const label =
       S.mode === "tpl"
         ? ok ? "Rebuild with my clips" : "Pick a PMV first"
@@ -1445,7 +1482,7 @@ export function render(main) {
 
   // ---------- My settings (presets) ----------
   // Everything about clips, cutting, effects, look and sound – not the music source or the title
-  const NOT_IN_PRESET = ["collapsed", "glass", "v", "mode", "title", "shuffle", "plexWhat", "plexList", "plexSync", "plexSyncs", "liveApp"];
+  const NOT_IN_PRESET = ["autoStart", "mWheel", "mWheelRev", "mMid", "mSides", "mSidesMode", "mSidesRev", "mShuffle", "collapsed", "glass", "v", "mode", "title", "shuffle", "plexWhat", "plexList", "plexSync", "plexSyncs", "liveApp"];
   // Kept in Stash (this plugin's settings), not in the browser: browser storage for localhost:9999 is
   // shared by Stash and every plugin and can be full – saving then failed without a word. This way
   // they're also there in every browser. Stored as one JSON text so Stash leaves the names alone.
@@ -2088,7 +2125,11 @@ function layoutIcon(id) {
 const spriteCache = new Map();
 // Where a scene's intro (studio logo, titles) is surely over: picked spots start after it – your markers may be in it.
 // 3 min → 15 s, 10 min → 24 s, longer → 30 s; short clips a tenth
-const introEnd = (dur) => (dur > 10 ? Math.min(30, Math.max(dur * 0.04, Math.min(15, dur * 0.1))) : 0);
+// "Skip the start / the end of each scene" (Clip selection) adds to that: skipS = [seconds at the start, seconds at the end],
+// never more than 40 % of a scene each
+const skipS = [0, 0];
+const introEnd = (dur) => (dur > 10 ? Math.max(Math.min(30, Math.max(dur * 0.04, Math.min(15, dur * 0.1))), Math.min(skipS[0], dur * 0.4)) : 0);
+const tailX = (dur) => (dur > 10 ? Math.min(skipS[1], dur * 0.4) : 0);
 
 async function spriteSpots(s, dur, heat) {
   if (!s.sprite || !s.vtt) return null;
@@ -2107,7 +2148,7 @@ async function spriteSpots(s, dur, heat) {
     img.src = s.sprite;
     await withTimeout(img.decode(), 8000);
     const out = [];
-    const use = cues.filter((c) => c.t >= introEnd(dur) && c.t <= dur - 4); // not the intro or the very end
+    const use = cues.filter((c) => c.t >= introEnd(dur) && c.t <= dur - 4 - tailX(dur)); // not the intro or the very end
     const sigs = analyzeTiles(img, use.map((c) => c.r));
     for (const [i, c] of use.entries()) {
       const a = sigs[i];
@@ -2758,6 +2799,8 @@ class Generator {
     this.song = tpl ? tpl.song : song;
     this.music = tpl ? null : music || null;
     this.S = S;
+    skipS[0] = Math.max(0, Number(S.skipHead) || 0);
+    skipS[1] = Math.max(0, Number(S.skipTail) || 0);
     this.setBars();
     this.onClose = onClose;
     this.tpl = tpl || null;
@@ -2795,7 +2838,7 @@ class Generator {
     this.recent = []; // recently shown clips (variety)
     this.used = new Set();
     this.spots = new Map(); // scene → start times used (the next clip of that scene comes from elsewhere)
-    this.rhythmBusy = 0; // clips whose motion is being measured (motion on the beat, clip speed)
+    this.measuring = 0; // clips whose motion is being measured (clip speed follows the music, motion on the beat)
     this.scanning = false; // a scene preview is being scanned for its speed map (clip speed)
     this.shown = new Set(); // all shown clips (credits)
     // RedGifs: a share of the clips (error diffusion keeps the ratio); what was shown can be saved
@@ -2922,6 +2965,43 @@ class Generator {
       e.preventDefault();
     };
     document.addEventListener("keydown", this.onKey);
+    // The mouse alone (second monitor): clicks in the middle / on the sides, middle button, wheel – each one is a switch in Output
+    const onBar = (e) => e.target.closest(".kb-pmvg-hud, .kb-pmvg-end, .kb-pmvg-info, button, input, a");
+    el.addEventListener("click", (e) => {
+      if (this.done || onBar(e)) return;
+      const r = this.stage.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      if (x > 1 / 3 && x < 2 / 3) {
+        if (this.S.mMid && !this.outside) this.togglePause();
+      } else {
+        const mode = this.S.mSidesMode || (this.S.mSides ? "volume" : "off");
+        if (mode === "off" || this.outside) return;
+        const fwd = x >= 2 / 3 !== !!this.S.mSidesRev; // the right third = next / louder (turned round: the left)
+        if (mode === "volume") this.nudgeVolume(fwd ? 5 : -5);
+        else if (this.music && this.music.type === "list") this.skip(fwd ? 1 : -1);
+      }
+    });
+    el.addEventListener("mousedown", (e) => e.button === 1 && this.S.mShuffle && e.preventDefault()); // (no auto-scroll cursor)
+    el.addEventListener("auxclick", (e) => {
+      if (e.button !== 1 || !this.S.mShuffle || this.done || onBar(e)) return;
+      e.preventDefault();
+      this.reshuffle();
+    });
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        const mode = this.S.mWheel;
+        if (!mode || mode === "off" || this.done || onBar(e)) return;
+        e.preventDefault();
+        const dir = (e.deltaY > 0 ? 1 : -1) * (this.S.mWheelRev ? -1 : 1); // 1 = wheel "down"
+        if (mode === "volume") return this.nudgeVolume(-dir * 5);
+        const now = performance.now();
+        if (now - (this.wheelAt || 0) < 700) return; // one notch = one song
+        this.wheelAt = now;
+        if (this.music && this.music.type === "list") this.skip(dir);
+      },
+      { passive: false },
+    );
     this.stage.dataset.view = this.S.view || "contain";
     let resizeT = 0;
     this.onResize = () => {
@@ -2988,10 +3068,10 @@ class Generator {
       const name = m.rg ? `RedGifs${m.rg.user ? " · " + m.rg.user : ""}` : m.name || m.key;
       const tags = m.tagNames && m.tagNames.length ? ` <small>tags: ${esc(m.tagNames.join(", "))}</small>` : "";
       const stage = this.nStages > 1 && m.stage != null ? ` <small>stage ${m.stage + 1}</small>` : "";
-      // clip speed follows the music: how fast the clip is among those seen; motion on the beat: its speed factor
+      // clip speed follows the music: how fast the clip is among those seen
       const pct = this.S.paceMatch ? speedPct(m.speed) : null;
-      const speed = (pct != null ? ` <small>speed ${Math.round(pct * 100)} %</small>` : "") + (this.S.beatSync && m.tempo ? ` <small>on the beat ×${m.tempo.toFixed(2)}</small>` : "");
-      return `<div><b>${i + 1}</b> ${esc(name)}${m.file && m.file !== name ? ` <small>${esc(m.file)}</small>` : ""} <small>${m.w}×${m.h}</small>${speed}${tags}${stage} <span class="${bad ? "is-bad" : ""}">${esc(st)}</span></div>`;
+      const speed = pct != null ? ` <small>speed ${Math.round(pct * 100)} %</small>` : "";
+      return `<div><b>${i + 1}</b> ${esc(name)}${m.file && m.file !== name ? ` <small>${esc(m.file)}</small>` : ""} <small>${m.w}×${m.h}</small>${m.tempo && this.S.beatSync ? ` <small>on the beat ×${m.tempo.toFixed(2)}</small>` : ""}${speed}${tags}${stage} <span class="${bad ? "is-bad" : ""}">${esc(st)}</span></div>`;
     };
     const fails = (this.failed || []).slice(-5).reverse();
     // (clip speed follows the music: how fast the music feels now, to hold against the clips' speed)
@@ -3038,6 +3118,13 @@ class Generator {
     saved.voiceMode = this.S.voiceMode;
     saved.fx = Object.assign({}, saved.fx, { voice: !!this.S.fx.voice });
     store.set("pmvgen", saved);
+  }
+
+  nudgeVolume(d) {
+    if (this.outside) return;
+    const v = Math.max(0, Math.min(100, Math.round(((this.S.songVol ?? 100) + d) / 5) * 5));
+    this.setVolume("songVol", v);
+    toast(`Song volume ${v} %`, "ok");
   }
 
   setVolume(key, v) {
@@ -3326,7 +3413,7 @@ class Generator {
     let d = null;
     for (const p of map) {
       const pct = speedPct(p.speed);
-      if (pct == null || p.t >= x.dur - 3 || (seq && (p.t < seq.lo || p.t > seq.hi))) continue;
+      if (pct == null || p.t < introEnd(x.dur) || p.t >= x.dur - 3 - tailX(x.dur) || (seq && (p.t < seq.lo || p.t > seq.hi))) continue;
       const v = Math.abs(pct - goal) + (this.usedNear(x, p.t, x.dur) ? 0.5 : 0);
       if (d == null || v < d) d = v;
     }
@@ -3582,7 +3669,7 @@ class Generator {
       const inSeq = (t) => !seq || (t >= seq.lo && t <= seq.hi);
       // (the scene timeline starts at the scene's start – but not in its intro)
       const head = introEnd(dur);
-      const rand = () => (seq ? Math.max(seq.lo, Math.min(head, seq.hi)) + Math.random() * Math.max(0, seq.hi - Math.max(seq.lo, head)) : dur > 10 ? head + Math.random() * Math.max(0, dur * 0.92 - 4 - head) : 0);
+      const rand = () => (seq ? Math.max(seq.lo, Math.min(head, seq.hi)) + Math.random() * Math.max(0, seq.hi - Math.max(seq.lo, head)) : dur > 10 ? head + Math.random() * Math.max(0, Math.min(dur * 0.92 - 4, dur - 4 - tailX(dur)) - head) : 0);
       const seek = async (t) => {
         v.currentTime = t;
         await withTimeout(once(v, "seeked"), 8000);
@@ -3610,7 +3697,7 @@ class Generator {
       let mapCands = null;
       if (Array.isArray(map)) {
         mapCands = map
-          .filter((x) => x.t >= head && x.t < dur - 3 && inSeq(x.t)) // (the preview starts at 0 – the intro's logo moves fast)
+          .filter((x) => x.t >= head && x.t < dur - 3 - tailX(dur) && inSeq(x.t)) // (the preview starts at 0 – the intro's logo moves fast)
           .map((x) => ({ x, d: Math.abs((speedPct(x.speed) ?? 0.5) - goal) + (fresh(x.t) ? 0 : 0.5) + Math.random() * 0.12 }))
           .sort((a, b) => a.d - b.d);
       }
@@ -3692,8 +3779,8 @@ class Generator {
       let turnAt = null;
       const SECS = 1.8;
       const sync = this.S.beatSync && this.song && this.song.bpm > 0;
-      if ((sync || this.S.paceMatch) && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.rhythmBusy < 3) {
-        this.rhythmBusy++;
+      if ((sync || this.S.paceMatch) && v.videoWidth * v.videoHeight <= 2560 * 1440 && start + SECS < dur - 1 && this.measuring < 3) {
+        this.measuring++;
         try {
           let fr = await captureFrames(v, SECS, 2);
           let ms = this.S.paceMatch ? await actionSpeed(fr, v.videoWidth, v.videoHeight) : null;
@@ -3729,9 +3816,9 @@ class Generator {
             turnAt = turn;
           }
         } catch (e) {
-          /* not measurable – the clip just isn't synced */
+          /* not measurable – the speed from the map (if any) stays, the clip just isn't synced */
         } finally {
-          this.rhythmBusy--;
+          this.measuring--;
         }
         await seek(start);
       }

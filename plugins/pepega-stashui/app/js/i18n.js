@@ -13,6 +13,7 @@ export const LANGS = [
   ["de", "Deutsch (German)"],
   ["pl", "Polski (Polish)"],
   ["ru", "Русский (Russian)"],
+  ["uk", "Українська (Ukrainian)"],
 ];
 const FILES = {
   "zh-CN": () => import("./locales/zh-CN.js"),
@@ -23,6 +24,7 @@ const FILES = {
   de: () => import("./locales/de.js"),
   pl: () => import("./locales/pl.js"),
   ru: () => import("./locales/ru.js"),
+  uk: () => import("./locales/uk.js"),
 };
 const KEY = "stashui.lang"; // "auto" (like Stash) or a code from LANGS
 
@@ -44,10 +46,10 @@ export function addStrings(code, strings) {
   for (const k of Object.keys(strings)) if (!(k in dict)) dict[k] = String(strings[k]);
 }
 
-// Polish and Russian count 2–4 (but not 12–14) with its own form: plural(n, one, many) then looks up "<many>#few"
-export const few = (n) => (lang === "pl" || lang === "ru") && n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
-// Russian also uses the "one" form after 21, 31, 101 … (but not 11): 21 сцена, 11 сцен
-export const one = (n) => n === 1 || (lang === "ru" && n % 10 === 1 && n % 100 !== 11);
+// Polish, Russian and Ukrainian count 2–4 (but not 12–14) with its own form: plural(n, one, many) then looks up "<many>#few"
+export const few = (n) => (lang === "pl" || lang === "ru" || lang === "uk") && n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
+// Russian and Ukrainian also use the "one" form after 21, 31, 101 … (but not 11): 21 сцена, 11 сцен
+export const one = (n) => n === 1 || ((lang === "ru" || lang === "uk") && n % 10 === 1 && n % 100 !== 11);
 
 // For Intl / toLocaleString
 export const locale = () => (lang === "en" ? "en-US" : lang);
@@ -69,7 +71,7 @@ export function choose(code) {
 export function match(code) {
   const c = String(code || "").toLowerCase();
   if (/^zh[-_](cn|sg|hans)/.test(c) || c === "zh") return "zh-CN";
-  const m = c.match(/^(ja|vi|fr|es|de|pl|ru)(?![a-z])/);
+  const m = c.match(/^(ja|vi|fr|es|de|pl|ru|uk)(?![a-z])/);
   return m ? m[1] : "en";
 }
 

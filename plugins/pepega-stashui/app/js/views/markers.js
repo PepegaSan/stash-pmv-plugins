@@ -42,6 +42,7 @@ export async function render(main, params, query) {
       <button type="button" class="kb-btn is-ghost" data-orig title="${t("Hover previews are cut from the original video instead of Stash's small generated previews: sharp, but they load slower")}"></button>
       <label class="kb-range" title="${t("Thumbnail size")}">${icon("image")}<input type="range" min="110" max="420" step="10" data-size value="${store.get(SIZE, 200)}" aria-label="${t("Size")}"></label>
       <button type="button" class="kb-btn" data-genprev title="${t("Makes the video previews and pictures of all markers that don't have them yet (see Tasks)")}">${t("Generate missing previews")}</button>
+      <button type="button" class="kb-btn" data-mkclips title="${t("Turn the markers shown here into video clips")}">${icon("download")}${t("Make clips")}</button>
     </div>
     <div class="kb-tagpick kb-mk-tags" data-tp></div>
     <div class="kb-mkgrid" data-grid><div class="kb-loading">${t("Loading …")}</div></div>
@@ -136,6 +137,7 @@ export async function render(main, params, query) {
     await generatePreviews("marker", null);
     e.currentTarget.disabled = false;
   };
+  $("[data-mkclips]").onclick = () => import("./markerclips.js").then((m) => m.openMarkerClips({ q: S.q, tags: S.tags }));
   $("[data-dir]").onclick = () => {
     S.dir = dirOf() === "ASC" ? "DESC" : "ASC";
     paintBar();

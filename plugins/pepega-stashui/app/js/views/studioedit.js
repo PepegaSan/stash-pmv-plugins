@@ -23,13 +23,22 @@ async function loadSchema() {
 }
 
 async function loadSources() {
-  const d = await gql(`query StudioSources {
-    listScrapers(types: [STUDIO]) { id name studio { supported_scrapes } }
-    configuration { general { stashBoxes { endpoint name } } }
-  }`);
-  const boxes = (d.configuration.general.stashBoxes || []).map((b, i) => ({ id: "box" + i, name: b.name || b.endpoint, box: b.endpoint }));
-  const scrapers = (d.listScrapers || []).filter((s) => ((s.studio || {}).supported_scrapes || []).includes("NAME")).map((s) => ({ id: s.id, name: s.name, scraper: s.id }));
-  const byUrl = (d.listScrapers || []).some((s) => ((s.studio || {}).supported_scrapes || []).includes("URL"));
+  // The StashDB-style boxes are asked on their own: many Stash versions have no STUDIO among the scraper types, and
+  // asking for those scrapers in the same question made the whole thing fail – no source at all, not even StashDB
+  const dc = await gql(`query StudioBoxes { configuration { general { stashBoxes { endpoint name } } } }`);
+  const boxes = (dc.configuration.general.stashBoxes || []).map((b, i) => ({ id: "box" + i, name: b.name || b.endpoint, box: b.endpoint }));
+  let scrapers = [];
+  let byUrl = false;
+  try {
+    const ty = await gql(`query StudioScrapeTypes { __type(name: "ScrapeContentType") { enumValues { name } } }`);
+    if ((((ty.__type || {}).enumValues) || []).some((v) => v.name === "STUDIO")) {
+      const d = await gql(`query StudioSources { listScrapers(types: [STUDIO]) { id name studio { supported_scrapes } } }`);
+      scrapers = (d.listScrapers || []).filter((s) => ((s.studio || {}).supported_scrapes || []).includes("NAME")).map((s) => ({ id: s.id, name: s.name, scraper: s.id }));
+      byUrl = (d.listScrapers || []).some((s) => ((s.studio || {}).supported_scrapes || []).includes("URL"));
+    }
+  } catch (e) {
+    /* no studio scrapers in this Stash – the boxes still work */
+  }
   return { list: [...boxes, ...scrapers], byUrl };
 }
 
@@ -68,7 +77,7 @@ export async function openStudioEditor(id, opts = {}) {
           <b>${t("Logo")}</b>
           <button type="button" class="kb-btn" data-upload>${icon("camera")}${t("Upload")}</button>
           <button type="button" class="kb-btn" data-imglink>${t("From a link")}</button>
-          <button type="button" class="kb-btn is-ghost kb-pdanger" data-imgdel${hasLogo ? "" : " hidden"}>${icon("trash")}${t("Remove")}</button>
+          <button type="button" class="kb-btn is-ghost" data-imgdel title="${esc(t("Remove the logo – Stash shows its default image again"))}"${hasLogo ? "" : " hidden"}>${icon("image")}${t("Default image")}</button>
           <small class="kb-hint">${t("Or drop / paste a picture onto it.")}</small>
           <input type="file" accept="image/*" data-file hidden>
         </div>

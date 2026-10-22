@@ -51,6 +51,9 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
       <div class="kb-cut-bar" data-sbar hidden>
         <button type="button" class="kb-btn" data-back>${t("Other frame")}</button>
         <label class="kb-cut-zoom">${t("Size")}<input type="range" min="10" max="100" value="80" data-zoom></label>
+        <span class="kb-cut-rot"><button type="button" class="kb-btn" data-rot="-1" title="${esc(t("Rotate left"))}" aria-label="${esc(t("Rotate left"))}">↺</button><button type="button" class="kb-btn" data-rot="1" title="${esc(t("Rotate right"))}" aria-label="${esc(t("Rotate right"))}">↻</button></span>
+        <label class="kb-cut-zoom">${t("Brightness")}<input type="range" min="50" max="150" value="100" data-bri></label>
+        <label class="kb-cut-zoom">${t("Contrast")}<input type="range" min="50" max="150" value="100" data-con></label>
         <span class="kb-cut-ratios" data-ratios${RS.length < 2 ? " hidden" : ""}>${RS.map(([l], i) => `<button type="button" class="kb-btn is-ghost${i === 0 ? " is-sel" : ""}" data-ratio="${i}">${l}</button>`).join("")}</span>
         <canvas class="kb-cut-prev" data-prev></canvas>
         <button type="button" class="kb-btn is-primary" data-use>${t("Use as photo")}</button>
@@ -208,8 +211,42 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
     $("[data-still]").hidden = false;
     $("[data-sbar]").hidden = false;
     $("[data-back]").textContent = fromVideo ? t("Other frame") : t("Other picture");
+    $("[data-bri]").value = $("[data-con]").value = 100;
+    setLook();
+    c = { x: 0, y: 0, w: 0, h: 0 };
     fit(Number($("[data-zoom]").value) / 100, true);
   }
+  // Brightness / contrast: shown with a CSS filter, and drawn with the same filter into the preview and the finished photo
+  // (a browser without canvas filters – Safari – saves it unchanged)
+  const look = () => {
+    const b = Number($("[data-bri]").value);
+    const k = Number($("[data-con]").value);
+    return b === 100 && k === 100 ? "none" : `brightness(${b}%) contrast(${k}%)`;
+  };
+  function setLook() {
+    canvas.style.filter = look();
+    if (c.w) draw();
+  }
+  $("[data-bri]").oninput = $("[data-con]").oninput = setLook;
+  // Turn the picture itself by a quarter (a vertical picture lying on its side)
+  wrap.querySelectorAll("[data-rot]").forEach((b) => {
+    b.onclick = () => {
+      const dir = Number(b.dataset.rot);
+      const src = document.createElement("canvas");
+      src.width = canvas.width;
+      src.height = canvas.height;
+      src.getContext("2d").drawImage(canvas, 0, 0);
+      canvas.width = src.height;
+      canvas.height = src.width;
+      const g = canvas.getContext("2d");
+      g.translate(canvas.width / 2, canvas.height / 2);
+      g.rotate((dir * Math.PI) / 2);
+      g.drawImage(src, -src.width / 2, -src.height / 2);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      c = { x: 0, y: 0, w: 0, h: 0 };
+      fit(Number($("[data-zoom]").value) / 100, true);
+    };
+  });
 
   // Largest frame of this ratio inside the picture, scaled by k; centred on first use, else kept around its middle
   function fit(k, center) {
@@ -228,7 +265,9 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
     const oh = Math.min(MAXH, Math.round(c.h));
     prev.height = Math.min(120, oh);
     prev.width = Math.round(prev.height * ratio);
-    prev.getContext("2d").drawImage(canvas, c.x, c.y, c.w, c.h, 0, 0, prev.width, prev.height);
+    const pg = prev.getContext("2d");
+    pg.filter = look();
+    pg.drawImage(canvas, c.x, c.y, c.w, c.h, 0, 0, prev.width, prev.height);
   }
   $("[data-zoom]").oninput = (e) => fit(Number(e.target.value) / 100, false);
   $("[data-ratios]").addEventListener("click", (e) => {
@@ -277,7 +316,9 @@ export function openPhotoCutter(perf, onUse, opts = {}) {
     const out = document.createElement("canvas");
     out.height = h;
     out.width = Math.round(h * ratio);
-    out.getContext("2d").drawImage(canvas, c.x, c.y, c.w, c.h, 0, 0, out.width, out.height);
+    const og = out.getContext("2d");
+    og.filter = look();
+    og.drawImage(canvas, c.x, c.y, c.w, c.h, 0, 0, out.width, out.height);
     onUse(out.toDataURL("image/jpeg", 0.92));
     close();
   };

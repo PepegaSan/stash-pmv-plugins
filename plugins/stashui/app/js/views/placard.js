@@ -51,6 +51,31 @@ function perfFacts(p, x) {
   };
 }
 
+// "Show file": the backend opens Explorer / Finder on the computer Stash runs on; otherwise (other computer, old backend,
+// phone) the path goes to the clipboard so it can be pasted into the file manager
+async function revealFile(path) {
+  if (!path) return;
+  let res = {};
+  try {
+    const { runBackend } = await import("../interactive.js");
+    res = (await runBackend({ mode: "reveal", path })) || {};
+  } catch {
+    /* backend too old or not reachable – copy below */
+  }
+  if (res.opened) return toast(t("Opened in the file manager"), "ok");
+  try {
+    await navigator.clipboard.writeText(path);
+    toast(
+      res.why === "outside" ? t("This file isn't inside a library folder of Stash – the path is copied")
+        : res.why === "missing" ? t("Stash's computer can't find this file at that path – the path is copied")
+        : t("Can't open it from here – the path is copied"),
+      "ok",
+    );
+  } catch {
+    window.prompt(t("File path"), path);
+  }
+}
+
 export function placardHtml(kind, x) {
   const fav = !!app.favId && x.tags.some((tg) => tg.id === app.favId);
   const info = fileInfo(kind, x);
@@ -89,6 +114,7 @@ export function placardHtml(kind, x) {
         <button class="kb-plc-btn" data-queue>${icon("queue")}${t("Queue")}</button>
         <button class="kb-plc-btn is-danger" data-delete title="${t("Delete this item (asks first)")}">${icon("close")}${t("Delete")}</button>
         ${folder ? `<button class="kb-plc-btn" data-folder title="${esc(folder)}">${icon("folder")}${t("Folder")}</button>` : ""}
+        ${info.path ? `<button class="kb-plc-btn" data-reveal title="${t("Show the file in Explorer / Finder on the computer Stash runs on (if that isn't this one, the path is copied)")}">${icon("folder")}${t("Show file")}</button>` : ""}
         ${kind === "scene" ? `<button class="kb-plc-btn" data-extplay title="${t("Play this scene in an external player (mpv, VLC …) – for formats the browser can't play")}">${icon("tv")}${t("External player")}</button>` : ""}
         ${kind === "scene" ? `<button class="kb-plc-btn" data-cover title="${t("Use the frame you're looking at as the scene's cover")}">${icon("image")}${t("Cover")}</button>` : ""}
         ${kind === "scene" ? `<button class="kb-plc-btn" data-funscript title="${esc(x.interactive ? t("This scene has a funscript – choose another one to replace it") : t("Give this scene a funscript (for The Handy) – it's put next to the video"))}">${icon("plug")}${x.interactive ? t("Funscript ✓") : t("Funscript")}</button>` : ""}
@@ -183,7 +209,7 @@ function bindPerfCards(host, getItem) {
 }
 
 // Binds the buttons; refresh() reloads the details and redraws the placard.
-export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder, music, cover, funscript, position, cut }) {
+export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder, music, cover, funscript, position, cut, onO }) {
   bindPerfCards(host, getItem);
   // Taking a performer off: always asks first. On touch screens the × is hidden (too easy to hit) – hold the card instead
   async function removePerf(id) {
@@ -274,6 +300,7 @@ export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder,
         return toast(t("Added to the queue"), "ok");
       }
       if (e.target.closest("[data-folder]")) return goFolder && goFolder();
+      if (e.target.closest("[data-reveal]")) return revealFile(fileInfo(kind, getItem()).path);
       // Performers right here: × takes one off, + adds one (or creates it)
       const rm = e.target.closest("[data-perfrm]");
       if (rm) {
@@ -362,6 +389,7 @@ export function bindPlacard(host, kind, getItem, { refresh, onDeleted, goFolder,
       pop(btn, 1.18);
       burst(btn.querySelector(".kb-ic") || btn, "drop");
     }
+    if (delta > 0 && onO) onO(); // (the player remembers the moment of the O)
     const n = delta > 0 ? await addO(kind, x.id) : await removeO(kind, x.id);
     x.o_counter = n;
     host.querySelector("[data-ocount]").textContent = n;

@@ -6,6 +6,7 @@
 //     stashui.invalidate(sourceId);                      // run `extend` again for the pages already loaded
 //     stashui.addRoute({ path: "library/*", title, overlay, render(el, { params, rest, query, signal }) → cleanup });
 //     stashui.addNavItem({ id, label, icon, route | href, group, place, count });
+//     stashui.addTheme({ id, name, colors: { "--pink": "#ff7a6b", "--bg": … }, css: "theme.css", glass: false });
 //     stashui.addSlot("scene.info", { id, title, match(ctx), mount(el, ctx) → cleanup });
 //     stashui.ui / t / addStrings / gql / store / on / go
 //     stashui.play([{ id, title, thumb }], index) → { add(items) }  // next/previous in the player follow this list
@@ -22,6 +23,7 @@ import * as UI from "./ui.js";
 import { store } from "./ui.js";
 import { t, addStrings } from "./i18n.js";
 import { gql } from "./api.js";
+import { registerExtTheme } from "./theme.js";
 
 export const VERSION = 2;
 const MOD_KEY = "extMods1"; // "<id>@<version>" → true (has a module) / false
@@ -36,7 +38,7 @@ export const SLOT_NAMES = [
 ];
 const FEATURES = new Set([
   "list.source", "list.invalidate", "list.restricted", "list.emptyCards", "piece.actions", "piece.dim",
-  "route", "navItem", "ui", "strings", "gql", "store", "on", "go", "play", "diagnostics",
+  "route", "navItem", "theme", "ui", "strings", "gql", "store", "on", "go", "play", "diagnostics",
   ...SLOT_NAMES.map((n) => "slot:" + n),
 ]);
 
@@ -356,6 +358,9 @@ function makeApi(pluginId) {
       changed();
       window.dispatchEvent(new Event("stash:rail-changed"));
     },
+    // A theme: shows up with the colour presets in Settings → Appearance. colors = the CSS variables of the interface (--pink, --bg, --bg-2, --bg-3,
+    // --base, --text, --text-2, --faint, --ok, --danger); css = a stylesheet in your plugin's assets folder, loaded while the theme is chosen; glass = liquid glass on/off.
+    addTheme: guard((def) => registerExtTheme(pluginId, def), "addTheme"),
     addSlot(name, def) {
       if (!SLOT_NAMES.includes(name) || !def || typeof def.mount !== "function") return;
       put(p.slots, { id: String(def.id || name), name, plugin: pluginId, title: def.title ? String(def.title) : "", match: typeof def.match === "function" ? def.match : null, mount: def.mount, render: def.render });

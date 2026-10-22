@@ -1,7 +1,7 @@
 // Tasks: running jobs with progress, plus scan, generate, clean and auto tag.
 // The checkboxes start with Stash's defaults and can be saved there as defaults too.
 
-import { esc, icon, toast, errorToast, fmtAgo, confirmDialog, store } from "../ui.js";
+import { esc, icon, toast, errorToast, fmtAgo, fmtDuration, confirmDialog, store } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql } from "../api.js";
 import { typeInfo, fieldHtml, readFields, selection } from "../forms.js";
@@ -25,7 +25,7 @@ export async function render(main) {
     </div></header>
     <section class="kb-jobs" data-jobs></section>
     <div class="kb-cards" data-cards><div class="kb-loading">${t("Loading …")}</div></div>`;
-  const stop = onJobs((jobs) => paintJobs(main.querySelector("[data-jobs]"), jobs));
+  const stop = onJobs((jobs, done) => paintJobs(main.querySelector("[data-jobs]"), jobs, done));
   main.querySelector("[data-jobs]").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-stop]");
     const all = e.target.closest("[data-stopall]");
@@ -186,24 +186,33 @@ async function cardHtml(task, def) {
   </form>`;
 }
 
-function paintJobs(box, jobs) {
+// "Running now": sticks to the top while you scroll through the task cards, so the progress stays in view after you press Start.
+// Jobs that Stash doesn't report a percentage for show a moving bar plus what they are doing right now; what ended during this visit
+// stays listed for a while (done / cancelled).
+function paintJobs(box, jobs, done = []) {
   if (!box) return;
-  if (!jobs.length) {
+  const recent = done.filter((d) => Date.now() - d.at < 15 * 60000);
+  if (!jobs.length && !recent.length) {
+    box.classList.remove("is-live");
     box.innerHTML = `<p class="kb-hint">${t("Nothing is running right now.")}</p>`;
     return;
   }
-  box.innerHTML =
-    `<div class="kb-jobs-head"><h2 class="kb-h2">${t("Running now")}</h2><button class="kb-btn is-ghost" data-stopall>${icon("stop")}${t("Stop all")}</button></div>` +
-    jobs
-      .map((j) => {
-        const p = j.progress != null && j.progress >= 0 ? Math.round(j.progress * 100) : null;
-        const state = { READY: t("waiting"), RUNNING: p != null ? p + " %" : t("running"), STOPPING: t("stopping …"), FINISHED: t("done"), CANCELLED: t("cancelled"), FAILED: t("failed") }[j.status];
-        return `<div class="kb-job is-${j.status.toLowerCase()}">
+  box.classList.toggle("is-live", jobs.length > 0);
+  const running = jobs.map((j) => {
+    const p = j.progress != null && j.progress >= 0 ? Math.round(j.progress * 100) : null;
+    const state = { READY: t("waiting"), RUNNING: p != null ? p + " %" : t("running"), STOPPING: t("stopping …"), FINISHED: t("done"), CANCELLED: t("cancelled"), FAILED: t("failed") }[j.status];
+    const subs = (j.subTasks || []).slice(-2).join(" · ");
+    const since = j.startTime ? Math.max(0, Math.round((Date.now() - new Date(j.startTime).getTime()) / 1000)) : 0;
+    const info = [subs, j.startTime && j.status === "RUNNING" ? t("running for {time}", { time: fmtDuration(since) }) : j.startTime ? t("started {when}", { when: fmtAgo(j.startTime) }) : ""].filter(Boolean).join(" – ");
+    return `<div class="kb-job is-${j.status.toLowerCase()}">
           <div class="kb-job-top"><b>${esc(j.description)}</b><span>${state}</span>
           ${j.status === "RUNNING" || j.status === "READY" ? `<button class="kb-btn is-icon is-ghost" data-stop="${j.id}" aria-label="${t("Stop")}">${icon("stop")}</button>` : ""}</div>
           <div class="kb-job-bar"><i style="width:${p != null ? p : j.status === "RUNNING" ? 100 : 0}%"${p == null && j.status === "RUNNING" ? ' class="is-indet"' : ""}></i></div>
-          ${(j.subTasks || []).length ? `<small>${esc(j.subTasks.slice(-2).join(" · "))}</small>` : j.startTime ? `<small>${esc(t("started {when}", { when: fmtAgo(j.startTime) }))}</small>` : ""}
+          ${info ? `<small>${esc(info)}</small>` : ""}
         </div>`;
-      })
-      .join("");
+  });
+  const ended = recent.map((d) => `<div class="kb-job is-${d.state === "done" ? "finished" : "cancelled"} is-ended"><div class="kb-job-top"><b>${esc(d.description)}</b><span>${d.state === "done" ? t("done") : t("cancelled")}</span></div><small>${esc(fmtAgo(new Date(d.at).toISOString()))}</small></div>`);
+  box.innerHTML =
+    (jobs.length ? `<div class="kb-jobs-head"><h2 class="kb-h2">${t("Running now")}</h2><button class="kb-btn is-ghost" data-stopall>${icon("stop")}${t("Stop all")}</button></div>` + running.join("") : `<div class="kb-jobs-head"><h2 class="kb-h2">${t("Nothing is running right now.")}</h2></div>`) +
+    (ended.length ? `<h3 class="kb-jobs-sub">${t("Finished")}</h3>` + ended.join("") : "");
 }

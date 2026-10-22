@@ -7,6 +7,9 @@
    (.ms-*) stays untouched.
    ========================================================================== */
 
+/* (marks where this look starts and ends: with "Style classic Stash like Stash UI" off, classic.js deletes everything between) */
+.kb-classic-start { --kb-marker: 1; }
+
 :root {
   --st-ink: #230f1f;
   --st-ink-2: #34172e;
@@ -592,3 +595,5 @@ html.kb-classic .kb-back-btn {
 }
 html.kb-classic .kb-back-btn:hover { color: var(--st-flush) !important; }
 html.kb-classic .kb-back-dot { width: 14px; height: 9px; background: var(--st-hatch); }
+
+.kb-classic-end { --kb-marker: 1; }

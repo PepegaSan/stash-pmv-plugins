@@ -2,7 +2,7 @@
 // (including those of its sub-studios). Scrolling loads more.
 
 import { getDef, defButton } from "../defsort.js";
-import { esc, icon, debounce, errorToast, plural, starsHtml } from "../ui.js";
+import { esc, icon, debounce, errorToast, plural, starsHtml, editKey } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, routeSignal } from "../api.js";
 import { mediaBrowser } from "./media.js";
@@ -173,7 +173,9 @@ async function renderOne(main, id, query) {
     base: () => ({ filter: { studios: { value: [id], modifier: "INCLUDES", depth: -1 } } }),
     playlist: false,
   });
+  const offKey = editKey(main);
   return () => {
+    offKey();
     xhead.destroy();
     b && b.destroy && b.destroy();
   };

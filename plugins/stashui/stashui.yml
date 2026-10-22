@@ -1,11 +1,15 @@
 name: Stash UI
 description: A complete new interface for Stash – browsing with filters, player (highlights, mini player, cast, VR), image viewer, folders, tags, performers, statistics, duplicates, queue, tasks, plugins and all settings, with color themes and liquid glass. Opens instead of the Stash home page; classic Stash stays available in the same look. Links to Media Storm and the PMV Generator when they're installed.
-version: 3.95.1
+version: 3.118.0
 url: https://github.com/anonym88312/stash-pmv-plugins
 settings:
   keepClassicHome:
     displayName: Keep classic home page
     description: When on, opening Stash keeps showing classic Stash instead of Stash UI.
+    type: BOOLEAN
+  plainClassic:
+    displayName: Keep classic Stash plain
+    description: When on, classic Stash keeps its own look; only Stash UI itself is styled (the button back to Stash UI stays).
     type: BOOLEAN
 # Small backend: puts a funscript next to its video (Stash finds funscripts by name)
 exec:

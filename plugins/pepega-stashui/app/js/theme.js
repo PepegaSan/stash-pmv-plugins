@@ -33,8 +33,58 @@ export const PRESETS = [
 
 export const themeColors = () => Object.assign({}, PRESETS[0][1], (store.get("theme") || {}).colors);
 
+// ---------- Themes from other plugins (stashui.addTheme in an extension module) ----------
+// { id, name, colors: { "--pink": "#ff7a6b", … }, css: "theme.css" (in the plugin's assets folder), glass: true | false }
+// They show up next to the presets; the chosen one is remembered like any other (store "theme"), its stylesheet address in "extThemeCss".
+const extThemes = new Map(); // "<plugin>:<id>" → { key, plugin, id, name, colors, css, glass }
+export const extThemeList = () => [...extThemes.values()];
+const extCssUrl = (plugin, css) => (/^[\w\-][\w\-./]*$/.test(css) && !css.includes("..") ? `/plugin/${encodeURIComponent(plugin)}/assets/${css}` : "");
+
+export function registerExtTheme(plugin, def) {
+  if (!def || !def.id || !def.name) return false;
+  const colors = {};
+  for (const [v] of TOKENS) {
+    const c = def.colors && def.colors[v];
+    if (typeof c === "string" && CSS.supports("color", c)) colors[v] = c;
+  }
+  const th = {
+    key: `${plugin}:${def.id}`,
+    plugin,
+    id: String(def.id),
+    name: String(def.name).slice(0, 40),
+    colors: Object.assign({}, PRESETS[0][1], colors),
+    css: def.css ? extCssUrl(plugin, String(def.css)) : "",
+    glass: typeof def.glass === "boolean" ? def.glass : null,
+  };
+  extThemes.set(th.key, th);
+  const cur = store.get("theme");
+  if (cur && cur.preset === "x:" + th.key) {
+    // the chosen one: a new version of the plugin brings its colors and stylesheet along (own tweaks on top stay)
+    if (!cur.custom) store.set("theme", { preset: cur.preset, colors: th.colors });
+    store.set("extThemeCss", th.css);
+    applyTheme();
+  }
+  window.dispatchEvent(new Event("stash:themes-changed"));
+  return true;
+}
+
+// the stylesheet of the chosen plugin theme (the address is stored, so it loads before the plugin's module is)
+function applyExtCss() {
+  const url = String(store.get("extThemeCss", "") || "");
+  let el = document.getElementById("kb-exttheme");
+  if (!/^\/plugin\/[^/]+\/assets\//.test(url)) return void (el && el.remove());
+  if (!el) {
+    el = document.createElement("link");
+    el.id = "kb-exttheme";
+    el.rel = "stylesheet";
+    document.head.appendChild(el);
+  }
+  if (el.getAttribute("href") !== url) el.setAttribute("href", url);
+}
+
 // Sets the variables, plus the ones derived from them (lighter/darker accent, lines, text on accent)
 export function applyTheme(theme = store.get("theme")) {
+  applyExtCss();
   document.documentElement.classList.toggle("kb-glass", !!store.get("glass"));
   document.documentElement.classList.toggle("kb-noblur", store.get("glassBlur", true) === false);
   // Glass transparency: the slider says how see-through, the CSS needs how much color
@@ -335,6 +385,8 @@ export function themeHtml() {
     <div class="kb-theme-body">
       <div class="kb-theme-presets">${PRESETS.map(([name, pc]) => presetBtn(name, pc, t(name), (cur.preset || "Plum") === name && !cur.custom)).join("")}${ownPresets()
         .map(([name, pc], i) => presetBtn("own:" + i, pc, name, cur.preset === "own:" + i && !cur.custom, i))
+        .join("")}${extThemeList()
+        .map((th) => presetBtn("x:" + th.key, th.colors, th.name, cur.preset === "x:" + th.key && !cur.custom))
         .join("")}<button type="button" class="kb-theme-preset kb-theme-save" data-savepreset>${icon("plus")}<span>${t("Save current colors")}</span></button></div>
       <div class="kb-theme-tokens">${TOKENS.map(([v, label, hint]) => `<button type="button" class="kb-theme-token" data-token="${v}"><i style="background:${c[v]}"></i><span><b>${t(label)}</b><small>${t(hint)}</small></span><code>${c[v]}</code></button>`).join("")}</div>
       <label class="kb-theme-glass"><span class="kb-switch"><input type="checkbox" data-glass${store.get("glass") ? " checked" : ""}><i></i></span><span><b>${t("Liquid glass")}</b><small>${t("See-through, blurred panels with a light edge. Needs a bit more graphics power.")}</small></span></label>
@@ -370,6 +422,8 @@ export function bindTheme(root) {
     box.outerHTML = themeHtml();
     bindTheme(root);
   };
+  const onThemes = () => (document.contains(box) ? rerender() : window.removeEventListener("stash:themes-changed", onThemes));
+  window.addEventListener("stash:themes-changed", onThemes); // (a plugin's theme that registers while Settings is open)
   box.querySelector("[data-glass]").addEventListener("change", (e) => {
     store.set("glass", e.target.checked);
     box.querySelector("[data-glassrow]").hidden = !e.target.checked;
@@ -457,14 +511,18 @@ export function bindTheme(root) {
     const p = e.target.closest("[data-preset]");
     if (p) {
       const id = p.dataset.preset;
-      const preset = id.startsWith("own:") ? ownPresets()[Number(id.slice(4))] : PRESETS.find(([n]) => n === id);
+      const ext = id.startsWith("x:") ? extThemes.get(id.slice(2)) : null;
+      const preset = ext ? [ext.name, ext.colors] : id.startsWith("own:") ? ownPresets()[Number(id.slice(4))] : PRESETS.find(([n]) => n === id);
       if (!preset) return;
       store.set("theme", { preset: id, colors: Object.assign({}, PRESETS[0][1], preset[1]) });
+      store.set("extThemeCss", ext ? ext.css : "");
+      if (ext && ext.glass !== null) store.set("glass", ext.glass);
       applyTheme();
       return rerender();
     }
     if (e.target.closest("[data-themereset]")) {
       store.set("theme", null);
+      store.set("extThemeCss", "");
       applyTheme();
       return rerender();
     }

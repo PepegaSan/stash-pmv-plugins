@@ -14,7 +14,7 @@ import { app, setQuery, go, setQueueCount } from "../main.js";
 import { tagPicker } from "./tagpicker.js";
 import { perfPicker, hasPerformers } from "./perfpicker.js";
 import { studioPicker, studiosCache } from "./studiopicker.js";
-import { openEditor } from "./edit.js";
+import { openEditor, openQuickTags, deleteWithConfirm } from "./edit.js";
 import { loadStashFilters, stashFilter } from "../stashfilters.js";
 import { hasSources, extendPage, mountSlots, registerList } from "../ext.js";
 import { getDef, defButton } from "../defsort.js";
@@ -719,10 +719,33 @@ export function mediaBrowser(host, opts) {
       })
       .catch((e) => errorToast(e, "Saved filter"));
   }
+  // Quick keys on the card under the mouse (like the "quick tools" plugins): E edit, T tags, D or Delete delete
+  let hoverKey = null;
+  host.addEventListener("pointerover", (e) => {
+    const c = e.target.closest && e.target.closest(".kb-piece[data-key]:not(.kb-xpiece)");
+    hoverKey = c ? c.dataset.key : null;
+  });
+  host.addEventListener("pointerleave", () => (hoverKey = null));
+  const onQuickKey = (e) => {
+    if (!hoverKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (document.querySelector(".kb-drawer, .kb-dialog") || document.body.classList.contains("kb-noscroll")) return; // (a drawer, or the player / viewer on top)
+    const k = e.key.toLowerCase();
+    if (k !== "e" && k !== "t" && k !== "d" && k !== "delete") return;
+    const key = hoverKey;
+    const piece = hang && hang.pieces.find((p) => p.kind + ":" + p.id === key);
+    if (!piece || piece.kind !== kind) return;
+    e.preventDefault();
+    if (k === "e") openEditor(kind, [piece], { onSaved: () => refreshItems([piece.id]), onDeleted: () => hang.remove([key]), quick: true });
+    else if (k === "t") openQuickTags(kind, [piece], { onSaved: () => refreshItems([piece.id]), quick: true });
+    else deleteWithConfirm(kind, piece.id, () => hang.remove([key]));
+  };
+  document.addEventListener("keydown", onQuickKey);
   load();
 
   return {
     destroy() {
+      document.removeEventListener("keydown", onQuickKey);
       hang && hang.destroy();
       exitSelect();
       unregister();

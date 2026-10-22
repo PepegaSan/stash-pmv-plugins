@@ -132,6 +132,30 @@ const stars = (score, name) =>
   [1, 2, 3, 4, 5].map((i) => `<button type="button" data-star="${i}" data-crit="${esc(name)}" class="${score != null && score >= i ? "is-on" : ""}" aria-label="${t("{n} stars", { n: i })}">★</button>`).join("") +
   "</span>";
 
+// Who or what is being rated: its picture and name – and for a performer a few pictures of them from the library
+// (to judge "Face", "Body" … by). Shown above the criteria; the pictures come in a moment later.
+const whoHtml = (kind, item) => {
+  const pic = kind === "performer" ? item.image_path : item.paths && item.paths.screenshot;
+  const name = kind === "performer" ? item.name : item.title || ((item.files || [])[0] || {}).basename || "";
+  if (!pic && !name) return "";
+  return `<div class="kb-adv-who">${pic ? `<img class="kb-adv-pic" alt="" src="${esc(pic)}">` : ""}<div><b>${esc(name)}</b>${kind === "performer" ? '<div class="kb-adv-more" data-advmore></div>' : ""}</div></div>`;
+};
+async function loadMorePics(body, item) {
+  const box = body.querySelector("[data-advmore]");
+  if (!box || box.dataset.done) return;
+  box.dataset.done = "1";
+  try {
+    const d = await gql(`query AdvPics($f: FindFilterType, $x: ImageFilterType) { findImages(filter: $f, image_filter: $x) { images { id title paths { thumbnail image } } } }`, {
+      f: { per_page: 8, sort: "random_" + Math.floor(Math.random() * 1e8) },
+      x: { performers: { value: [item.id], modifier: "INCLUDES" } },
+    });
+    const list = d.findImages.images.filter((x) => x.paths && (x.paths.thumbnail || x.paths.image));
+    box.innerHTML = list.map((x) => `<a href="#/image/${esc(x.id)}" target="_blank" rel="noopener" class="kb-adv-thumb"><img alt="" loading="lazy" src="${esc(x.paths.thumbnail || x.paths.image)}"></a>`).join("");
+  } catch (e) {
+    /* no pictures – the rating works without */
+  }
+}
+
 export async function openAdvRating(kind, item, { onChange } = {}) {
   let cfg = await loadConfig(kind);
   const dr = openDrawer({ title: t("Detailed rating"), body: "", foot: `<button type="button" class="kb-btn is-ghost" data-custom>${t("Customize …")}</button><span class="kb-spacer"></span><button type="button" class="kb-btn" data-done>${t("Done")}</button>` });
@@ -164,8 +188,10 @@ export async function openAdvRating(kind, item, { onChange } = {}) {
           .join("")}<p><b>${t("Overall")}:</b> ${res.overall.toFixed(2)} / 5 → ${esc(ratingText(res.rating))}</p></details>`
       : "";
     body.innerHTML = `<p class="kb-hint">${t("Rate each point from 1 to 5 (0 is allowed too). Stash's own rating follows – the weighted result of everything you rated.")}</p>
+      ${whoHtml(kind, item)}
       <div class="kb-adv-top"><span>${t("Rating")}: <b>${item.rating100 ? esc(ratingText(item.rating100)) : "–"}</b></span>${unrated ? `<span class="kb-adv-badge">${t("{n} not rated", { n: unrated })}</span>` : ""}</div>
       ${rows}${detail}`;
+    if (kind === "performer") loadMorePics(body, item);
     const rs = [...body.querySelectorAll(".kb-adv-row")];
     curRow = Math.min(curRow, Math.max(0, rs.length - 1));
     rs[curRow] && rs[curRow].classList.add("is-cur");

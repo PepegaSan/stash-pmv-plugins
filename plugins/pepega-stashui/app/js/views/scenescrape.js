@@ -2,7 +2,7 @@
 // by link – or, with an empty search, by the scene's own fingerprint) and fill the edit form with what was found.
 // Nothing is saved until you press Save. Which fields exist depends on the Stash version, so Stash is asked first.
 
-import { esc, icon, toast } from "../ui.js";
+import { esc, icon, toast, store } from "../ui.js";
 import { t } from "../i18n.js";
 import { gql, createPerformer, createTag } from "../api.js";
 import { studiosCache } from "./studiopicker.js";
@@ -72,6 +72,7 @@ export async function mountSceneScrape(host, ctx) {
       <input class="kb-field" data-sq value="${esc(ctx.title || "")}" placeholder="${esc(t("Title or link – empty = look the file up"))}">
       <button type="button" class="kb-btn is-primary" data-sgo>${icon("search")}${t("Search")}</button>
     </div>
+    <label class="kb-check" data-hashrow title="${esc(t("Ask the source for the scene by its file fingerprints, not by its title"))}"><input type="checkbox" data-hash${store.get("sceneScrapeHash", false) ? " checked" : ""}> ${t("Look up by file hash (oshash / phash / md5)")}</label>
     <label class="kb-check"><input type="checkbox" data-over> ${t("Also replace fields that already have a value")}</label>
     <label class="kb-check"><input type="checkbox" data-cv> ${t("Also use the found picture as the cover")}</label>
     <label class="kb-check"><input type="checkbox" data-mk checked> ${t("Create studios, performers and tags that don't exist yet")}</label>
@@ -82,8 +83,22 @@ export async function mountSceneScrape(host, ctx) {
   const sourceInput = (s) => (s.box ? { stash_box_endpoint: s.box } : { scraper_id: s.scraper });
   let results = [];
 
+  // Hash lookup: the file is asked for by its fingerprints and the title is not used (box greyed out).
+  // Only sources that can look up a file offer it.
+  const namePlaceholder = $("[data-sq]").placeholder;
+  const byHash = () => !!$("[data-hash]").checked && canByFile(srcOf());
+  function syncHash() {
+    $("[data-hashrow]").hidden = !canByFile(srcOf());
+    const on = byHash();
+    $("[data-sq]").disabled = on;
+    $("[data-sq]").placeholder = on ? t("The file is looked up by its hash") : namePlaceholder;
+  }
+  $("[data-hash]").onchange = () => (store.set("sceneScrapeHash", $("[data-hash]").checked), syncHash());
+  if ($("[data-src]")) $("[data-src]").addEventListener("change", syncHash);
+  syncHash();
+
   async function search() {
-    const q = $("[data-sq]").value.trim();
+    const q = byHash() ? "" : $("[data-sq]").value.trim();
     const out = $("[data-sres]");
     out.innerHTML = `<p class="kb-hint">${t("Searching …")}</p>`;
     try {
