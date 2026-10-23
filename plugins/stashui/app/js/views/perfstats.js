@@ -152,7 +152,7 @@ export async function localBoxIds(endpoint) {
 const perfCache = new Map();
 export async function localPerformers(endpoint, fresh) {
   if (!fresh && perfCache.has(endpoint)) return perfCache.get(endpoint);
-  const ask = (alias) => gql(`query LocalBoxPerformers { findPerformers(filter: { per_page: -1 }) { performers { id name ${alias ? "alias_list " : ""}stash_ids { endpoint stash_id } } } }`, undefined, { heavy: true });
+  const ask = (alias) => gql(`query LocalBoxPerformers { findPerformers(filter: { per_page: -1 }) { performers { id name gender ${alias ? "alias_list " : ""}stash_ids { endpoint stash_id } } } }`, undefined, { heavy: true });
   let d;
   try {
     d = await ask(true);
@@ -160,22 +160,23 @@ export async function localPerformers(endpoint, fresh) {
     d = await ask(false); // a Stash without alias_list
   }
   const ids = new Map();
+  const women = new Map(); // the linked ones that are female (or trans women)
   const names = new Map();
   for (const p of d.findPerformers.performers) {
-    for (const x of p.stash_ids || []) if (x.endpoint === endpoint) ids.set(x.stash_id, p.id);
+    for (const x of p.stash_ids || []) if (x.endpoint === endpoint) (ids.set(x.stash_id, p.id), /^(FEMALE|TRANSGENDER_FEMALE)$/.test(p.gender || "") && women.set(x.stash_id, p.id));
     for (const n of [p.name, ...(p.alias_list || [])]) {
       const k = norm(n);
       if (k.length >= 5 && !names.has(k)) names.set(k, p.id);
     }
   }
-  const idx = { ids, names };
+  const idx = { ids, women, names };
   perfCache.set(endpoint, idx);
   return idx;
 }
 // the local performer id of one performer of a stash-box scene ("" = not in the library)
 export const matchPerf = (idx, boxId, name) => (idx && ((boxId && idx.ids.get(boxId)) || idx.names.get(norm(name)))) || "";
 // only the linked ones count here (a name alone is too weak to say "this is my performer")
-export const sceneHasMine = (idx, x) => !!idx && (x.performer_ids || []).some((id) => id && idx.ids.has(id));
+export const sceneHasMine = (idx, x, women) => !!idx && (x.performer_ids || []).some((id) => id && (women ? idx.women : idx.ids).has(id));
 
 // the day n days ago as YYYY-MM-DD (the window "only the last n days")
 export const daysAgo = (n) => {

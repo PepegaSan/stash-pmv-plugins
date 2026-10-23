@@ -7,6 +7,13 @@
 
 export const CHANGES = [
   {
+    v: "3.119.0",
+    date: "2026-10-23",
+    items: [
+      ["ui", "Discover: next to “Performers from my library” there is “Women from my library”, as suggested by Ghboon – only scenes with female performers you linked to that stash-box (the performer's gender must be set; trans women count too).", "Discover 新增“我库中的女性演员”选项（Ghboon 的建议）：只显示与该 stash-box 关联的女性演员的场景（需要在演员资料中设置性别，跨性别女性也算）。", "discover::[data-perf]"],
+    ],
+  },
+  {
     v: "3.118.0",
     date: "2026-10-22",
     items: [

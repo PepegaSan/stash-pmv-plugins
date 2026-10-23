@@ -20,7 +20,7 @@ const norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""
 export async function render(main) {
   const opt = Object.assign({ sort: "DATE", show: "all", q: "", days: 0, perf: "all" }, store.get("discover", {}));
   opt.days = Math.max(0, parseInt(opt.days, 10) || 0);
-  if (opt.perf !== "mine") opt.perf = "all";
+  if (opt.perf !== "mine" && opt.perf !== "women") opt.perf = "all";
   if (!SORTS.some((s) => s[0] === opt.sort)) opt.sort = "DATE";
   const save = () => store.set("discover", opt);
 
@@ -35,7 +35,7 @@ export async function render(main) {
         <label class="kb-search">${icon("search")}<input class="kb-field" type="search" data-q value="${esc(opt.q)}" placeholder="${t("Search title, performer, studio …")}"></label>
         <select class="kb-field" data-sort aria-label="${t("Sort order")}">${SORTS.map(([v, l]) => `<option value="${v}"${v === opt.sort ? " selected" : ""}>${t(l)}</option>`).join("")}</select>
         <select class="kb-field" data-show aria-label="${t("Show")}">${[["all", "All"], ["missing", "Only what's not in your library"], ["have", "Only what's in your library"]].map(([v, l]) => `<option value="${v}"${v === opt.show ? " selected" : ""}>${t(l)}</option>`).join("")}</select>
-        <select class="kb-field" data-perf aria-label="${t("Performers")}">${[["all", "Any performers"], ["mine", "Performers from my library"]].map(([v, l]) => `<option value="${v}"${v === opt.perf ? " selected" : ""}>${t(l)}</option>`).join("")}</select>
+        <select class="kb-field" data-perf aria-label="${t("Performers")}">${[["all", "Any performers"], ["mine", "Performers from my library"], ["women", "Women from my library"]].map(([v, l]) => `<option value="${v}"${v === opt.perf ? " selected" : ""}>${t(l)}</option>`).join("")}</select>
         <label class="kb-lab kb-disc-days" title="${esc(t("Only scenes released in the last n days. 0 = off."))}">${t("Last (days)")} <input type="number" min="0" max="36500" class="kb-field kb-pst-days" data-days value="${opt.days || ""}" placeholder="0"></label>
       </div>
     </header>
@@ -99,7 +99,7 @@ export async function render(main) {
     const mark = $("[data-more]");
     mark.innerHTML = `<span class="kb-hint">${t("Asking {name} …", { name: mine() })}</span>`;
     try {
-      const r = await runBackend({ mode: "box_scenes", endpoint: box.endpoint, text: opt.q.trim(), sort: opt.sort, direction: opt.sort === "TITLE" ? "ASC" : "DESC", page: page + 1, per_page: PER_PAGE, browse: 1, since: opt.days ? daysAgo(opt.days + 1) : "", performers_in: opt.perf === "mine" && mineIdx ? [...mineIdx.ids.keys()] : [] });
+      const r = await runBackend({ mode: "box_scenes", endpoint: box.endpoint, text: opt.q.trim(), sort: opt.sort, direction: opt.sort === "TITLE" ? "ASC" : "DESC", page: page + 1, per_page: PER_PAGE, browse: 1, since: opt.days ? daysAgo(opt.days + 1) : "", performers_in: opt.perf !== "all" && mineIdx ? [...(opt.perf === "women" ? mineIdx.women : mineIdx.ids).keys()] : [] });
       if (run !== gen) return;
       page++;
       total = r.count || 0;
@@ -113,14 +113,14 @@ export async function render(main) {
         const ds = (r.scenes || []).map((x) => x.date).filter(Boolean);
         if (ds.length && ds.reduce((a, b) => (a < b ? a : b)) < from) done = true;
       }
-      const shown = list.filter((x) => (opt.show === "missing" ? !have.has(x.id) : opt.show === "have" ? have.has(x.id) : true) && (!from || (x.date && x.date >= from)) && (opt.perf !== "mine" || sceneHasMine(mineIdx, x)));
+      const shown = list.filter((x) => (opt.show === "missing" ? !have.has(x.id) : opt.show === "have" ? have.has(x.id) : true) && (!from || (x.date && x.date >= from)) && (opt.perf === "all" || sceneHasMine(mineIdx, x, opt.perf === "women")));
       grid.insertAdjacentHTML("beforeend", shown.map(card).join(""));
       status();
       lazyCovers(grid, box.endpoint, null);
       if (!grid.children.length && done) {
         // say why: the box sent nothing although it counts scenes (some boxes only answer to a search word), or "Show" hides them all
-        const filtered = opt.show !== "all" || opt.days || opt.perf === "mine";
-        const why = !(r.scenes || []).length && total && !filtered ? t("{name} says it has {n} scenes but sent none. Try a search word – some stash-boxes can't be browsed without one.", { name: mine(), n: total }) : list.length && opt.show !== "all" && !opt.days && opt.perf !== "mine" ? t("{n} scenes found, but none matches “Show”. Set Show to All.", { n: list.length }) : filtered ? t("Nothing matches your filters (Show, Performers, Last days).") : t("Nothing found.");
+        const filtered = opt.show !== "all" || opt.days || opt.perf !== "all";
+        const why = !(r.scenes || []).length && total && !filtered ? t("{name} says it has {n} scenes but sent none. Try a search word – some stash-boxes can't be browsed without one.", { name: mine(), n: total }) : list.length && opt.show !== "all" && !opt.days && opt.perf === "all" ? t("{n} scenes found, but none matches “Show”. Set Show to All.", { n: list.length }) : filtered ? t("Nothing matches your filters (Show, Performers, Last days).") : t("Nothing found.");
         grid.innerHTML = `<p class="kb-pst-wait">${esc(why)}</p>${r.debug ? `<p class="kb-pst-wait"><small>${t("What the box answered:")} <code>${esc(r.debug)}</code></small></p>` : ""}`;
       }
     } catch (err) {
@@ -158,7 +158,7 @@ export async function render(main) {
       have = new Map();
     }
     if (run !== gen) return;
-    if (opt.perf === "mine" || !mineIdx) {
+    if (opt.perf !== "all" || !mineIdx) {
       try {
         mineIdx = await localPerformers(box.endpoint, true);
       } catch (e) {
@@ -166,10 +166,10 @@ export async function render(main) {
       }
       if (run !== gen) return;
     }
-    if (opt.perf === "mine" && mineIdx && !mineIdx.ids.size) {
+    if (opt.perf !== "all" && mineIdx && !(opt.perf === "women" ? mineIdx.women : mineIdx.ids).size) {
       // nobody in the library is linked to this stash-box: asking for "their" scenes would page through the whole box
       sub.textContent = "";
-      grid.innerHTML = `<p class="kb-pst-wait">${t("None of your performers is linked to this stash-box yet. Open a performer → Edit → “Fill in from the internet” to link one.")}</p>`;
+      grid.innerHTML = `<p class="kb-pst-wait">${opt.perf === "women" && mineIdx.ids.size ? t("None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).") : t("None of your performers is linked to this stash-box yet. Open a performer → Edit → “Fill in from the internet” to link one.")}</p>`;
       return;
     }
     more();

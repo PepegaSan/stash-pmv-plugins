@@ -2481,4 +2481,6 @@ export default {
   "seconds": "секунд",
   "{n} markers, {e} with an end": "Позначок: {n}, з кінцем: {e}",
   "…but stop at the next marker of the same video": "…але зупинитися на наступній позначці того ж відео",
+  "Women from my library": "Жінки з моєї бібліотеки",
+  "None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).": "Жодна з жінок у вашій бібліотеці ще не пов'язана з цим stash-box (у виконавиці має бути вказана стать).",
 };

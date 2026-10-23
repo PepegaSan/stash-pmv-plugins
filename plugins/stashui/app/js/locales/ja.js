@@ -2448,4 +2448,6 @@ export default {
   "seconds": "秒",
   "{n} markers, {e} with an end": "マーカー {n} 件、うち終了あり {e} 件",
   "…but stop at the next marker of the same video": "…ただし同じ動画の次のマーカーで止める",
+  "Women from my library": "ライブラリの女性パフォーマー",
+  "None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).": "ライブラリの女性パフォーマーはまだこの stash-box にリンクされていません（パフォーマーの性別の設定が必要です）。",
 };

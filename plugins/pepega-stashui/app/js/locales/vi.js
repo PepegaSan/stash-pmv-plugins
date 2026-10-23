@@ -2441,4 +2441,6 @@ export default {
   "seconds": "giây tiếp theo",
   "{n} markers, {e} with an end": "{n} dấu mốc, {e} có điểm kết thúc",
   "…but stop at the next marker of the same video": "…nhưng dừng ở dấu mốc kế tiếp của cùng video",
+  "Women from my library": "Nữ diễn viên trong thư viện của tôi",
+  "None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).": "Chưa có nữ diễn viên nào trong thư viện của bạn được liên kết với stash-box này (cần đặt giới tính cho diễn viên).",
 };

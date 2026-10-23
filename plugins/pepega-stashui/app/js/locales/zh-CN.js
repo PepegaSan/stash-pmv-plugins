@@ -2505,4 +2505,6 @@ export default {
   "seconds": "秒",
   "{n} markers, {e} with an end": "{n} 个标记，其中 {e} 个有结束时间",
   "…but stop at the next marker of the same video": "…但在同一视频的下一个标记处停止",
+  "Women from my library": "我库中的女性演员",
+  "None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).": "你库中的女性演员还没有与这个 stash-box 关联（需要在演员资料中设置性别）。",
 };

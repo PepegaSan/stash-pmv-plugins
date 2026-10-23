@@ -2483,4 +2483,6 @@ export default {
   "seconds": "секунд",
   "{n} markers, {e} with an end": "Меток: {n}, с концом: {e}",
   "…but stop at the next marker of the same video": "…но остановиться на следующей метке того же видео",
+  "Women from my library": "Женщины из моей библиотеки",
+  "None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).": "Ни одна из женщин в вашей библиотеке ещё не связана с этим stash-box (у исполнительницы должен быть указан пол).",
 };

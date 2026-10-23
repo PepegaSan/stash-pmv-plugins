@@ -2388,4 +2388,6 @@ export default {
   "seconds": "secondes suivantes",
   "{n} markers, {e} with an end": "{n} repères, {e} avec une fin",
   "…but stop at the next marker of the same video": "…mais s'arrêter au repère suivant de la même vidéo",
+  "Women from my library": "Femmes de ma bibliothèque",
+  "None of the women in your library is linked to this stash-box yet (their gender has to be set on the performer).": "Aucune des femmes de votre bibliothèque n'est encore liée à ce stash-box (le genre doit être renseigné sur la performeuse).",
 };
